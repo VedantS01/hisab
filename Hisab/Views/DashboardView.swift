@@ -34,7 +34,12 @@ struct DashboardView: View {
                 ReconciliationView(initialMonth: selectedMonth)
             }
             .task {
-                if ProcessInfo.processInfo.arguments.contains("--push-recon") {
+                let args = ProcessInfo.processInfo.arguments
+                if let index = args.firstIndex(of: "--month"), args.indices.contains(index + 1) {
+                    let parts = args[index + 1].split(separator: "-").compactMap { Int($0) }
+                    if parts.count == 2 { selectedMonth = YearMonth(year: parts[0], month: parts[1]) }
+                }
+                if args.contains("--push-recon") {
                     try? await Task.sleep(for: .seconds(1))
                     pushRecon = true
                 }

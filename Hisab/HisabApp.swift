@@ -47,6 +47,20 @@ struct RootView: View {
             if args.contains("--seed-demo") {
                 DemoData.load(into: context)
             }
+            #if DEBUG
+            // Simulator-only harness: import real statement files straight from the
+            // host filesystem, e.g. --pw 1234 --import /path/a.pdf --import /path/b.xlsx
+            let password = args.firstIndex(of: "--pw").flatMap { i in
+                args.indices.contains(i + 1) ? args[i + 1] : nil
+            }
+            let service = ImportService(context: context)
+            for (index, arg) in args.enumerated() where arg == "--import" {
+                guard args.indices.contains(index + 1) else { continue }
+                let url = URL(fileURLWithPath: args[index + 1])
+                let report = try? service.importFile(at: url, password: password, overrideSource: nil)
+                print("debug-import \(url.lastPathComponent): \(report.map { "\($0.newCount) new of \($0.totalParsed)" } ?? "FAILED")")
+            }
+            #endif
             if let index = args.firstIndex(of: "--tab"), args.indices.contains(index + 1) {
                 selectedTab = args[index + 1]
             }

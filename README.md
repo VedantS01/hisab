@@ -49,10 +49,21 @@ synthetic GPay + HDFC statements so every screen is explorable.
 
 ## Status
 
-Core engine, dashboard, buckets grid, import flow, reconciliation, and
-settings are working end-to-end against the synthetic statement format.
-The four real-format parsers (GPay, Paytm, HDFC, IDFC) land next —
-they're written against private sample statements (gitignored
-`samples/`; tests use synthetic fixtures only).
+Feature-complete. All real-format parsers are in and validated
+to-the-paisa against actual statements (each parser's debit/credit sums
+match the statement's own printed totals exactly):
+
+| Source | Formats | Notable engineering |
+|---|---|---|
+| Google Pay | PDF | block state machine over PDFKit text |
+| Paytm | PDF + XLSX | page-order-independent amount pairing; year inference |
+| IDFC FIRST | PDF + XLSX | direction recovered from the running-balance chain |
+| HDFC | PDF (password-supported) | geometric table reconstruction via rect selections |
+
+XLSX support is dependency-free (a minimal zip reader over Apple's
+Compression framework plus an XMLParser sheet reader). Dual-format
+imports of the same statement dedup to zero via reference-keyed,
+refund-safe content hashes. Real statements live in the gitignored
+`samples/`; tests use synthetic fixtures only.
 
 Design spec: [`docs/superpowers/specs/2026-09-05-hisab-design.md`](docs/superpowers/specs/2026-09-05-hisab-design.md)
