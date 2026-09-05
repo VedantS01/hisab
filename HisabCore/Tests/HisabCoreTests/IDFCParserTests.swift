@@ -96,9 +96,10 @@ final class IDFCParserTests: XCTestCase {
         XCTAssertEqual(txns[3].counterparty, "Vinayak")
     }
 
-    func testGenericRowKeepsParticularsAsCounterparty() throws {
+    func testGenericRowGetsSyntheticBalanceReference() throws {
         let txn = try IDFCStatementText.parse(pages: pages).transactions[4]
-        XCTAssertNil(txn.reference)
+        // No rail ref -> deterministic balance-keyed identity, format-independent.
+        XCTAssertEqual(txn.reference, "B138924476D20260330A500000")
         XCTAssertTrue(txn.counterparty.hasPrefix("NACH/NSEMFS"))
     }
 

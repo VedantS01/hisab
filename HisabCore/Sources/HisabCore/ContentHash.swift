@@ -11,7 +11,9 @@ extension ParsedTransaction {
     public func contentHash(source: Source) -> String {
         let canonical: String
         if let reference, !reference.isEmpty {
-            canonical = "\(source.rawValue)|ref|\(reference)"
+            // Direction stays in the key: a refund/cancellation reuses its original
+            // payment's reference with the opposite direction and is a distinct movement.
+            canonical = "\(source.rawValue)|ref|\(reference)|\(direction.rawValue)"
         } else {
             let formatter = DateFormatter()
             formatter.calendar = YearMonth.istCalendar

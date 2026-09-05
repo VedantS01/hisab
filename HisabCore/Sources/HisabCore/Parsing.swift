@@ -46,7 +46,7 @@ public struct ParserRegistry: Sendable {
 
     /// The real HDFC parser is appended here when it lands.
     public static var live: ParserRegistry {
-        var parsers: [any StatementParser] = [SyntheticCSVParser(), PaytmXLSXParser()]
+        var parsers: [any StatementParser] = [SyntheticCSVParser(), PaytmXLSXParser(), IDFCXLSXParser()]
         #if canImport(PDFKit)
         parsers.append(GPayPDFParser())
         parsers.append(PaytmPDFParser())

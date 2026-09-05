@@ -93,7 +93,10 @@ public enum IDFCStatementText {
             let (counterparty, reference) = Self.extract(from: particulars)
             transactions.append(ParsedTransaction(
                 date: date, amountPaise: amount, direction: direction,
-                counterparty: counterparty, reference: reference, narration: particulars))
+                counterparty: counterparty,
+                reference: reference ?? Self.syntheticReference(balancePaise: balance, date: date,
+                                                                amountPaise: amount),
+                narration: particulars))
             previousBalance = balance
             currentDate = nil
             particulars = ""
@@ -145,6 +148,19 @@ public enum IDFCStatementText {
         }
         guard !transactions.isEmpty else { throw ParseError.empty }
         return ParsedDocument(source: .idfc, declaredPeriod: declaredPeriod, transactions: transactions)
+    }
+
+    /// Deterministic identity for rows without a rail reference. The resulting
+    /// balance is identical across the PDF and XLSX renditions of a statement
+    /// (whose narrations differ by truncation), so dual-format imports dedup.
+    /// Never collides with real UPI/NEFT refs (distinct shape).
+    static func syntheticReference(balancePaise: Int64, date: Date, amountPaise: Int64) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = YearMonth.istCalendar
+        formatter.timeZone = YearMonth.istCalendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd"
+        return "B\(balancePaise)D\(formatter.string(from: date))A\(amountPaise)"
     }
 
     /// Counterparty/reference from the particulars, by transaction rail:

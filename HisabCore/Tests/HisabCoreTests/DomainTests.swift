@@ -45,6 +45,15 @@ final class DomainTests: XCTestCase {
         XCTAssertEqual(a.contentHash(source: .gpay), b.contentHash(source: .gpay))
     }
 
+    func testRefundKeepsItsOwnIdentity() {
+        // Same reference, opposite direction (a cancellation) must NOT collide.
+        let paid = ParsedTransaction(date: istDate(2026, 5, 23), amountPaise: 9455, direction: .debit,
+                                     counterparty: "DigitalOcean", reference: "614317804525", narration: "POS")
+        let refund = ParsedTransaction(date: istDate(2026, 5, 23), amountPaise: 9455, direction: .credit,
+                                       counterparty: "DigitalOcean", reference: "614317804525", narration: "POS-CANCELLED")
+        XCTAssertNotEqual(paid.contentHash(source: .idfc), refund.contentHash(source: .idfc))
+    }
+
     func testHashFallsBackToNormalizedNarration() {
         let a = txn(ref: nil, narration: "UPI/PAY/123/SWIGGY  BANGALORE")
         let b = txn(ref: nil, narration: "  upi/pay/123/swiggy bangalore ")
