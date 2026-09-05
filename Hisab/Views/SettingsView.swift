@@ -62,6 +62,14 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Button("Load demo data") {
+                        DemoData.load(into: context)
+                    }
+                } footer: {
+                    Text("Fills three months of synthetic GPay + HDFC statements so you can explore Hisab. Erase any time.")
+                }
+
+                Section {
                     Button("Erase all data", role: .destructive) {
                         eraseArmed = true
                     }
@@ -74,6 +82,8 @@ struct SettingsView: View {
                     Link("github.com/VedantS01/hisab", destination: URL(string: "https://github.com/VedantS01/hisab")!)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(HisabTheme.background)
             .navigationTitle("Settings")
             .sheet(isPresented: $showAddRule) {
                 AddRuleSheet(nextOrder: rules.count)

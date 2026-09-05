@@ -77,6 +77,8 @@ struct ReconciliationView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(HisabTheme.background)
         .navigationTitle("Reconciliation")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

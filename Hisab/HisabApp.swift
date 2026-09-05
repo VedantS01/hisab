@@ -23,21 +23,33 @@ struct HisabApp: App {
 }
 
 struct RootView: View {
+    @Environment(\.modelContext) private var context
+    @State private var selectedTab = "dashboard"
+
     var body: some View {
-        TabView {
-            Tab("Dashboard", systemImage: "chart.bar.doc.horizontal") {
+        TabView(selection: $selectedTab) {
+            Tab("Dashboard", systemImage: "chart.bar.doc.horizontal", value: "dashboard") {
                 DashboardView()
             }
-            Tab("Buckets", systemImage: "calendar") {
+            Tab("Buckets", systemImage: "calendar", value: "buckets") {
                 BucketsView()
             }
-            Tab("Transactions", systemImage: "list.bullet.rectangle") {
+            Tab("Transactions", systemImage: "list.bullet.rectangle", value: "transactions") {
                 TransactionsView()
             }
-            Tab("Settings", systemImage: "gearshape") {
+            Tab("Settings", systemImage: "gearshape", value: "settings") {
                 SettingsView()
             }
         }
         .tint(HisabTheme.khataRed)
+        .task {
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("--seed-demo") {
+                DemoData.load(into: context)
+            }
+            if let index = args.firstIndex(of: "--tab"), args.indices.contains(index + 1) {
+                selectedTab = args[index + 1]
+            }
+        }
     }
 }

@@ -26,9 +26,11 @@ struct CoverageStrip: View {
                 .foregroundStyle(present ? HisabTheme.sona : Color.secondary)
             Text(shortName(source))
                 .font(.caption.weight(.medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .foregroundStyle(present ? HisabTheme.primaryText : .secondary)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 6)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity)
         .background(

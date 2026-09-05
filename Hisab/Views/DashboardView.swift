@@ -7,6 +7,7 @@ struct DashboardView: View {
     @State private var selectedMonth = YearMonth(date: Date())
     @State private var showImport = false
     @State private var refreshToken = 0
+    @State private var pushRecon = false
 
     var body: some View {
         NavigationStack {
@@ -28,6 +29,15 @@ struct DashboardView: View {
             }
             .sheet(isPresented: $showImport, onDismiss: { refreshToken += 1 }) {
                 ImportSheet()
+            }
+            .navigationDestination(isPresented: $pushRecon) {
+                ReconciliationView(initialMonth: selectedMonth)
+            }
+            .task {
+                if ProcessInfo.processInfo.arguments.contains("--push-recon") {
+                    try? await Task.sleep(for: .seconds(1))
+                    pushRecon = true
+                }
             }
         }
     }

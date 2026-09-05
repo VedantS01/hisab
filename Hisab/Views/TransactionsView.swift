@@ -41,6 +41,8 @@ struct TransactionsView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(HisabTheme.background)
             .navigationTitle("Transactions")
             .toolbar { filterMenu }
             .sheet(item: $detailTxn) { txn in
