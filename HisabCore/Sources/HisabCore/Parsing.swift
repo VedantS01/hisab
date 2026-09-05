@@ -44,8 +44,12 @@ public struct ParserRegistry: Sendable {
         parsers.first { $0.canParse(data: data, filename: filename) }
     }
 
-    /// Real GPay/Paytm/HDFC/IDFC parsers are appended here as they land.
+    /// Real Paytm/HDFC/IDFC parsers are appended here as they land.
     public static var live: ParserRegistry {
-        ParserRegistry(parsers: [SyntheticCSVParser()])
+        var parsers: [any StatementParser] = [SyntheticCSVParser()]
+        #if canImport(PDFKit)
+        parsers.append(GPayPDFParser())
+        #endif
+        return ParserRegistry(parsers: parsers)
     }
 }
