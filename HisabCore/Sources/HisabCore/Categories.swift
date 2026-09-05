@@ -14,6 +14,10 @@ public struct CategoryRule: Codable, Sendable, Equatable, Identifiable {
 
 public enum Categorizer {
     public static let uncategorized = "Uncategorized"
+    /// Bank-statement spending with no payment-app counterpart.
+    public static let miscellaneous = "Miscellaneous"
+    /// Movements between the user's own bank accounts — excluded from analytics.
+    public static let selfTransfer = "Self Transfer"
 
     /// Defaults tuned for Indian merchants; order matters (first match wins).
     public static let seedRules: [CategoryRule] = [

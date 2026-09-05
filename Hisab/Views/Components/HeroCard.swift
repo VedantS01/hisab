@@ -4,6 +4,7 @@ import HisabCore
 struct HeroCard: View {
     let stats: MonthStats
     let previous: MonthStats
+    let bankVerified: Bool
 
     private var deltaPercent: Int? {
         guard previous.spendPaise > 0 else { return nil }
@@ -52,10 +53,8 @@ struct HeroCard: View {
     }
 
     private var basisFootnote: String {
-        switch stats.basis {
-        case .bank: "from bank statements"
-        case .paymentApps: "from payment apps (no bank statement yet)"
-        case .none: "no data for this month"
-        }
+        bankVerified
+            ? "cross-checked against bank statements"
+            : "payment apps only — no bank statement yet"
     }
 }

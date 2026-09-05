@@ -36,6 +36,15 @@ final class DomainTests: XCTestCase {
         XCTAssertNotEqual(txn(ref: "R1").contentHash(source: .gpay), txn(ref: "R1").contentHash(source: .paytm))
     }
 
+    func testReferenceIsTheIdentityWithinASource() {
+        // Same ref = same transaction, even when other fields drift between formats.
+        let a = ParsedTransaction(date: istDate(2026, 9, 1), amountPaise: 25000, direction: .debit,
+                                  counterparty: "Swiggy", reference: "R1", narration: "n1")
+        let b = ParsedTransaction(date: istDate(2026, 9, 2), amountPaise: 25000, direction: .debit,
+                                  counterparty: "SWIGGY LTD", reference: "R1", narration: "n2")
+        XCTAssertEqual(a.contentHash(source: .gpay), b.contentHash(source: .gpay))
+    }
+
     func testHashFallsBackToNormalizedNarration() {
         let a = txn(ref: nil, narration: "UPI/PAY/123/SWIGGY  BANGALORE")
         let b = txn(ref: nil, narration: "  upi/pay/123/swiggy bangalore ")

@@ -17,9 +17,10 @@ and shows a dashboard of where the money went.
 - **Reconciliation** — tiered matching (UPI reference first, then
   amount + date window) tells you which app payments the bank confirms,
   which are missing, and what you spent outside the apps entirely.
-- **Bank-basis analytics** — months with a bank statement trust only
-  the bank (no double counting with app exports); months without fall
-  back to payment-app data, clearly labeled.
+- **Reconciliation-nature bank data** — bank rows confirmed against an
+  app payment are evidence, never duplicate records; bank-only spending
+  lands as "Miscellaneous"; HDFC↔IDFC self transfers are recognized and
+  excluded from spend/income entirely.
 - **HisabCore** — all parsing, dedup, bucketing, reconciliation, and
   analytics logic lives in a pure-Swift package with a full XCTest
   suite that runs on macOS in milliseconds.

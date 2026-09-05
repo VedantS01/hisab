@@ -7,7 +7,7 @@ struct RecentTxns: View {
     let month: YearMonth
 
     var body: some View {
-        let txns = Array(Queries.transactions(context, month: month).prefix(10))
+        let txns = Array(Queries.visibleTransactions(context).filter { $0.month == month }.prefix(10))
         if !txns.isEmpty {
             HisabCard {
                 Text("Recent transactions")

@@ -87,14 +87,28 @@ the payment apps: cards, NACH, cash withdrawals); app transaction →
 *matched* or *unmatched* (a flag worth investigating). The
 reconciliation screen shows the three lists per month with counts.
 
-## Analytics
+## Analytics — reconciliation-nature semantics (Vedant, 2026-09-05)
 
-Computed values (in HisabCore, pure functions over transactions):
-monthly spend/income/net, month-over-month deltas, 6-month trend,
-category breakdown, top merchants, per-source subtotals. **Source of
-truth per month**: deduped bank-side transactions where a bank document
-is present; payment-app data fills months that have no bank coverage
-(the dashboard labels which basis a month uses).
+Bank statement rows are **reconciliation evidence, not spending
+records**. The recorded history and all analytics count:
+
+- every payment-app (GPay/Paytm) transaction, plus
+- bank rows with **no** app counterpart ("Miscellaneous" category when
+  no rule matches — real spending that bypassed the UPI apps), minus
+- **cross-bank self transfers** (a debit in one of the two banks paired
+  with an equal credit in the other within ±2 days) — internal
+  movements, neither expense nor income, labeled "Self Transfer".
+
+Bank rows matched to an app transaction are hidden from the history
+(they're the confirmation, reachable via the reconciliation screen).
+Computed values: monthly spend/income/net, deltas, 6-month trend,
+category breakdown, top merchants. The dashboard notes whether a month
+is cross-checked against a bank statement (from coverage) or app-only.
+
+**Dedup identity** (Vedant, 2026-09-05): within a source, a transaction
+reference ID (UPI/bank ref) *is* the identity — the same ID can never be
+recorded twice, whatever document or format it arrives in. Rows without
+a reference fall back to day+amount+direction+normalized-narration.
 
 ## App screens
 

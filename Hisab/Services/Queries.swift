@@ -31,16 +31,55 @@ enum Queries {
         txn.categoryOverride ?? Categorizer.category(for: "\(txn.counterparty) \(txn.narration)", rules: rules)
     }
 
+    /// UUIDs of bank rows confirmed as the bank-side copy of an app payment.
+    static func matchedBankUUIDs(_ ctx: ModelContext) -> Set<UUID> {
+        Set(((try? ctx.fetch(FetchDescriptor<StoredMatch>())) ?? []).map(\.bankUUID))
+    }
+
+    /// UUIDs of cross-bank self-transfer pairs (HDFC↔IDFC internal movements).
+    static func selfTransferUUIDs(_ ctx: ModelContext) -> Set<UUID> {
+        let bank = allTransactions(ctx).filter { $0.source.kind == .bank }
+        return SelfTransfers.detect(bank: bank.map {
+            (ReconTxn(id: $0.uuid, date: $0.date, amountPaise: $0.amountPaise,
+                      direction: $0.direction, reference: $0.reference), $0.source)
+        })
+    }
+
+    /// The recorded history: every payment-app transaction, plus bank rows that have no
+    /// app counterpart. Matched bank rows are reconciliation evidence, not records;
+    /// self transfers are shown only under their own category.
+    static func visibleTransactions(_ ctx: ModelContext) -> [StoredTransaction] {
+        let matched = matchedBankUUIDs(ctx)
+        return allTransactions(ctx).filter { !matched.contains($0.uuid) }
+    }
+
+    /// Display/analytics category. Bank-only rows fall back to Miscellaneous rather
+    /// than Uncategorized; self transfers are labeled as such.
+    static func effectiveCategory(of txn: StoredTransaction, rules: [CategoryRule],
+                                  selfTransfers: Set<UUID>) -> String {
+        if selfTransfers.contains(txn.uuid) { return Categorizer.selfTransfer }
+        if let override = txn.categoryOverride { return override }
+        let auto = Categorizer.category(for: "\(txn.counterparty) \(txn.narration)", rules: rules)
+        if auto == Categorizer.uncategorized && txn.source.kind == .bank {
+            return Categorizer.miscellaneous
+        }
+        return auto
+    }
+
+    /// Counted rows only: visible history minus self transfers.
     static func analyticsTxns(_ ctx: ModelContext) -> [AnalyticsTxn] {
         let rules = categoryRules(ctx)
-        return allTransactions(ctx).map { txn in
-            AnalyticsTxn(month: txn.month,
-                         amountPaise: txn.amountPaise,
-                         direction: txn.direction,
-                         category: category(of: txn, rules: rules),
-                         merchant: txn.counterparty,
-                         sourceKind: txn.source.kind)
-        }
+        let selfTransfers = selfTransferUUIDs(ctx)
+        return visibleTransactions(ctx)
+            .filter { !selfTransfers.contains($0.uuid) }
+            .map { txn in
+                AnalyticsTxn(month: txn.month,
+                             amountPaise: txn.amountPaise,
+                             direction: txn.direction,
+                             category: effectiveCategory(of: txn, rules: rules, selfTransfers: []),
+                             merchant: txn.counterparty,
+                             sourceKind: txn.source.kind)
+            }
     }
 
     static func transactions(_ ctx: ModelContext, month: YearMonth) -> [StoredTransaction] {
@@ -73,9 +112,12 @@ enum Queries {
     }
 
     /// Replaces the stored reconciliation for one month with a fresh run.
+    /// Self-transfer rows are internal movements — kept out of the bank side.
     static func recomputeMatches(_ ctx: ModelContext, month: YearMonth) {
         for row in matches(ctx, month: month) { ctx.delete(row) }
-        let (app, bank) = reconTxns(ctx, month: month)
+        let (app, rawBank) = reconTxns(ctx, month: month)
+        let selfTransfers = selfTransferUUIDs(ctx)
+        let bank = rawBank.filter { !selfTransfers.contains($0.id) }
         guard !app.isEmpty, !bank.isEmpty else { return }
         let result = Reconciler.reconcile(app: app, bank: bank)
         for pair in result.matches {

@@ -54,7 +54,11 @@ struct DashboardView: View {
             VStack(spacing: 16) {
                 MonthChipRow(months: monthOptions(grid: grid), selected: $selectedMonth)
                 HeroCard(stats: Analytics.monthStats(txns, month: selectedMonth),
-                         previous: Analytics.monthStats(txns, month: selectedMonth.advanced(by: -1)))
+                         previous: Analytics.monthStats(txns, month: selectedMonth.advanced(by: -1)),
+                         bankVerified: [Source.hdfc, .idfc].contains {
+                             if case .present = grid.state(month: selectedMonth, source: $0) { return true }
+                             return false
+                         })
                 TrendChart(trend: Analytics.trend(txns, endingAt: selectedMonth, count: 6),
                            selected: selectedMonth)
                 CoverageStrip(grid: grid, month: selectedMonth)
