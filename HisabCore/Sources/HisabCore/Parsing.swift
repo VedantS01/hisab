@@ -45,7 +45,8 @@ public struct ParserRegistry: Sendable {
     }
 
     public static var live: ParserRegistry {
-        var parsers: [any StatementParser] = [SyntheticCSVParser(), PaytmXLSXParser(), IDFCXLSXParser()]
+        var parsers: [any StatementParser] = [SyntheticCSVParser(), PaytmXLSXParser(),
+                                              IDFCXLSXParser(), HDFCTXTParser()]
         #if canImport(PDFKit)
         parsers.append(GPayPDFParser())
         parsers.append(PaytmPDFParser())
