@@ -112,7 +112,7 @@ public struct HDFCTXTParser: StatementParser {
     }
 
     static func period(in text: String) -> DatePeriod? {
-        guard let match = text.firstMatch(of: #/Statement From\s*: (\d{2}/\d{2}/\d{4})\s+To\s*: ?(\d{2}/\d{2}/\d{4})/#) else {
+        guard let match = text.firstMatch(of: #/Statement From\s*:\s*(\d{2}/\d{2}/\d{4})\s+To\s*:\s*(\d{2}/\d{2}/\d{4})/#) else {
             return nil
         }
         let formatter = DateFormatter()

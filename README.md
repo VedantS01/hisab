@@ -58,10 +58,12 @@ match the statement's own printed totals exactly):
 | Google Pay | PDF | block state machine over PDFKit text |
 | Paytm | PDF + XLSX | page-order-independent amount pairing; year inference |
 | IDFC FIRST | PDF + XLSX | direction recovered from the running-balance chain |
-| HDFC | PDF (password-supported) | geometric table reconstruction via rect selections |
+| HDFC | PDF (password-supported) + TXT + XLS | geometric PDF reconstruction; dash-ruler fixed-width slicing; a from-scratch CDF/BIFF8 reader |
 
-XLSX support is dependency-free (a minimal zip reader over Apple's
-Compression framework plus an XMLParser sheet reader). Dual-format
+Spreadsheet support is dependency-free: .xlsx via a minimal zip reader
+over Apple's Compression framework plus an XMLParser sheet reader, and
+legacy .xls via a purpose-built CDF/OLE2 + BIFF8 record reader
+(CONTINUE-aware SST included). Dual-format
 imports of the same statement dedup to zero via reference-keyed,
 refund-safe content hashes. Real statements live in the gitignored
 `samples/`; tests use synthetic fixtures only.
