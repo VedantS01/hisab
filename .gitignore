@@ -1,0 +1,14 @@
+# Real financial statements — NEVER commit
+samples/
+
+# Xcode / Swift
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+*.ipa
+*.dSYM.zip
+
+# macOS
+.DS_Store
