@@ -4,8 +4,9 @@ import HisabCore
 
 struct ReconciliationView: View {
     @Environment(\.modelContext) private var context
+    @Query(sort: \StoredTransaction.date, order: .reverse) private var allTxns: [StoredTransaction]
+    @Query private var matchRows: [StoredMatch]
     @State private var month: YearMonth
-    @State private var refreshToken = 0
 
     init(initialMonth: YearMonth) {
         _month = State(initialValue: initialMonth)
@@ -13,17 +14,16 @@ struct ReconciliationView: View {
 
     var body: some View {
         List {
-            let _ = refreshToken
-            let monthTxns = Queries.transactions(context, month: month)
+            let monthTxns = allTxns.filter { $0.month == month }
             let byUUID = Dictionary(uniqueKeysWithValues: monthTxns.map { ($0.uuid, $0) })
-            let (app, bank) = Queries.reconTxns(context, month: month)
-            let matches = Queries.matches(context, month: month)
+            let (app, bank) = Queries.reconProjection(allTxns, month: month)
+            let matches = matchRows.filter { $0.monthKey == month.description }
             let matchedApp = Set(matches.map(\.appUUID))
             let matchedBank = Set(matches.map(\.bankUUID))
 
             Section {
                 Picker("Month", selection: $month) {
-                    ForEach(Queries.coverageGrid(context).months, id: \.self) { m in
+                    ForEach(Set(allTxns.map(\.month)).sorted(by: >), id: \.self) { m in
                         Text(m.displayName).tag(m)
                     }
                 }
@@ -85,7 +85,6 @@ struct ReconciliationView: View {
                 Button {
                     Queries.recomputeMatches(context, month: month)
                     try? context.save()
-                    refreshToken += 1
                 } label: {
                     Label("Recompute", systemImage: "arrow.clockwise")
                 }

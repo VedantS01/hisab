@@ -43,6 +43,7 @@ struct RootView: View {
         }
         .tint(HisabTheme.khataRed)
         .task {
+            _ = Queries.categoryRules(context)  // seed defaults on first launch
             let args = ProcessInfo.processInfo.arguments
             if args.contains("--seed-demo") {
                 DemoData.load(into: context)

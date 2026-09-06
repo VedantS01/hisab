@@ -4,9 +4,10 @@ import HisabCore
 
 struct BucketsView: View {
     @Environment(\.modelContext) private var context
+    @Query private var storedDocs: [StoredDocument]
+    @Query private var pins: [PinnedMonth]
     @State private var sheetTarget: SheetTarget?
     @State private var showPinPicker = false
-    @State private var refreshToken = 0
 
     private struct SheetTarget: Identifiable {
         let month: YearMonth
@@ -32,10 +33,10 @@ struct BucketsView: View {
                     }
                 }
             }
-            .sheet(item: $sheetTarget, onDismiss: { refreshToken += 1 }) { target in
+            .sheet(item: $sheetTarget) { target in
                 DocumentListSheet(month: target.month, source: target.source, documentIDs: target.documentIDs)
             }
-            .sheet(isPresented: $showPinPicker, onDismiss: { refreshToken += 1 }) {
+            .sheet(isPresented: $showPinPicker) {
                 PinMonthSheet()
             }
         }
@@ -43,8 +44,7 @@ struct BucketsView: View {
 
     @ViewBuilder
     private var gridContent: some View {
-        let grid = Queries.coverageGrid(context)
-        let _ = refreshToken
+        let grid = Queries.grid(documents: storedDocs, pinned: pins)
 
         if grid.months.isEmpty {
             VStack(spacing: 12) {

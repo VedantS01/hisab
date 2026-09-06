@@ -4,6 +4,9 @@ import HisabCore
 
 struct TransactionsView: View {
     @Environment(\.modelContext) private var context
+    @Query(sort: \StoredTransaction.date, order: .reverse) private var allTxns: [StoredTransaction]
+    @Query private var matchRows: [StoredMatch]
+    @Query(sort: \StoredCategoryRule.sortOrder) private var ruleRows: [StoredCategoryRule]
     @State private var monthFilter: YearMonth?
     @State private var sourceFilter: Source?
     @State private var categoryFilter: String?
@@ -13,12 +16,21 @@ struct TransactionsView: View {
     var body: some View {
         NavigationStack {
             List {
-                let rules = Queries.categoryRules(context)
-                let selfTransfers = Queries.selfTransferUUIDs(context)
+                let rules = Queries.rules(from: ruleRows)
+                let selfTransfers = Queries.selfTransferUUIDs(in: allTxns)
                 let txns = filtered(rules: rules, selfTransfers: selfTransfers)
                 if txns.isEmpty {
-                    Text("No transactions match these filters.")
-                        .foregroundStyle(.secondary)
+                    if hasActiveFilters {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("No transactions match the active filters.")
+                                .foregroundStyle(.secondary)
+                            Button("Clear filters") { clearFilters() }
+                                .tint(HisabTheme.khataRed)
+                        }
+                    } else {
+                        Text("No transactions yet — import a statement from the Dashboard.")
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
                     ForEach(txns, id: \.uuid) { txn in
                         Button {
@@ -53,6 +65,17 @@ struct TransactionsView: View {
         }
     }
 
+    private var hasActiveFilters: Bool {
+        monthFilter != nil || sourceFilter != nil || categoryFilter != nil || unmatchedOnly
+    }
+
+    private func clearFilters() {
+        monthFilter = nil
+        sourceFilter = nil
+        categoryFilter = nil
+        unmatchedOnly = false
+    }
+
     private var filterMenu: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
@@ -75,20 +98,26 @@ struct TransactionsView: View {
                     }
                 }
                 Toggle("Unmatched only", isOn: $unmatchedOnly)
+                if hasActiveFilters {
+                    Divider()
+                    Button("Clear filters", role: .destructive) { clearFilters() }
+                }
             } label: {
-                Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                Label("Filter", systemImage: hasActiveFilters
+                      ? "line.3.horizontal.decrease.circle.fill"
+                      : "line.3.horizontal.decrease.circle")
             }
         }
     }
 
     private var availableMonths: [YearMonth] {
-        Queries.coverageGrid(context).months
+        Set(allTxns.map(\.month)).sorted(by: >)
     }
 
     private var availableCategories: [String] {
-        let rules = Queries.categoryRules(context)
-        let selfTransfers = Queries.selfTransferUUIDs(context)
-        let cats = Set(Queries.visibleTransactions(context)
+        let rules = Queries.rules(from: ruleRows)
+        let selfTransfers = Queries.selfTransferUUIDs(in: allTxns)
+        let cats = Set(Queries.visible(allTxns, matches: matchRows)
             .map { Queries.effectiveCategory(of: $0, rules: rules, selfTransfers: selfTransfers) })
         return cats.sorted()
     }
@@ -96,11 +125,11 @@ struct TransactionsView: View {
     /// App-side transactions in reconciled months that no bank row matched.
     private var unmatchedSet: Set<UUID> {
         var result = Set<UUID>()
+        let matchedApp = Set(matchRows.map(\.appUUID))
         for month in availableMonths {
-            let (app, bank) = Queries.reconTxns(context, month: month)
+            let (app, bank) = Queries.reconProjection(allTxns, month: month)
             guard !app.isEmpty, !bank.isEmpty else { continue }
-            let matched = Set(Queries.matches(context, month: month).map(\.appUUID))
-            for txn in app where !matched.contains(txn.id) {
+            for txn in app where !matchedApp.contains(txn.id) {
                 result.insert(txn.id)
             }
         }
@@ -108,7 +137,7 @@ struct TransactionsView: View {
     }
 
     private func filtered(rules: [CategoryRule], selfTransfers: Set<UUID>) -> [StoredTransaction] {
-        var txns = Queries.visibleTransactions(context)
+        var txns = Queries.visible(allTxns, matches: matchRows)
         if let monthFilter { txns = txns.filter { $0.month == monthFilter } }
         if let sourceFilter { txns = txns.filter { $0.source == sourceFilter } }
         if let categoryFilter {

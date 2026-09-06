@@ -4,9 +4,13 @@ import HisabCore
 
 struct DashboardView: View {
     @Environment(\.modelContext) private var context
+    @Query(sort: \StoredTransaction.date, order: .reverse) private var storedTxns: [StoredTransaction]
+    @Query private var storedDocs: [StoredDocument]
+    @Query private var pins: [PinnedMonth]
+    @Query private var matchRows: [StoredMatch]
+    @Query(sort: \StoredCategoryRule.sortOrder) private var ruleRows: [StoredCategoryRule]
     @State private var selectedMonth = YearMonth(date: Date())
     @State private var showImport = false
-    @State private var refreshToken = 0
     @State private var pushRecon = false
 
     var body: some View {
@@ -27,7 +31,7 @@ struct DashboardView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showImport, onDismiss: { refreshToken += 1 }) {
+            .sheet(isPresented: $showImport) {
                 ImportSheet()
             }
             .navigationDestination(isPresented: $pushRecon) {
@@ -49,9 +53,9 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var content: some View {
-        let txns = Queries.analyticsTxns(context)
-        let grid = Queries.coverageGrid(context)
-        let _ = refreshToken
+        let txns = Queries.analytics(txns: storedTxns, matches: matchRows,
+                                     rules: Queries.rules(from: ruleRows))
+        let grid = Queries.grid(documents: storedDocs, pinned: pins)
 
         if txns.isEmpty {
             emptyState

@@ -3,11 +3,13 @@ import SwiftData
 import HisabCore
 
 struct RecentTxns: View {
-    @Environment(\.modelContext) private var context
+    @Query(sort: \StoredTransaction.date, order: .reverse) private var allTxns: [StoredTransaction]
+    @Query private var matchRows: [StoredMatch]
     let month: YearMonth
 
     var body: some View {
-        let txns = Array(Queries.visibleTransactions(context).filter { $0.month == month }.prefix(10))
+        let txns = Array(Queries.visible(allTxns, matches: matchRows)
+            .filter { $0.month == month }.prefix(10))
         if !txns.isEmpty {
             HisabCard {
                 Text("Recent transactions")

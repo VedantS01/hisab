@@ -3,13 +3,14 @@ import SwiftData
 import HisabCore
 
 struct ReconHealthCard: View {
-    @Environment(\.modelContext) private var context
+    @Query private var allTxns: [StoredTransaction]
+    @Query private var matchRows: [StoredMatch]
     let month: YearMonth
 
     var body: some View {
-        let (app, bank) = Queries.reconTxns(context, month: month)
+        let (app, bank) = Queries.reconProjection(allTxns, month: month)
         if !app.isEmpty && !bank.isEmpty {
-            let matches = Queries.matches(context, month: month)
+            let matches = matchRows.filter { $0.monthKey == month.description }
             let matchedApp = Set(matches.map(\.appUUID))
             let unmatched = app.filter { !matchedApp.contains($0.id) }.count
             let percent = app.isEmpty ? 0 : (app.count - unmatched) * 100 / app.count
