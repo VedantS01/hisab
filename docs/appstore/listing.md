@@ -1,6 +1,6 @@
 # App Store listing — Hisab
 
-**Name**: Hisab — Expense Hisab-Kitab
+**Name**: Hisab - UPI Statement Ledger (live, app id 6809138684)
 **Subtitle** (30 chars): Private Indian expense books
 **Category**: Finance
 **Price**: Free
