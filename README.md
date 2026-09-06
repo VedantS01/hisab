@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/brand/logo.png" width="440" alt="Hisab — हिसाब"></p>
+
 # Hisab (हिसाब)
 
 ![CI](https://github.com/VedantS01/hisab/actions/workflows/ci.yml/badge.svg)

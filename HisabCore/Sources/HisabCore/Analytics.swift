@@ -44,25 +44,38 @@ public enum Analytics {
             .map { monthStats(txns, month: $0) }
     }
 
+    /// Sum of debit amounts per grouping key, largest first (ties alphabetical).
+    /// Kept as explicit steps — older Swift compilers time out on the fused chain.
+    private static func debitTotals(_ txns: [AnalyticsTxn], month: YearMonth,
+                                    by key: (AnalyticsTxn) -> String) -> [(String, Int64)] {
+        let debits = txns.filter { $0.month == month && $0.direction == .debit }
+        var totals: [String: Int64] = [:]
+        for txn in debits {
+            totals[key(txn), default: 0] += txn.amountPaise
+        }
+        return totals.sorted { lhs, rhs in
+            if lhs.value == rhs.value { return lhs.key < rhs.key }
+            return lhs.value > rhs.value
+        }
+    }
+
     public static func categoryBreakdown(_ txns: [AnalyticsTxn], month: YearMonth,
                                          top: Int) -> [(category: String, paise: Int64)] {
-        let debits = txns.filter { $0.month == month && $0.direction == .debit }
-        let totals = Dictionary(grouping: debits, by: \.category)
-            .mapValues { $0.reduce(Int64(0)) { $0 + $1.amountPaise } }
-            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
-        guard totals.count > top else { return totals.map { ($0.key, $0.value) } }
-        let head = totals.prefix(top).map { ($0.key, $0.value) }
-        let rest = totals.dropFirst(top).reduce(Int64(0)) { $0 + $1.value }
-        return head + [("Other", rest)]
+        let totals = debitTotals(txns, month: month, by: \.category)
+        var result = totals.map { (category: $0.0, paise: $0.1) }
+        guard result.count > top else { return result }
+        var rest: Int64 = 0
+        for entry in result.dropFirst(top) {
+            rest += entry.paise
+        }
+        result = Array(result.prefix(top))
+        result.append((category: "Other", paise: rest))
+        return result
     }
 
     public static func topMerchants(_ txns: [AnalyticsTxn], month: YearMonth,
                                     top: Int) -> [(merchant: String, paise: Int64)] {
-        let debits = txns.filter { $0.month == month && $0.direction == .debit }
-        return Dictionary(grouping: debits, by: \.merchant)
-            .mapValues { $0.reduce(Int64(0)) { $0 + $1.amountPaise } }
-            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
-            .prefix(top)
-            .map { ($0.key, $0.value) }
+        debitTotals(txns, month: month, by: \.merchant).prefix(top)
+            .map { (merchant: $0.0, paise: $0.1) }
     }
 }
