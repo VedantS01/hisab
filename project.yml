@@ -24,8 +24,9 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "6.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: 1
         INFOPLIST_KEY_CFBundleDisplayName: Hisab
         DEVELOPMENT_TEAM: AQQHT55AT9
         CODE_SIGN_STYLE: Automatic
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO

@@ -21,7 +21,7 @@ struct DashboardView: View {
                     .padding(.bottom, 24)
             }
             .background(HisabTheme.background)
-            .navigationTitle("Hisab")
+            .navigationTitle("हिसाब")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

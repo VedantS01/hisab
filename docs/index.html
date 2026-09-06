@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hisab — private expense analysis for India</title>
+<style>
+  :root { --red:#A4243B; --ink:#22333B; --kagaz:#F5EFE6; --sona:#D9A441; }
+  body { margin:0; font:16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+         color:var(--ink); background:var(--kagaz); }
+  main { max-width:680px; margin:0 auto; padding:48px 24px 80px; }
+  h1 { font-size:2.4rem; margin:0 0 4px; }
+  h1 .devanagari { color:var(--red); }
+  h2 { margin-top:2.5em; border-bottom:2px solid var(--sona); padding-bottom:4px; }
+  .tagline { font-size:1.15rem; color:#5a6a72; margin-top:0; }
+  .icon { width:96px; border-radius:22%; float:right; margin:0 0 12px 16px;
+          box-shadow:0 4px 14px rgba(0,0,0,.15); }
+  a { color:var(--red); }
+  .badge { display:inline-block; background:var(--red); color:var(--kagaz);
+           padding:6px 14px; border-radius:999px; font-weight:600;
+           text-decoration:none; margin-right:8px; }
+  ul { padding-left:1.2em; }
+  footer { margin-top:4em; font-size:.85rem; color:#7a868c; }
+</style>
+</head>
+<body>
+<main>
+  <img src="brand/logo.png" alt="Hisab — हिसाब" style="max-width:440px;width:100%">
+  <h1 style="position:absolute;left:-9999px">Hisab (हिसाब)</h1>
+  <p class="tagline">Private, on-device expense analysis for Indian statements.</p>
+
+  <p><a class="badge" href="https://github.com/VedantS01/hisab">Source on GitHub</a></p>
+
+  <p>Import your Google Pay, Paytm, or BHIM transaction exports and your
+  HDFC / IDFC FIRST bank statements. Hisab parses them deterministically,
+  organizes everything into monthly buckets, cross-checks payment-app
+  records against bank statements, and shows you where the money went —
+  entirely on your iPhone.</p>
+
+  <ul>
+    <li><strong>Nine statement formats</strong>, each verified to the paisa
+        against the statement's own printed totals.</li>
+    <li><strong>Reconciliation</strong>: every app payment is matched to its
+        bank-statement row by UPI reference; unmatched payments are flagged.</li>
+    <li><strong>No duplicates, ever</strong>: overlapping and re-imported
+        statements collapse by transaction identity.</li>
+    <li><strong>Open source</strong> (Apache-2.0) — add a parser for your
+        own bank.</li>
+  </ul>
+
+  <h2 id="privacy">Privacy Policy</h2>
+  <p><em>Effective 6 September 2026.</em></p>
+  <p>Hisab is designed so that there is nothing to have a policy about:</p>
+  <ul>
+    <li><strong>No data collection.</strong> Hisab collects, transmits, and
+        shares no data — financial or otherwise. There are no analytics, no
+        trackers, no crash reporting, no advertising identifiers.</li>
+    <li><strong>No network access.</strong> The app makes no network
+        requests. Statements you import are parsed and stored only in the
+        app's private storage on your device, protected by iOS.</li>
+    <li><strong>No accounts.</strong> There is nothing to sign up for and no
+        server to hold your information.</li>
+    <li><strong>Statement passwords</strong> you choose to save are stored in
+        the iOS Keychain on your device only.</li>
+    <li><strong>Deleting data</strong>: remove individual documents in the
+        app, use Settings → Erase all data, or delete the app — nothing
+        persists anywhere else.</li>
+  </ul>
+  <p>Because the developer never receives your data, the developer cannot
+  access, recover, sell, or delete it on your behalf. This policy can only
+  change alongside the app's open-source code, in public.</p>
+
+  <h2 id="support">Support</h2>
+  <p>Questions, bug reports, or a statement format you'd like supported:
+  please open an issue at
+  <a href="https://github.com/VedantS01/hisab/issues">github.com/VedantS01/hisab/issues</a>.</p>
+
+  <footer>Hisab · © 2026 Vedant Saboo · Licensed under Apache-2.0 ·
+  Not affiliated with Google Pay, Paytm, BHIM, HDFC Bank, or IDFC FIRST
+  Bank; their names identify statement formats the app can read.</footer>
+</main>
+</body>
+</html>
