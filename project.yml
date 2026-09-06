@@ -1,0 +1,31 @@
+name: Hisab
+options:
+  bundleIdPrefix: com.vedants
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+packages:
+  HisabCore:
+    path: HisabCore
+targets:
+  Hisab:
+    type: application
+    platform: iOS
+    sources:
+      - Hisab
+    dependencies:
+      - package: HisabCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vedants.hisab
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "6.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_KEY_CFBundleDisplayName: Hisab
+        DEVELOPMENT_TEAM: AQQHT55AT9
+        CODE_SIGN_STYLE: Automatic
