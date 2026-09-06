@@ -1,5 +1,8 @@
 # Hisab (हिसाब)
 
+![CI](https://github.com/VedantS01/hisab/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-Apache--2.0-A4243B)
+
 <img src="docs/brand/icon.png" width="96" align="right" alt="Hisab icon: a red bahi-khata ledger with a rupee glyph" />
 
 A private, on-device iOS app for personal expense analysis. Import
@@ -68,5 +71,15 @@ legacy .xls via a purpose-built CDF/OLE2 + BIFF8 record reader
 imports of the same statement dedup to zero via reference-keyed,
 refund-safe content hashes. Real statements live in the gitignored
 `samples/`; tests use synthetic fixtures only.
+
+## Contributing
+
+Missing your bank or UPI app? Parsers are the plugin point — see
+[CONTRIBUTING.md](CONTRIBUTING.md) for the recipe (synthetic fixtures,
+TDD, verify against the statement's own totals). Real statements never
+enter the repo.
+
+Site & privacy policy: https://vedants01.github.io/hisab/ ·
+License: [Apache-2.0](LICENSE)
 
 Design spec: [`docs/superpowers/specs/2026-09-05-hisab-design.md`](docs/superpowers/specs/2026-09-05-hisab-design.md)
