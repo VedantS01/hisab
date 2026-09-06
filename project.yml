@@ -27,3 +27,5 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
         INFOPLIST_KEY_CFBundleDisplayName: Hisab
+        DEVELOPMENT_TEAM: AQQHT55AT9
+        CODE_SIGN_STYLE: Automatic
