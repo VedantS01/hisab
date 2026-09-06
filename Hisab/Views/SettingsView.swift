@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Query(sort: \StoredCategoryRule.sortOrder) private var rules: [StoredCategoryRule]
     @Query private var pins: [PinnedMonth]
     @State private var showAddRule = false
+    @State private var editTarget: StoredCategoryRule?
     @State private var eraseArmed = false
 
     var body: some View {
@@ -14,11 +15,19 @@ struct SettingsView: View {
             List {
                 Section {
                     ForEach(rules, id: \.uuid) { rule in
-                        HStack {
-                            Text(rule.pattern).font(.subheadline.monospaced())
-                            Spacer()
-                            Text(rule.category).font(.subheadline).foregroundStyle(.secondary)
+                        Button {
+                            editTarget = rule
+                        } label: {
+                            HStack {
+                                Text(rule.pattern).font(.subheadline.monospaced())
+                                Spacer()
+                                Text(rule.category).font(.subheadline).foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
+                        .buttonStyle(.plain)
                     }
                     .onMove { from, to in
                         var reordered = rules
@@ -42,7 +51,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Category rules")
                 } footer: {
-                    Text("First matching rule wins — drag to reorder priority. Rules match case-insensitively against merchant and narration.")
+                    Text("Tap a rule to edit it. First matching rule wins — drag to reorder priority. Rules match case-insensitively against merchant and narration; edits re-categorize existing transactions automatically.")
                 }
 
                 Section("Pinned months") {
@@ -86,7 +95,12 @@ struct SettingsView: View {
             .background(HisabTheme.background)
             .navigationTitle("Settings")
             .sheet(isPresented: $showAddRule) {
-                AddRuleSheet(nextOrder: rules.count)
+                RuleEditorSheet(rule: nil, nextOrder: rules.count,
+                                existingCategories: distinctCategories)
+            }
+            .sheet(item: $editTarget) { rule in
+                RuleEditorSheet(rule: rule, nextOrder: rules.count,
+                                existingCategories: distinctCategories)
             }
             .confirmationDialog("Erase ALL Hisab data? This cannot be undone.",
                                 isPresented: $eraseArmed, titleVisibility: .visible) {
@@ -94,6 +108,10 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+    }
+
+    private var distinctCategories: [String] {
+        Set(rules.map(\.category)).sorted()
     }
 
     private func eraseAll() {
@@ -108,27 +126,47 @@ struct SettingsView: View {
     }
 }
 
-struct AddRuleSheet: View {
+struct RuleEditorSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    let rule: StoredCategoryRule?   // nil creates a new rule
     let nextOrder: Int
+    let existingCategories: [String]
     @State private var pattern = ""
     @State private var category = ""
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Pattern (e.g. dominos)", text: $pattern)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                TextField("Category (e.g. Food Delivery)", text: $category)
+                Section("Match") {
+                    TextField("Pattern (e.g. dominos)", text: $pattern)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+                Section("Category") {
+                    TextField("Category (e.g. Food Delivery)", text: $category)
+                    if !existingCategories.isEmpty {
+                        Menu("Use an existing category") {
+                            ForEach(existingCategories, id: \.self) { name in
+                                Button(name) { category = name }
+                            }
+                        }
+                        .font(.subheadline)
+                    }
+                }
             }
-            .navigationTitle("New rule")
+            .navigationTitle(rule == nil ? "New rule" : "Edit rule")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        context.insert(StoredCategoryRule(pattern: pattern, category: category, sortOrder: nextOrder))
+                    Button("Save") {
+                        if let rule {
+                            rule.pattern = pattern
+                            rule.category = category
+                        } else {
+                            context.insert(StoredCategoryRule(pattern: pattern, category: category,
+                                                              sortOrder: nextOrder))
+                        }
                         try? context.save()
                         dismiss()
                     }
@@ -136,6 +174,12 @@ struct AddRuleSheet: View {
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                }
+            }
+            .onAppear {
+                if let rule {
+                    pattern = rule.pattern
+                    category = rule.category
                 }
             }
         }
