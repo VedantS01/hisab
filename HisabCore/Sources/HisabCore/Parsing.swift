@@ -52,6 +52,7 @@ public struct ParserRegistry: Sendable {
         parsers.append(PaytmPDFParser())
         parsers.append(IDFCPDFParser())
         parsers.append(HDFCPDFParser())
+        parsers.append(BHIMPDFParser())
         #endif
         return ParserRegistry(parsers: parsers)
     }

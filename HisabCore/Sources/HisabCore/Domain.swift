@@ -6,7 +6,7 @@ public enum SourceKind: String, Codable, Sendable {
 
 /// The four statement sources Hisab understands. Extend here to add a fifth.
 public enum Source: String, Codable, CaseIterable, Sendable, Identifiable {
-    case gpay, paytm, hdfc, idfc
+    case gpay, paytm, bhim, hdfc, idfc
 
     public var id: String { rawValue }
 
@@ -14,6 +14,7 @@ public enum Source: String, Codable, CaseIterable, Sendable, Identifiable {
         switch self {
         case .gpay: "Google Pay"
         case .paytm: "Paytm"
+        case .bhim: "BHIM UPI"
         case .hdfc: "HDFC Bank"
         case .idfc: "IDFC First Bank"
         }
@@ -21,7 +22,7 @@ public enum Source: String, Codable, CaseIterable, Sendable, Identifiable {
 
     public var kind: SourceKind {
         switch self {
-        case .gpay, .paytm: .paymentApp
+        case .gpay, .paytm, .bhim: .paymentApp
         case .hdfc, .idfc: .bank
         }
     }

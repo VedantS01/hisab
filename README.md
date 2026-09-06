@@ -57,6 +57,7 @@ match the statement's own printed totals exactly):
 |---|---|---|
 | Google Pay | PDF | block state machine over PDFKit text |
 | Paytm | PDF + XLSX | page-order-independent amount pairing; year inference |
+| BHIM UPI | PDF | single-line rows; failed transactions excluded |
 | IDFC FIRST | PDF + XLSX | direction recovered from the running-balance chain |
 | HDFC | PDF (password-supported) + TXT + XLS | geometric PDF reconstruction; dash-ruler fixed-width slicing; a from-scratch CDF/BIFF8 reader |
 

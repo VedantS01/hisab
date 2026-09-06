@@ -122,6 +122,7 @@ struct BucketsView: View {
         switch source {
         case .gpay: "GPay"
         case .paytm: "Paytm"
+        case .bhim: "BHIM"
         case .hdfc: "HDFC"
         case .idfc: "IDFC"
         }

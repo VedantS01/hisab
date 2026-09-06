@@ -52,6 +52,7 @@ enum HisabTheme {
         switch source {
         case .gpay: "g.circle.fill"
         case .paytm: "p.circle.fill"
+        case .bhim: "b.circle.fill"
         case .hdfc: "building.columns.fill"
         case .idfc: "building.columns"
         }
