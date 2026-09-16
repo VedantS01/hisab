@@ -118,6 +118,23 @@ enum Queries {
         return auto
     }
 
+    /// Projection feeding SuggestionEngine: visible transactions (matched bank
+    /// evidence excluded) with their effective categories.
+    static func suggestionRecords(_ ctx: ModelContext) -> [SpendRecord] {
+        let txns = allTransactions(ctx)
+        let rules = categoryRules(ctx)
+        let selfTransfers = selfTransferUUIDs(in: txns)
+        let matches = (try? ctx.fetch(FetchDescriptor<StoredMatch>())) ?? []
+        return visible(txns, matches: matches).map { txn in
+            SpendRecord(merchant: txn.counterparty.isEmpty ? txn.narration : txn.counterparty,
+                        amountPaise: txn.amountPaise,
+                        date: txn.date,
+                        direction: txn.direction,
+                        effectiveCategory: effectiveCategory(of: txn, rules: rules,
+                                                             selfTransfers: selfTransfers))
+        }
+    }
+
     static func reconTxns(_ ctx: ModelContext, month: YearMonth) -> (app: [ReconTxn], bank: [ReconTxn]) {
         reconProjection(allTransactions(ctx), month: month)
     }
