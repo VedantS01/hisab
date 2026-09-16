@@ -155,12 +155,7 @@ public enum IDFCStatementText {
     /// (whose narrations differ by truncation), so dual-format imports dedup.
     /// Never collides with real UPI/NEFT refs (distinct shape).
     static func syntheticReference(balancePaise: Int64, date: Date, amountPaise: Int64) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = YearMonth.istCalendar
-        formatter.timeZone = YearMonth.istCalendar.timeZone
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd"
-        return "B\(balancePaise)D\(formatter.string(from: date))A\(amountPaise)"
+        SyntheticRef.make(balancePaise: balancePaise, date: date, amountPaise: amountPaise)
     }
 
     /// Counterparty/reference from the particulars, by transaction rail:
