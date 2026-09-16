@@ -54,7 +54,10 @@ jobs:
           flutter pub get
           flutter test --exclude-tags samples
           cd packages/hisab_pdf
-          flutter test --exclude-tags samples
+          # The samples suites self-skip when the gitignored samples/
+          # directory is absent, so no tag filter here (an all-excluded
+          # run would exit 79).
+          flutter test
       - name: Android debug build
         run: |
           cd hisab_flutter
