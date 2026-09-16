@@ -11,7 +11,7 @@ struct CoverageStrip: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             HStack(spacing: 10) {
-                ForEach(Source.builtIn) { source in
+                ForEach(grid.sources.isEmpty ? Source.builtIn : grid.sources) { source in
                     chip(source)
                 }
             }

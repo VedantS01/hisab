@@ -22,6 +22,9 @@ public enum CellState: Equatable, Sendable {
 /// document's covered months and manual pins, gap-filled so interior holes stay visible.
 public struct CoverageGrid: Sendable {
     public let months: [YearMonth]  // newest first
+    /// Sources actually observed in the input documents: payment apps first,
+    /// then banks, alphabetical within kind. Drives grid columns and legends.
+    public let sources: [Source]
     private let cells: [YearMonth: [Source: [UUID]]]
 
     public func state(month: YearMonth, source: Source) -> CellState {
@@ -40,10 +43,11 @@ public struct CoverageGrid: Sendable {
                 cells[month, default: [:]][doc.source, default: []].append(doc.id)
             }
         }
+        let sources = Source.ordered(documents.map(\.source))
         guard let lo = touched.min(), let hi = touched.max() else {
-            return CoverageGrid(months: [], cells: [:])
+            return CoverageGrid(months: [], sources: sources, cells: [:])
         }
         let months = YearMonth.months(from: lo, through: hi).reversed()
-        return CoverageGrid(months: Array(months), cells: cells)
+        return CoverageGrid(months: Array(months), sources: sources, cells: cells)
     }
 }

@@ -58,20 +58,24 @@ struct BucketsView: View {
             }
             .padding(.top, 100)
         } else {
+            // Columns follow the user's actual imports; before any import
+            // (pin-only grids) fall back to the built-in five so awaiting
+            // cells still have somewhere to render.
+            let columns = grid.sources.isEmpty ? Source.builtIn : grid.sources
             VStack(spacing: 8) {
-                header
+                header(columns: columns)
                 ForEach(grid.months, id: \.self) { month in
-                    row(month: month, grid: grid)
+                    row(month: month, grid: grid, columns: columns)
                 }
             }
         }
     }
 
-    private var header: some View {
+    private func header(columns: [Source]) -> some View {
         HStack(spacing: 8) {
             Text("Month")
                 .frame(width: 76, alignment: .leading)
-            ForEach(Source.builtIn) { source in
+            ForEach(columns) { source in
                 Text(shortName(source))
                     .frame(maxWidth: .infinity)
             }
@@ -80,13 +84,13 @@ struct BucketsView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func row(month: YearMonth, grid: CoverageGrid) -> some View {
+    private func row(month: YearMonth, grid: CoverageGrid, columns: [Source]) -> some View {
         HStack(spacing: 8) {
             Text(month.displayName)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(HisabTheme.primaryText)
                 .frame(width: 76, alignment: .leading)
-            ForEach(Source.builtIn) { source in
+            ForEach(columns) { source in
                 cell(month: month, source: source, state: grid.state(month: month, source: source))
             }
         }

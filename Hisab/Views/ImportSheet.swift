@@ -50,13 +50,17 @@ struct ImportSheet: View {
                 Section("File") {
                     Text(url.lastPathComponent).font(.subheadline)
                 }
-                Section("Source") {
+                Section {
                     Picker("Source", selection: $overrideSource) {
                         Text("Auto-detect").tag(Source?.none)
                         ForEach(Source.builtIn) { source in
                             Text(source.displayName).tag(Source?.some(source))
                         }
                     }
+                } header: {
+                    Text("Source")
+                } footer: {
+                    Text("Auto-detect also reads any Indian bank statement that prints a running balance.")
                 }
                 if needsPassword {
                     Section("Password") {

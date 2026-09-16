@@ -30,6 +30,15 @@ final class CoverageTests: XCTestCase {
         XCTAssertEqual(ids, [id])
     }
 
+    func testGridSourcesAreObservedAndOrdered() {
+        let docs = [doc(Source(rawValue: "bank:sbi"), 2026, 4, 2026, 4),
+                    doc(.gpay, 2026, 4, 2026, 4),
+                    doc(.gpay, 2026, 5, 2026, 5)]
+        let grid = CoverageGrid.derive(documents: docs, pinnedMonths: [])
+        XCTAssertEqual(grid.sources, [.gpay, Source(rawValue: "bank:sbi")], "apps first, then banks; no dupes")
+        XCTAssertEqual(CoverageGrid.derive(documents: [], pinnedMonths: []).sources, [])
+    }
+
     func testPinnedFutureMonthAppearsAwaiting() {
         let grid = CoverageGrid.derive(documents: [doc(.paytm, 2026, 8, 2026, 8)],
                                        pinnedMonths: [YearMonth(year: 2026, month: 10)])
