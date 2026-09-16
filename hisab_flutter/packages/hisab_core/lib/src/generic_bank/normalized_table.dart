@@ -5,10 +5,8 @@ library;
 
 import 'dart:convert';
 
-import 'package:archive/archive.dart';
-import 'package:xml/xml.dart';
-
 import 'minimal_xls.dart';
+import 'xlsx_reader.dart';
 
 /// Injected by the parsers module: raw pdf bytes + password → lines of cells,
 /// or null when unreadable. Kept as a mutable hook so NormalizedTable stays
@@ -126,89 +124,25 @@ class NormalizedTable {
 
   /// XLSX: shared strings + the sheet with the most rows, densified A=0.
   static List<List<String>>? _xlsxRows(List<int> data) {
-    Archive archive;
-    try {
-      archive = ZipDecoder().decodeBytes(data);
-    } catch (_) {
-      return null;
-    }
-    List<int>? entry(String name) {
-      for (final file in archive.files) {
-        if (file.name == name) return file.content as List<int>;
-      }
-      return null;
-    }
-
-    final shared = <String>[];
-    final ssData = entry('xl/sharedStrings.xml');
-    if (ssData != null) {
-      try {
-        final doc = XmlDocument.parse(utf8.decode(ssData));
-        for (final si in doc.findAllElements('si')) {
-          shared.add(si.findAllElements('t').map((t) => t.innerText).join());
-        }
-      } catch (_) {
-        return null;
-      }
-    }
-
+    final workbook = XlsxReader.read(data);
+    if (workbook == null || workbook.sheets.isEmpty) return null;
     List<Map<String, String>>? best;
-    for (final file in archive.files) {
-      if (!file.name.startsWith('xl/worksheets/') ||
-          !file.name.endsWith('.xml')) {
-        continue;
-      }
-      try {
-        final doc = XmlDocument.parse(utf8.decode(file.content as List<int>));
-        final rows = <Map<String, String>>[];
-        for (final row in doc.findAllElements('row')) {
-          final cells = <String, String>{};
-          for (final c in row.findAllElements('c')) {
-            final ref = c.getAttribute('r') ?? '';
-            final letters =
-                ref.split('').takeWhile((ch) => RegExp(r'[A-Za-z]').hasMatch(ch)).join();
-            final type = c.getAttribute('t') ?? '';
-            final v = c.getElement('v')?.innerText ??
-                c.getElement('is')?.findAllElements('t').map((t) => t.innerText).join() ??
-                '';
-            if (letters.isEmpty || v.isEmpty) continue;
-            if (type == 's') {
-              final index = int.tryParse(v);
-              if (index != null && index < shared.length) {
-                cells[letters] = shared[index];
-              }
-            } else {
-              cells[letters] = v;
-            }
-          }
-          rows.add(cells);
-        }
-        if (best == null || rows.length > best.length) best = rows;
-      } catch (_) {
-        continue;
-      }
+    for (final rows in workbook.sheets.values) {
+      if (best == null || rows.length > best.length) best = rows;
     }
     if (best == null) return null;
-
-    int columnIndex(String letters) {
-      var acc = 0;
-      for (final code in letters.toUpperCase().codeUnits) {
-        acc = acc * 26 + (code - 64);
-      }
-      return acc - 1;
-    }
 
     var width = 0;
     for (final row in best) {
       for (final letters in row.keys) {
-        final i = columnIndex(letters) + 1;
+        final i = XlsxReader.columnIndex(letters) + 1;
         if (i > width) width = i;
       }
     }
     return best.map((row) {
       final cells = List<String>.filled(width, '');
       row.forEach((letters, value) {
-        final i = columnIndex(letters);
+        final i = XlsxReader.columnIndex(letters);
         if (i >= 0 && i < width) cells[i] = value.trim();
       });
       return cells;
