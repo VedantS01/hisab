@@ -1,6 +1,6 @@
 # Format Generalization — Design (v2)
 
-Date: 2026-09-16 · Status: approved in discussion, pending spec review
+Date: 2026-09-16 · Status: implemented (plan: ../plans/2026-09-16-format-generalization.md; PhonePe parser still sample-blocked)
 Owner: Vedant (decisions confirmed interactively; v2 supersedes the
 same-day v1 after Vedant's simplification pass)
 

@@ -68,6 +68,15 @@ match the statement's own printed totals exactly):
 | BHIM UPI | PDF | single-line rows; failed transactions excluded |
 | IDFC FIRST | PDF + XLSX | direction recovered from the running-balance chain |
 | HDFC | PDF (password-supported) + TXT + XLS | geometric PDF reconstruction; dash-ruler fixed-width slicing; a from-scratch CDF/BIFF8 reader |
+| **Any Indian bank** (running-balance statements) | CSV + XLSX + XLS + TXT + text-layer PDF | generic engine: conservative column inference + declarative FormatSpecs, accepted only when the balance chain closes to the paisa |
+
+Bundled FormatSpecs make the majors instant: SBI, ICICI (two layouts),
+Axis (two layouts), Kotak — plus provisional PNB and Bank of Baroda.
+Anything else with a running balance goes through inference, which
+either proves its parse against the statement's own balance column or
+refuses (an in-app request then emails us a data-free format
+fingerprint, and support ships in an update — the engine never
+guesses).
 
 Spreadsheet support is dependency-free: .xlsx via a minimal zip reader
 over Apple's Compression framework plus an XMLParser sheet reader, and
@@ -79,10 +88,11 @@ refund-safe content hashes. Real statements live in the gitignored
 
 ## Contributing
 
-Missing your bank or UPI app? Parsers are the plugin point — see
-[CONTRIBUTING.md](CONTRIBUTING.md) for the recipe (synthetic fixtures,
-TDD, verify against the statement's own totals). Real statements never
-enter the repo.
+Missing your bank? The fastest contribution is a **FormatSpec** — a
+declarative JSON layout description, no Swift required; CI
+machine-verifies it against a synthetic fixture. UPI apps and exotic
+formats remain code parsers. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for both recipes. Real statements never enter the repo.
 
 Site & privacy policy: https://vedants01.github.io/hisab/ ·
 License: [Apache-2.0](LICENSE)

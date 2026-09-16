@@ -21,7 +21,42 @@ recipe below.
 - Money is integer paise (`Int64`). Dates resolve in IST
   (`YearMonth.istCalendar`).
 
-## The parser recipe
+## Add a bank format with a FormatSpec — no Swift required
+
+Bank statements with a running-balance column don't need a code parser:
+describe the layout as JSON in
+`HisabCore/Sources/HisabCore/Resources/formats/<id>.json` and the
+generic engine executes it — output is accepted only when the balance
+chain closes to the paisa on the user's own file, so a spec can select
+a format but never corrupt a ledger.
+
+1. **Describe the layout.** Fields:
+   - `id` (`"sbi-table"`), `sourceID` (`"bank:sbi"`), `bankName`,
+     `provisional` (true until someone confirms it against a real file)
+   - `headerPatterns`: role → case-insensitive regex matched against a
+     header cell. Roles: `date`, `narration`, `balance` (always
+     required), plus `debit`+`credit`, or `amount` (with optional
+     `drcr`), and optionally `reference`.
+   - `signConvention`: `debitCredit` | `signedAmount` | `amountDRCR` |
+     `unsignedChain`
+   - `dateFormats`: tried in order (e.g. `["dd/MM/yyyy"]`)
+   - `furniturePatterns`: whole-row regexes to drop from the body
+   - `referencePatterns` (optional): regexes with one capture group
+     that pull a rail reference (UPI/NEFT/…) out of the narration
+   - `detectPatterns` (optional): text that must appear in the file —
+     use the bank's printed name when two banks share a table shape
+   - Hard rule: specs stay declarative. No expression language, ever.
+2. **Add a synthetic fixture** named `<id>-fixture.csv` under
+   `HisabCore/Tests/HisabCoreTests/Fixtures/` — fake merchants, fake
+   amounts, a balance column that actually chains
+   (`gen_bank_fixtures.py` shows the pattern; extend it).
+3. **Run `swift test`.** `BundledSpecTests` automatically verifies
+   every spec against its fixture and that no spec cross-detects
+   another's fixture. Green CI is the whole review bar for a spec PR.
+4. Mention in the PR whether you validated against a real statement
+   (count + printed totals); the file itself never leaves your machine.
+
+## The code-parser recipe (UPI apps and exotic formats)
 
 1. **Map the format.** Dump your file's raw structure (for PDFs,
    `swift tools/dump-pdf.swift <file> [password]` shows exactly what
@@ -44,11 +79,14 @@ recipe below.
    exactly. Put the numbers in your PR description; the file itself
    never leaves your machine.
 6. **Register it.** A new *format* for an existing source: append the
-   parser in `ParserRegistry.live`. A new *source* additionally needs:
-   a `Source` enum case (display name + `.paymentApp`/`.bank` kind),
-   a glyph in `HisabTheme.sourceGlyph`, and short names in
-   `CoverageStrip`/`BucketsView`. The grid, chips, and analytics adapt
-   automatically.
+   parser in `ParserRegistry.live`. A new *source* is just a string id
+   (`Source(rawValue: "upi:phonepe")` — `upi:` prefix for payment
+   apps, everything else counts as a bank); add a display name in
+   `Source.displayName` and optionally a glyph in
+   `HisabTheme.sourceGlyph`. The grid, chips, filters, and analytics
+   adapt automatically. The five original ids (`gpay`, `paytm`,
+   `bhim`, `hdfc`, `idfc`) are frozen — they live inside stored
+   content hashes.
 
 ## Identity & dedup (important for correctness)
 
