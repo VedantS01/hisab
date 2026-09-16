@@ -132,23 +132,38 @@ HisabCore.
   paired with a **synthetic fixture**; CI executes every spec against
   its fixture through `SpecExecutor` + `BalanceChainValidator`. A
   green check machine-verifies any spec, ours or contributed.
-- Initial coverage: specs for the top retail banks (SBI, HDFC, ICICI,
-  Axis, Kotak, IDFC FIRST, PNB, BoB, Canara, Yes). Sourcing
-  (researched 2026-09-16): no bank publishes an official format spec,
-  but layouts are de-facto public — open-source parsers
-  (statementsparser, StmtForge, xfina, et al.) encode exact column
-  structures for the majors, and bank FAQ/aggregator pages show
-  sample layouts. That suffices for detection fingerprints and
-  candidate specs. Two rules follow: (a) public sources are
-  unversioned and possibly stale, so bundled specs are trusted for
-  *selection only* — per-import balance-chain validation remains the
-  sole correctness guarantee (already this design's division);
-  (b) "sample statements" circulating online are often real people's
-  leaked documents — read them for structure, never turn them into
-  fixtures; fixtures stay synthetic, always.
-- Banks not coverable from public material wait for their first user
-  fingerprint (most formats are buildable from a fingerprint alone;
-  occasionally we ask a requester for a redacted specimen).
+- Initial coverage, ranked by documentation sufficiency (deep
+  research, 2026-09-16 — no bank publishes an official format spec,
+  but open-source parsers, specimen PDFs, and converter write-ups
+  document the majors de facto):
+  - **Build now**: SBI (`Txn Date|Value Date|Description|Ref
+    No./Cheque No.|Debit|Credit|Balance`, PDF + XLS, password
+    variants), ICICI (two layouts, incl. a signed single-Amount
+    variant; UPI-remark substructure documented), Axis (dual layout —
+    Debit/Credit vs unsigned Amount + DR/CR column; multi-line
+    narration overflow), Kotak
+    (`Date|Narration|Chq/Ref|Withdrawal|Deposit|Balance`, CSV + PDF)
+    — plus existing HDFC and IDFC FIRST.
+  - **Draft with caveat**: PNB, BoB — shape confirmed from specimens,
+    no parser encodes their quirks; specs marked provisional pending
+    a first user fingerprint.
+  - **Fingerprint-first**: Yes, Federal, Canara and everyone else —
+    converter services claim support but publish no layout detail;
+    ship detection fingerprints only, claim support after a real
+    fingerprint arrives.
+- Cross-cutting hazards every spec/inference path must handle
+  (recur across banks): multi-line narration overflow rows (Axis,
+  PNB), unsigned amount + DR/CR column variants, password-protected
+  PDFs. Encouragingly, an industry OCR vendor reports 300+ column-name
+  variants across 34+ Indian banks collapsing into the same six
+  roles, and every documented bank prints a per-row running balance —
+  empirical backing for conservative inference + chain validation.
+- Two standing rules: (a) public sources are unversioned and possibly
+  stale, so bundled specs are trusted for *selection only* —
+  per-import balance-chain validation remains the sole correctness
+  guarantee; (b) "sample statements" circulating online are often
+  real people's leaked documents — read them for structure, never
+  turn them into fixtures; fixtures stay synthetic, always.
 - New specs ship bundled in the next app release; the release cadence
   is the support SLA.
 - Developer contributions (spec + fixture PRs) remain welcome via
@@ -264,8 +279,9 @@ This revision makes compliance strictly simpler than v1:
    bundled spec as the proving case (hash-identical output required).
 3. Conservative `ColumnInference` + silent generic import +
    unsupported-format sheet with fingerprint and email request.
-4. Bundled specs for top retail banks from public specimens + CI
-   fixture verification.
+4. Bundled specs per the documentation ranking — build-now set (SBI,
+   ICICI, Axis, Kotak) with synthetic fixtures + CI verification;
+   provisional PNB/BoB drafts; fingerprints only for the rest.
 5. `india-default` ruleset + `SuggestionEngine` + boot-time prompt.
 6. PhonePe code parser (whenever a sample arrives; parallel to all).
 
