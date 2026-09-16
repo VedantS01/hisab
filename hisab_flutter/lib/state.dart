@@ -27,6 +27,10 @@ class AppState {
   final Ruleset ruleset;
   late final Stream<Snapshot> snapshots;
 
+  /// Latest emission, replayed to late subscribers via StreamBuilder
+  /// initialData — a broadcast stream alone starves tabs opened later.
+  Snapshot? latest;
+
   AppState({required this.db, required this.importService, required this.ruleset}) {
     snapshots = _combine();
   }
@@ -46,7 +50,8 @@ class AppState {
           rules != null &&
           documents != null &&
           pins != null) {
-        controller.add(Snapshot(txns!, matches!, rules!, documents!, pins!));
+        latest = Snapshot(txns!, matches!, rules!, documents!, pins!);
+        controller.add(latest!);
       }
     }
 

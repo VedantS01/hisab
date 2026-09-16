@@ -21,6 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     return StreamBuilder<Snapshot>(
+      initialData: state.latest,
       stream: state.snapshots,
       builder: (context, snap) {
         final data = snap.data;

@@ -1,8 +1,6 @@
-import 'dart:convert';
-
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:hisab_core/hisab_core.dart';
 import 'package:hisab_pdf/hisab_pdf.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +10,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/reconciliation_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/transactions_screen.dart';
+import 'services/demo_data.dart';
 import 'services/import_service.dart';
 import 'services/queries.dart';
 import 'state.dart';
@@ -25,9 +24,8 @@ Future<void> main() async {
 
   final db = AppDatabase(driftDatabase(name: 'hisab'));
   final specJsons = <String>[];
-  final manifest = jsonDecode(
-      await rootBundle.loadString('AssetManifest.json')) as Map<String, dynamic>;
-  for (final asset in manifest.keys) {
+  final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+  for (final asset in manifest.listAssets()) {
     if (asset.startsWith('assets/formats/') && asset.endsWith('.json')) {
       specJsons.add(await rootBundle.loadString(asset));
     }
@@ -42,6 +40,14 @@ Future<void> main() async {
     ruleset: ruleset,
   );
   await Queries.categoryRules(db, ruleset); // additive seeding on launch
+
+  // Screenshot/dev harness: flutter build --dart-define=SEED_DEMO=true
+  // auto-loads the demo statements on an empty database.
+  const seedDemo = bool.fromEnvironment('SEED_DEMO');
+  if (seedDemo) {
+    final docs = await db.select(db.storedDocuments).get();
+    if (docs.isEmpty) await DemoData.load(state.importService);
+  }
 
   runApp(AppScope(state: state, child: const HisabApp()));
 }

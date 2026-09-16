@@ -19,6 +19,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     return StreamBuilder<Snapshot>(
+      initialData: state.latest,
       stream: state.snapshots,
       builder: (context, snap) {
         final data = snap.data;

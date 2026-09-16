@@ -14,6 +14,7 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     return StreamBuilder<Snapshot>(
+      initialData: state.latest,
       stream: state.snapshots,
       builder: (context, snap) {
         final data = snap.data;

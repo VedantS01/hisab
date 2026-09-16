@@ -1,6 +1,6 @@
 # Flutter Android Port — Design
 
-Date: 2026-09-17 · Status: approved (Vedant: "Port it fully to use
+Date: 2026-09-17 · Status: IMPLEMENTED (Vedant: "Port it fully to use
 Flutter"; Android-only for now; full format parity in v1)
 
 ## Goal

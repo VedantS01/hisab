@@ -28,3 +28,34 @@ jobs:
           xcodebuild -project Hisab.xcodeproj -scheme Hisab
           -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO build
+
+  flutter:
+    name: Flutter (hisab_core tests + Android build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assets in sync with HisabCore
+        run: tool/sync_assets.sh --check
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: hisab_core tests
+        run: |
+          cd hisab_flutter/packages/hisab_core
+          dart pub get
+          dart test
+      - name: hisab_pdf + app tests
+        run: |
+          cd hisab_flutter
+          flutter pub get
+          flutter test --exclude-tags samples
+          cd packages/hisab_pdf
+          flutter test --exclude-tags samples
+      - name: Android debug build
+        run: |
+          cd hisab_flutter
+          flutter build apk --debug
