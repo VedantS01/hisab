@@ -1,17 +1,19 @@
-# Format Generalization — Design
+# Format Generalization — Design (v2)
 
 Date: 2026-09-16 · Status: approved in discussion, pending spec review
-Owner: Vedant (decisions confirmed interactively)
+Owner: Vedant (decisions confirmed interactively; v2 supersedes the
+same-day v1 after Vedant's simplification pass)
 
 ## Goal
 
 Make Hisab useful beyond its author's own accounts: parse statements
-from **arbitrary Indian banks**, keep UPI-app support growing (add
-**PhonePe**), and ship a **standard India-wide categorization ruleset**
-— all without weakening the two founding guarantees:
+from **any Indian bank**, keep UPI-app support growing (add
+**PhonePe**), ship a **standard India-wide categorization ruleset**
+with polite on-device rule suggestions — while *strengthening* the two
+founding guarantees:
 
-1. **Privacy**: zero network requests by default; statements never
-   leave the device.
+1. **Privacy**: the app makes **zero network requests, ever** — this
+   design removes even the possibility, no exceptions to explain.
 2. **Correctness**: nothing unvalidated ever enters the ledger; every
    bank parse must prove itself **to the paisa**.
 
@@ -19,30 +21,34 @@ Out of scope here (own later brainstorms): the Android/Google Play
 port (which will port the *generalized* core produced by this work),
 and any LLM-assisted parsing.
 
-## Decisions (confirmed 2026-09-16)
+## Decisions (confirmed 2026-09-16, revised same day)
 
 | Question | Decision |
 |---|---|
 | Order of the three workstreams | Formats → rulesets (rides along) → Android |
-| Unknown-format UX | Self-serve generic engine + mapping UI, with an opt-in community sharing loop |
-| UPI apps | Stay curated **code parsers** (few players, printed-totals validation); add PhonePe now |
-| Spec/ruleset distribution | **Bundled** in releases (zero-network default intact) + explicit opt-in "Check for new formats" fetch of a static catalog |
-| Engine architecture | **C — inference proposes, balance chain disposes, specs remember** (A "specs only" and B "inference only" are strict subsets) |
+| Unknown-format UX | **Silent** generic engine: parses-and-proves or fails cleanly into an email-based "request this format" flow. **No mapping UI.** |
+| UPI apps | Curated **code parsers** (few players, printed-totals validation); add PhonePe now |
+| Spec/ruleset distribution | **Bundled only** — new formats and rules ship in app updates. No catalog fetch of any kind. |
+| Engine architecture | Inference proposes, balance chain disposes, specs remember — with inference tuned **conservative** (ambiguity = unsupported, never a guess) |
+| Format requests | In-app email (user-initiated share of a data-free format fingerprint); support lands in the next update |
+| Rule suggestions | On-device suggestion engine; at most **one** prompt per app launch, gated on substantial + frequent spend |
 
-## Key insight
+## The universality claim, made honest
 
-Every Indian bank statement, whatever the container (PDF, XLSX, XLS,
-TXT, CSV), reduces to the same table: date · narration · reference ·
-debit/credit (or signed amount) · **running balance**. The balance
-column is a checksum over the whole statement: a candidate column
-mapping is accepted **only** if `prev ± amount == next` closes exactly,
-row by row, to the paisa. That turns "we hand-validated each format
-against real samples" into "**every import validates itself on the
-user's own file**" — the property that makes generalization safe.
+We market "works with any Indian bank statement." The claim rests on
+the engine, not on enumerating banks:
 
-UPI-app exports have no balance column, so they cannot self-validate;
-that is why they remain curated code parsers validated against each
-format's printed totals.
+- every Indian savings/current-account statement, whatever the
+  container (PDF, XLSX, XLS, TXT, CSV), is the same table — date ·
+  narration · reference · debit/credit · **running balance**;
+- the balance column is a checksum over the whole statement: a
+  candidate column mapping is accepted **only** if
+  `prev ± amount == next` closes exactly, row by row, to the paisa.
+  The engine therefore either parses *correctly* or refuses — it can
+  never silently mis-parse;
+- curated bundled specs make the major banks crisp and instant;
+  generic inference catches unseen-but-well-formed formats; the
+  request flow covers the rest via app updates.
 
 ## Architecture (HisabCore `GenericBank` module)
 
@@ -51,32 +57,37 @@ HisabCore.
 
 - **`NormalizedTable`** — `[[Cell]]` plus per-row provenance. The five
   container readers (geometric PDF, MinimalZip/XLSX, MinimalXLS, TXT
-  ruler-slicing, CSV) already effectively produce this; they get a
-  common output type instead of each feeding a bespoke parser.
+  ruler-slicing, CSV) get a common output type instead of each feeding
+  a bespoke parser.
 - **`ColumnInference`** — proposes candidate role assignments
   (date / narration / reference / debit / credit / amount / balance)
-  from content shape: date-like columns, numeric columns, and the one
-  column where a balance chain can close. Emits candidates in
-  confidence order; never decides alone.
+  from content shape. **Conservative by design**: it succeeds only
+  when exactly one candidate mapping closes the balance chain; two
+  plausible mappings, or none, mean "unsupported", never a guess.
 - **`BalanceChainValidator`** — extracted from today's IDFC/HDFC
   logic. Takes a `NormalizedTable` + mapping, returns
-  exact-to-the-paisa pass/fail plus the recovered direction per row
-  (direction recovery via chain delta, as IDFC does today). Also
-  handles multi-page chains and opening-balance rows.
+  exact-to-the-paisa pass/fail plus per-row direction recovery (chain
+  delta, as IDFC does today). Handles multi-page chains and
+  opening-balance rows.
 - **`FormatSpec`** (Codable JSON) — a validated mapping, serialized:
-  header/furniture patterns to strip, column roles, date format, sign
-  convention (separate debit/credit columns vs signed amount vs
-  DR/CR suffix), synthetic-reference recipe for ref-less rows (same
-  balance-keyed recipe as today: `B<balance>D<date>A<amount>`),
-  detection fingerprint (header regexes) so specs self-select.
-- **`SpecExecutor`** — deterministically applies a `FormatSpec` to a
-  `NormalizedTable`; output still must pass `BalanceChainValidator`
-  (specs are trusted for *selection*, never for *correctness*).
+  header/furniture patterns, column roles, date format, sign
+  convention (separate debit/credit columns vs signed amount vs DR/CR
+  suffix), synthetic-reference recipe for ref-less rows (today's
+  balance-keyed recipe: `B<balance>D<date>A<amount>`), and a detection
+  fingerprint (header regexes) so specs self-select. Hard rule: the
+  format stays **purely declarative** — no expression language, ever.
+- **`SpecExecutor`** — deterministically applies a `FormatSpec`;
+  output still must pass `BalanceChainValidator` (specs are trusted
+  for *selection*, never for *correctness*).
+- **`FormatFingerprint`** — a small report generated from an
+  unparseable document: container type, detected header row text,
+  column count, date-shape and number-shape summaries. **Zero
+  transaction data** by construction — it never includes cell values
+  from body rows.
 - **Resolver** (extends `ParserRegistry`) — resolution order for a
-  bank-looking document:
-  1. exact code parsers (existing HDFC/IDFC + all UPI parsers),
-  2. bundled specs, 3. user's local specs, 4. fresh inference,
-  5. → "needs mapping" (never a silent best guess).
+  bank-looking document: exact code parsers (existing HDFC/IDFC + all
+  UPI parsers) → bundled specs → generic inference → **unsupported**
+  (fingerprint + request flow; never a partial or best-guess import).
 
 ### Open source-id model (the one breaking change)
 
@@ -85,9 +96,9 @@ HisabCore.
 `"bank:sbi"`, `"upi:phonepe"` — with:
 
 - the five existing raw values (`gpay`, `paytm`, `bhim`, `hdfc`,
-  `idfc`) preserved **verbatim** as ids, so every stored transaction's
+  `idfc`) preserved **verbatim**, so every stored transaction's
   contentHash is byte-identical → no migration, dedup guarantees
-  intact (regression test asserts the five canonical strings);
+  intact (regression test pins the five canonical strings);
 - display name / glyph / kind resolved from a registry keyed by id,
   with a generic bank fallback for unknown ids;
 - self-transfer detection generalized from "HDFC↔IDFC" to "equal
@@ -96,69 +107,120 @@ HisabCore.
 - reconciliation and the "bank data wins per month" basis rule keyed
   on `kind == .bank`, unchanged in behavior.
 
-## Mapping assistant (app)
+## Import UX
 
-When resolution ends at "needs mapping", the import sheet presents:
+- **Recognized or inferable format**: imports exactly like today —
+  no new UI at all. The user never learns whether a code parser, a
+  bundled spec, or fresh inference did the work.
+- **Unsupported format**: a single clear sheet — "Hisab can't read
+  this statement format yet." It shows which bank/app it *looks*
+  like (from the fingerprint), and one primary action: **"Request
+  support"**, which opens a pre-filled email (mailto:
+  vedantsaboo2001@gmail.com, subject "Hisab format request",
+  body = the fingerprint) via the system composer. User-initiated,
+  nothing sent by the app itself. Secondary copy notes that support
+  arrives in an app update.
+- Corrupt/truncated statements (a chain that cannot close) get the
+  same sheet with "couldn't verify this statement" wording and the
+  first failing region named — never a partial import.
+- Scanned/image PDFs (no text layer) are detected and explained; no
+  OCR in v1.
 
-1. the detected table, rendered as extracted (first ~15 rows);
-2. tappable column headers cycling through roles, a date-format
-   picker, and a sign-convention picker — pre-filled with inference's
-   best candidate;
-3. a **live balance-chain indicator**: red with the first failing row
-   highlighted until the whole statement closes, green when it does.
-   The Import button enables only on green.
+## Our format pipeline (repo side)
 
-On import: the mapping is saved as a local spec (same bank never asks
-again). A "Share this format" action exports the spec JSON — column
-mappings and patterns only, zero personal data — via the share sheet
-or a pre-filled GitHub issue URL. Sharing is manual and optional;
-nothing is transmitted by the app itself.
+- `formats/<bank>-<container>.json` specs live in the repo, each
+  paired with a **synthetic fixture**; CI executes every spec against
+  its fixture through `SpecExecutor` + `BalanceChainValidator`. A
+  green check machine-verifies any spec, ours or contributed.
+- Initial coverage: specs for the top retail banks (SBI, HDFC, ICICI,
+  Axis, Kotak, IDFC FIRST, PNB, BoB, Canara, Yes) built from public
+  specimen statements where obtainable; where no specimen exists, the
+  bank waits for its first fingerprint (most formats are buildable
+  from a fingerprint alone; occasionally we ask a requester for a
+  redacted specimen).
+- New specs ship bundled in the next app release; the release cadence
+  is the support SLA.
+- Developer contributions (spec + fixture PRs) remain welcome via
+  CONTRIBUTING — that's open source, not product surface.
 
-Error handling: container unreadable → existing unsupported-file
-error; table found but no mapping can close the chain (corrupt or
-truncated statement) → explicit "couldn't verify this statement"
-state with the failing row shown, never a partial import.
+## Rulesets and rule suggestions
 
-## Community loop (repo + site)
+- **`rulesets/india-default.json`**: curated merchant-pattern →
+  category set (Swiggy/Zomato → Food; IRCTC/Uber/Rapido → Travel;
+  utilities, SIP/investment, rent patterns, …), versioned, bundled,
+  seeded through the existing `Categorizer.seedRules` path.
+  **User-created rules and per-transaction overrides always win**
+  (existing `effectiveCategory` ordering, unchanged). Updates ship
+  with app releases; CI lints pattern validity and category
+  vocabulary.
+- **`SuggestionEngine` (HisabCore, pure)**: scans transactions whose
+  effective category is Uncategorized or Miscellaneous, clusters by
+  normalized merchant/narration, and emits a queue of candidate
+  rules ordered by spend impact. A candidate qualifies only if, over
+  the trailing 90 days, it is
+  - **substantial**: cluster total ≥ 2% of the user's total debits in
+    that window, with a ₹500 floor, and
+  - **frequent**: ≥ 3 transactions across ≥ 2 distinct months.
+- **Prompt discipline (app)**: at most **one** suggestion per app
+  launch and at most one per calendar day — "You've spent ₹4,320 on
+  BLUE TOKAI across 7 payments. Categorize these?" with a category
+  picker (existing categories + free text). Accept → creates an
+  ordinary rule, editable like any other. Dismiss → that merchant is
+  permanently muted (persisted). No notifications, no badges, no
+  re-asking.
 
-- `formats/<bank>-<container>.json` specs live in the repo, **each
-  paired with a synthetic fixture** (generated like today's test
-  fixtures — never real statements). CI executes every spec against
-  its fixture through `SpecExecutor` + `BalanceChainValidator`;
-  a green check machine-verifies a contribution, so no maintainer
-  needs a real sample.
-- CI builds `catalog.json` (spec index + rulesets + min-app-version)
-  onto the existing GitHub Pages site.
-- The app bundles all specs at release; Settings gains
-  **"Check for new formats"** — an explicit, user-initiated fetch of
-  that static catalog (the only network call in the product, clearly
-  labeled; privacy copy updated from "no network requests" to "no
-  network requests except this button").
-- CONTRIBUTING gets a "contribute a format — no Swift required"
-  recipe: run the mapping assistant on your own statement, share the
-  spec, add a synthetic fixture (template provided), open a PR.
+## Usefulness analysis
 
-## Standard rulesets
+- **UPI coverage**: GPay + PhonePe + Paytm carry ~95% of UPI volume;
+  with PhonePe added, the app-side story covers nearly everyone —
+  which is why PhonePe is in-scope now.
+- **Bank coverage**: bundled specs make the top banks instant;
+  conservative inference silently covers well-formed long-tail
+  formats; the request flow covers failures without ever showing a
+  civilian a column-mapping screen. The failure UX is "email us,
+  it'll be in an update" — honest and low-friction.
+- **Day-one insight**: the india-default ruleset is what makes the
+  dashboard meaningful before the user writes a single rule; the
+  suggestion engine then grows categorization from the user's own
+  spending, one polite prompt at a time.
+- **Bank-only users are a first-class mode**: reconciliation needs
+  both sides, but bank-statement-only users still get a categorized
+  ledger and monthly analytics; the UI degrades gracefully rather
+  than nagging for UPI exports.
 
-- `rulesets/india-default.json`: curated merchant-pattern → category
-  set (Swiggy/Zomato → Food; IRCTC/Uber/Rapido → Travel; utility,
-  investment/SIP, rent patterns, …), versioned, bundled, refreshed via
-  the same catalog.
-- Seeded through the existing `Categorizer.seedRules` path as
-  system-provided rules; **user-created rules and per-transaction
-  overrides always take precedence** (existing `effectiveCategory`
-  ordering, unchanged).
-- Community PRs edit the JSON; CI lint checks pattern validity and
-  category vocabulary.
+## Generality — honest limits (v1)
 
-## PhonePe (sixth UPI source)
+- The engine assumes a **running-balance** table: Indian
+  savings/current accounts, yes; credit-card statements and wallet
+  ledgers, no (no balance chain). Credit cards are a future dimension
+  (printed totals offer a validation path); v1 detects and says so.
+- Scanned/image PDFs cannot be parsed; detected and explained.
+- Single account per file, INR only. `FormatSpec` carries a currency
+  field for the future; the engine asserts INR in v1.
+- Password-protected PDFs already work generically (existing prompt).
 
-Code parser, same discipline as the other four: built against a real
-sample, validated against the statement's printed totals, synthetic
-fixture for CI. **Blocked on obtaining one sample statement** (owner's
-or a willing friend's; the file never leaves the machine, per standing
-rule). Ships whenever the sample exists — independent of everything
-above.
+## Store-review implications
+
+This revision makes compliance strictly simpler than v1:
+
+- **No network surface at all**: no remote fetch means Apple 2.5.2
+  (code download) is moot, the privacy label stays "Data Not
+  Collected", and the "makes no network requests" statements in the
+  privacy policy, listing, and App Review notes remain literally true
+  with no edits. The request email is a user-initiated `mailto:` via
+  the system composer — the app transmits nothing.
+- **Bank names in metadata**: in-app nominative use is fine (already
+  cleared in review). Don't stuff bank names into App Store keywords
+  or screenshots (Apple 2.3.7 / Play metadata policy); say "works
+  with any Indian bank statement" and name only formats with bundled,
+  tested support.
+- **Finance-category declarations (Play, for later)**: Financial
+  Features declaration = none-of-the-above (no accounts, transfers,
+  lending); Data safety form = no data collected/shared. The
+  demo-data path doubles as what Play's pre-launch bots and human
+  reviewers use to see populated screens.
+- **No UGC surface**: nothing user-generated is shared through the
+  product; fingerprints are machine-generated and data-free.
 
 ## Testing
 
@@ -166,10 +228,15 @@ above.
   mind Xcode 16's stricter type-check budget).
 - `ColumnInference`: permuted-table torture tests — synthetic
   statements with shuffled column orders, merged debit/credit
-  variants, DR/CR suffixes, missing refs, multi-page chains; property:
-  inference + validation either recovers the exact generating mapping
-  or reports "needs mapping", never a wrong accepted mapping.
+  variants, DR/CR suffixes, missing refs, multi-page chains.
+  Property: inference either recovers the exact generating mapping or
+  reports unsupported — a wrong accepted mapping is a test failure,
+  and so is accepting an ambiguous table.
 - `SpecExecutor`: golden tests per bundled spec against its fixture.
+- `FormatFingerprint`: property test that no body-row cell value ever
+  appears in the output.
+- `SuggestionEngine`: threshold/gating tests, mute persistence, queue
+  ordering by impact.
 - Migration guard: canonical-hash regression test pinning the five
   existing source ids and sample contentHashes.
 - Existing 108 tests pass untouched. Existing bank code parsers stay
@@ -178,90 +245,18 @@ above.
   spec replace that code path — no behavior change for current users
   at any point.
 
-## Usefulness analysis
-
-A random user's value from Hisab is roughly: *my UPI apps parse* ×
-*my bank parses* × *the dashboard means something on day one*.
-
-- **UPI coverage**: GPay + PhonePe + Paytm carry ~95% of UPI volume;
-  with PhonePe added, the app-side story covers nearly everyone. This
-  is why PhonePe is in-scope now rather than left to contribution.
-- **Bank coverage**: the generic engine covers the long tail, but the
-  mapping UI must be the *exception*, not the onboarding experience —
-  a non-technical user hitting a column-tagging screen on first import
-  will bounce. Mitigation: seed bundled specs for the top ~10 retail
-  banks (SBI, HDFC, ICICI, Axis, Kotak, IDFC FIRST, PNB, BoB, Canara,
-  Yes) early — from public sample statements and community
-  contributions — so the common path is zero-touch.
-- **Day-one insight**: the india-default ruleset is what makes the
-  dashboard meaningful before the user writes a single rule; without
-  it everything lands in Uncategorized and the product looks empty.
-- **Bank-only users are a first-class mode**: reconciliation needs
-  both sides, but a user who imports only bank statements still gets
-  a categorized ledger and monthly analytics (everything is
-  "Miscellaneous"-by-default until rules bite). The UI must degrade
-  to this gracefully rather than nag about missing UPI exports.
-
-## Generality — honest limits (v1)
-
-- The engine assumes a **running-balance** table; that holds for
-  Indian savings/current-account statements but not credit-card
-  statements or wallet ledgers (no balance chain). Credit cards are a
-  future dimension (they do print totals, so a validated path exists);
-  v1 detects and says "not a bank account statement" rather than
-  guessing.
-- **Scanned/image PDFs** (no text layer) cannot be parsed; detect and
-  explain, no OCR in v1.
-- Single account per file, INR only. `FormatSpec` carries a currency
-  field for the future, but the engine asserts INR in v1.
-- Password-protected PDFs already work generically (existing prompt).
-
-## Store-review implications
-
-- **Remote specs are data, not code** (Apple guideline 2.5.2 / Play
-  equivalent): specs and rulesets are declarative JSON interpreted by
-  a fixed, shipped engine. Hard rule for all future work: the spec
-  format must never grow an expression language or anything
-  eval-like, or the opt-in fetch becomes downloadable code.
-- **Privacy label stays "Data Not Collected"**: the opt-in catalog
-  fetch sends no user data — it is a plain GET of a static file. But
-  our App Review notes and privacy policy currently say "no network
-  requests"; the next submission that ships the button must update
-  both to "no network requests except the explicit, user-initiated
-  format-catalog check (a static file on GitHub Pages; GitHub sees
-  your IP as with any download)". Never let marketing copy and
-  review-notes copy drift apart — that mismatch is what 2.1 rejections
-  are made of.
-- **Bank names in metadata**: in-app nominative use is fine (already
-  cleared in review), but don't stuff dozens of bank names into App
-  Store keywords/screenshots or Play listing text (Apple 2.3.7 /
-  Play metadata policy treat that as third-party-brand keyword
-  spam). Say "works with any Indian bank statement" and name only the
-  formats with bundled, tested specs.
-- **Finance-category declarations**: Hisab performs no financial
-  services (no accounts, transfers, lending). On Play this still
-  requires the **Financial Features declaration** (answer:
-  none-of-the-above) and the **Data safety form** (no data
-  collected/shared — same reasoning as Apple's label). Play's
-  pre-launch report robots will explore the app: the demo-data path
-  doubles as the way those bots (and human reviewers) see populated
-  screens.
-- **Community content**: shared specs contain mappings and patterns
-  only — no UGC surface, no moderation obligations. Keep it that way:
-  the share flow exports machine-generated JSON, never free text or
-  statement excerpts.
-
 ## Milestones
 
 1. `NormalizedTable` + `BalanceChainValidator` extraction (pure
    refactor, current parsers keep passing).
 2. `FormatSpec` + `SpecExecutor` + resolver; migrate IDFC XLSX to a
    bundled spec as the proving case (hash-identical output required).
-3. `ColumnInference` + mapping assistant UI + local spec store.
-4. Repo `formats/` + fixtures + CI verification + `catalog.json` +
-   opt-in fetch + CONTRIBUTING recipe.
-5. `india-default` ruleset + seeding + catalog refresh.
-6. PhonePe parser (whenever the sample arrives; parallel to all).
+3. Conservative `ColumnInference` + silent generic import +
+   unsupported-format sheet with fingerprint and email request.
+4. Bundled specs for top retail banks from public specimens + CI
+   fixture verification.
+5. `india-default` ruleset + `SuggestionEngine` + boot-time prompt.
+6. PhonePe code parser (whenever a sample arrives; parallel to all).
 
 Android/Google Play is deliberately **after** this: the port then
 targets the generalized core (spec files and rulesets are
@@ -270,5 +265,5 @@ platform-neutral JSON, shared verbatim across platforms).
 ## Open questions
 
 - PhonePe sample sourcing (owner action).
-- Whether "Check for new formats" lands in the same release as specs
-  or a later one (bundled-only is a complete v1 of this design).
+- Which top-bank specimen statements are publicly obtainable; banks
+  without specimens wait for their first user fingerprint.
