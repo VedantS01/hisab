@@ -5,7 +5,6 @@ library;
 
 import 'dart:math';
 
-import 'package:drift/drift.dart';
 import 'package:hisab_core/hisab_core.dart';
 
 import '../storage/database.dart';

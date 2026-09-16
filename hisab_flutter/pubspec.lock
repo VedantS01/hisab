@@ -367,6 +367,13 @@ packages:
       relative: true
     source: path
     version: "1.1.0"
+  hisab_pdf:
+    dependency: "direct main"
+    description:
+      path: "packages/hisab_pdf"
+      relative: true
+    source: path
+    version: "1.1.0"
   hooks:
     dependency: transitive
     description:
