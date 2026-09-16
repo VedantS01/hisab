@@ -1,0 +1,23 @@
+{
+  "provisional": false,
+  "furniturePatterns": [],
+  "id": "axis-classic",
+  "sourceID": "bank:axis",
+  "bankName": "Axis Bank",
+  "headerPatterns": {
+    "date": "^tran date$",
+    "narration": "^particulars$",
+    "reference": "^chq no$",
+    "debit": "^debit$",
+    "credit": "^credit$",
+    "balance": "^balance$"
+  },
+  "dateFormats": [
+    "dd-MM-yyyy",
+    "dd/MM/yyyy"
+  ],
+  "signConvention": "debitCredit",
+  "detectPatterns": [
+    "axis bank"
+  ]
+}

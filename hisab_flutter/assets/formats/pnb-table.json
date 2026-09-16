@@ -1,0 +1,22 @@
+{
+  "provisional": true,
+  "furniturePatterns": [],
+  "id": "pnb-table",
+  "sourceID": "bank:pnb",
+  "bankName": "Punjab National Bank",
+  "headerPatterns": {
+    "date": "^date$",
+    "narration": "^particulars$",
+    "debit": "^withdrawal$",
+    "credit": "^deposit$",
+    "balance": "^balance$"
+  },
+  "dateFormats": [
+    "dd/MM/yyyy",
+    "dd-MM-yyyy"
+  ],
+  "signConvention": "debitCredit",
+  "detectPatterns": [
+    "punjab national"
+  ]
+}
