@@ -133,11 +133,22 @@ HisabCore.
   its fixture through `SpecExecutor` + `BalanceChainValidator`. A
   green check machine-verifies any spec, ours or contributed.
 - Initial coverage: specs for the top retail banks (SBI, HDFC, ICICI,
-  Axis, Kotak, IDFC FIRST, PNB, BoB, Canara, Yes) built from public
-  specimen statements where obtainable; where no specimen exists, the
-  bank waits for its first fingerprint (most formats are buildable
-  from a fingerprint alone; occasionally we ask a requester for a
-  redacted specimen).
+  Axis, Kotak, IDFC FIRST, PNB, BoB, Canara, Yes). Sourcing
+  (researched 2026-09-16): no bank publishes an official format spec,
+  but layouts are de-facto public — open-source parsers
+  (statementsparser, StmtForge, xfina, et al.) encode exact column
+  structures for the majors, and bank FAQ/aggregator pages show
+  sample layouts. That suffices for detection fingerprints and
+  candidate specs. Two rules follow: (a) public sources are
+  unversioned and possibly stale, so bundled specs are trusted for
+  *selection only* — per-import balance-chain validation remains the
+  sole correctness guarantee (already this design's division);
+  (b) "sample statements" circulating online are often real people's
+  leaked documents — read them for structure, never turn them into
+  fixtures; fixtures stay synthetic, always.
+- Banks not coverable from public material wait for their first user
+  fingerprint (most formats are buildable from a fingerprint alone;
+  occasionally we ask a requester for a redacted specimen).
 - New specs ship bundled in the next app release; the release cadence
   is the support SLA.
 - Developer contributions (spec + fixture PRs) remain welcome via
@@ -265,5 +276,3 @@ platform-neutral JSON, shared verbatim across platforms).
 ## Open questions
 
 - PhonePe sample sourcing (owner action).
-- Which top-bank specimen statements are publicly obtainable; banks
-  without specimens wait for their first user fingerprint.
