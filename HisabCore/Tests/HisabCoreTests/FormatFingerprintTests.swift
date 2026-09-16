@@ -7,7 +7,7 @@ final class FormatFingerprintTests: XCTestCase {
             ["CANARA BANK", ""],
             ["Date", "Narration", "Amount", "Balance"],
             ["01/04/2026", "SALARY ACME CORP 987654", "100.00", "900.00"],
-            ["02/04/2026", "POS COFFEE 4413", "50.00", "850.00"],
+            ["02/04/2026", "POS COFFEE 4413", "150.00", "850.00"],
         ], container: "csv")
     }
 
@@ -39,6 +39,17 @@ final class FormatFingerprintTests: XCTestCase {
         XCTAssertEqual(fp.headerRow, [])
         XCTAssertEqual(fp.rowCount, 1)
         XCTAssertFalse(fp.emailBody(appVersion: "1.1.0").contains("POS X"))
+    }
+
+    func testMailtoURLTargetsSupportAddressWithEncodedBody() throws {
+        let fp = FormatFingerprint.make(table: table)
+        let url = try XCTUnwrap(fp.mailtoURL(appVersion: "1.1.0"))
+        XCTAssertEqual(url.scheme, "mailto")
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.path, "vedantsaboo2001@gmail.com")
+        let items = components.queryItems ?? []
+        XCTAssertEqual(items.first { $0.name == "subject" }?.value, "Hisab format request")
+        XCTAssertEqual(items.first { $0.name == "body" }?.value, fp.emailBody(appVersion: "1.1.0"))
     }
 
     func testEmailBodyNamesAppVersionAndContainer() {

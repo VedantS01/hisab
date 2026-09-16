@@ -65,6 +65,22 @@ public struct FormatFingerprint: Codable, Equatable, Sendable {
         })
     }
 
+    /// The support address format requests go to (the maintainer).
+    public static let supportAddress = "vedantsaboo2001@gmail.com"
+
+    /// User-initiated mailto link carrying the fingerprint; the app itself
+    /// never transmits anything.
+    public func mailtoURL(appVersion: String) -> URL? {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = Self.supportAddress
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: "Hisab format request"),
+            URLQueryItem(name: "body", value: emailBody(appVersion: appVersion)),
+        ]
+        return components.url
+    }
+
     public func emailBody(appVersion: String) -> String {
         var lines = ["Hisab format request (v\(appVersion))", ""]
         lines.append("Container: \(container)")

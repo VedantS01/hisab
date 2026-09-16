@@ -14,6 +14,13 @@ struct ImportSheet: View {
     @State private var report: ImportReport?
     @State private var errorMessage: String?
     @State private var showPicker = true
+    @State private var requestTarget: RequestTarget?
+
+    private struct RequestTarget: Identifiable {
+        let fingerprint: FormatFingerprint
+        let verificationDetail: String?
+        var id: String { fingerprint.container + (verificationDetail ?? "") }
+    }
 
     var body: some View {
         NavigationStack {
@@ -31,6 +38,10 @@ struct ImportSheet: View {
                     Button("Close") { dismiss() }
                 }
             }
+        }
+        .sheet(item: $requestTarget) { target in
+            FormatRequestSheet(fingerprint: target.fingerprint,
+                               verificationDetail: target.verificationDetail)
         }
         .fileImporter(isPresented: $showPicker,
                       allowedContentTypes: [.pdf, .commaSeparatedText, .plainText, .data],
@@ -136,6 +147,10 @@ struct ImportSheet: View {
             errorMessage = "No transactions found in this file."
         } catch ParseError.unrecognizedFormat {
             errorMessage = "Unrecognized format. Pick the source manually."
+        } catch ImportServiceError.unsupportedFormat(let fingerprint) {
+            requestTarget = RequestTarget(fingerprint: fingerprint, verificationDetail: nil)
+        } catch ImportServiceError.unverifiedStatement(let fingerprint, let detail) {
+            requestTarget = RequestTarget(fingerprint: fingerprint, verificationDetail: detail)
         } catch {
             errorMessage = error.localizedDescription
         }
