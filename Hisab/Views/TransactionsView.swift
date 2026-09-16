@@ -87,7 +87,7 @@ struct TransactionsView: View {
                 }
                 Picker("Source", selection: $sourceFilter) {
                     Text("All sources").tag(Source?.none)
-                    ForEach(Source.allCases) { source in
+                    ForEach(Source.ordered(allTxns.map(\.source))) { source in
                         Text(source.displayName).tag(Source?.some(source))
                     }
                 }

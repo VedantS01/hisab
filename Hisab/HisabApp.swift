@@ -25,6 +25,12 @@ struct HisabApp: App {
 struct RootView: View {
     @Environment(\.modelContext) private var context
     @State private var selectedTab = "dashboard"
+    @State private var suggestion: RuleSuggestion?
+
+    private struct SuggestionItem: Identifiable {
+        let suggestion: RuleSuggestion
+        var id: String { suggestion.merchantPattern }
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -65,6 +71,20 @@ struct RootView: View {
             if let index = args.firstIndex(of: "--tab"), args.indices.contains(index + 1) {
                 selectedTab = args[index + 1]
             }
+            #if DEBUG
+            if args.contains("--force-suggestion") { SuggestionSchedule.resetForDebug() }
+            #endif
+            if !SuggestionSchedule.alreadyShownToday {
+                suggestion = SuggestionEngine.queue(records: Queries.suggestionRecords(context),
+                                                    now: Date(),
+                                                    muted: SuggestionSchedule.muted).first
+            }
+        }
+        .sheet(item: Binding(
+            get: { suggestion.map(SuggestionItem.init) },
+            set: { if $0 == nil { suggestion = nil } }
+        ), onDismiss: { SuggestionSchedule.markShown() }) { item in
+            SuggestionPrompt(suggestion: item.suggestion)
         }
     }
 }

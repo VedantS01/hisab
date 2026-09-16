@@ -14,12 +14,21 @@ enum Queries {
         (try? ctx.fetch(FetchDescriptor<StoredTransaction>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? []
     }
 
-    /// Seeds the rule table from Categorizer defaults on first launch.
+    /// Additively seeds the rule table from the bundled india-default ruleset:
+    /// any ruleset pattern the user doesn't already have (by case-insensitive
+    /// pattern) is inserted; existing rules — including ones the user edited —
+    /// are never touched. Idempotent, and ruleset version bumps just add rules.
     static func categoryRules(_ ctx: ModelContext) -> [CategoryRule] {
         var stored = (try? ctx.fetch(FetchDescriptor<StoredCategoryRule>(sortBy: [SortDescriptor(\.sortOrder)]))) ?? []
-        if stored.isEmpty {
-            for (index, rule) in Categorizer.seedRules.enumerated() {
-                ctx.insert(StoredCategoryRule(pattern: rule.pattern, category: rule.category, sortOrder: index))
+        let existing = Set(stored.map { $0.pattern.lowercased() })
+        let missing = Categorizer.defaultRuleset().rules.filter {
+            !existing.contains($0.pattern.lowercased())
+        }
+        if !missing.isEmpty {
+            var order = (stored.map(\.sortOrder).max() ?? -1) + 1
+            for rule in missing {
+                ctx.insert(StoredCategoryRule(pattern: rule.pattern, category: rule.category, sortOrder: order))
+                order += 1
             }
             try? ctx.save()
             stored = (try? ctx.fetch(FetchDescriptor<StoredCategoryRule>(sortBy: [SortDescriptor(\.sortOrder)]))) ?? []
@@ -107,6 +116,23 @@ enum Queries {
             return Categorizer.miscellaneous
         }
         return auto
+    }
+
+    /// Projection feeding SuggestionEngine: visible transactions (matched bank
+    /// evidence excluded) with their effective categories.
+    static func suggestionRecords(_ ctx: ModelContext) -> [SpendRecord] {
+        let txns = allTransactions(ctx)
+        let rules = categoryRules(ctx)
+        let selfTransfers = selfTransferUUIDs(in: txns)
+        let matches = (try? ctx.fetch(FetchDescriptor<StoredMatch>())) ?? []
+        return visible(txns, matches: matches).map { txn in
+            SpendRecord(merchant: txn.counterparty.isEmpty ? txn.narration : txn.counterparty,
+                        amountPaise: txn.amountPaise,
+                        date: txn.date,
+                        direction: txn.direction,
+                        effectiveCategory: effectiveCategory(of: txn, rules: rules,
+                                                             selfTransfers: selfTransfers))
+        }
     }
 
     static func reconTxns(_ ctx: ModelContext, month: YearMonth) -> (app: [ReconTxn], bank: [ReconTxn]) {

@@ -1,0 +1,22 @@
+{
+  "provisional": false,
+  "furniturePatterns": [],
+  "id": "icici-signed",
+  "sourceID": "bank:icici",
+  "bankName": "ICICI Bank",
+  "headerPatterns": {
+    "date": "^date$",
+    "narration": "^narration$",
+    "reference": "^ref/cheque no$",
+    "amount": "^amount$",
+    "balance": "^balance$"
+  },
+  "dateFormats": [
+    "dd/MM/yyyy",
+    "dd-MM-yyyy"
+  ],
+  "signConvention": "signedAmount",
+  "detectPatterns": [
+    "icici"
+  ]
+}

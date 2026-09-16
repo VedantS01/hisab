@@ -24,7 +24,7 @@ final class StoredDocument {
         self.importedAt = Date()
     }
 
-    var source: Source { Source(rawValue: sourceRaw) ?? .gpay }
+    var source: Source { Source(rawValue: sourceRaw) }
     var period: DatePeriod { DatePeriod(start: periodStart, end: periodEnd) }
 }
 
@@ -56,7 +56,7 @@ final class StoredTransaction {
     }
 
     var direction: Direction { Direction(rawValue: directionRaw) ?? .debit }
-    var source: Source { Source(rawValue: sourceRaw) ?? .gpay }
+    var source: Source { Source(rawValue: sourceRaw) }
     var month: YearMonth { YearMonth(date: date) }
 }
 

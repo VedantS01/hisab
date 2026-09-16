@@ -1,0 +1,22 @@
+{
+  "provisional": true,
+  "furniturePatterns": [],
+  "id": "bob-table",
+  "sourceID": "bank:bob",
+  "bankName": "Bank of Baroda",
+  "headerPatterns": {
+    "date": "^date$",
+    "narration": "^particulars$",
+    "debit": "^withdrawal$",
+    "credit": "^deposit$",
+    "balance": "^balance$"
+  },
+  "dateFormats": [
+    "dd/MM/yyyy",
+    "dd-MM-yyyy"
+  ],
+  "signConvention": "debitCredit",
+  "detectPatterns": [
+    "bank of baroda"
+  ]
+}

@@ -14,7 +14,7 @@ final class BHIMParserTests: XCTestCase {
 
     func testSourceRegistration() {
         XCTAssertEqual(Source.bhim.kind, .paymentApp)
-        XCTAssertTrue(Source.allCases.contains(.bhim))
+        XCTAssertTrue(Source.builtIn.contains(.bhim))
     }
 
     func testParsesSuccessRowsOnly() throws {

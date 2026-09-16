@@ -49,12 +49,13 @@ enum HisabTheme {
     }
 
     static func sourceGlyph(_ source: Source) -> String {
-        switch source {
-        case .gpay: "g.circle.fill"
-        case .paytm: "p.circle.fill"
-        case .bhim: "b.circle.fill"
-        case .hdfc: "building.columns.fill"
-        case .idfc: "building.columns"
+        switch source.rawValue {
+        case "gpay": "g.circle.fill"
+        case "paytm": "p.circle.fill"
+        case "bhim": "b.circle.fill"
+        case "hdfc": "building.columns.fill"
+        case "idfc": "building.columns"
+        default: source.kind == .bank ? "building.columns.fill" : "indianrupeesign.circle.fill"
         }
     }
 }

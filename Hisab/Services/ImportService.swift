@@ -13,12 +13,14 @@ struct ImportReport {
 
 enum ImportServiceError: Error, LocalizedError {
     case unreadable
-    case noParser
+    case unsupportedFormat(FormatFingerprint)
+    case unverifiedStatement(FormatFingerprint, String)
 
     var errorDescription: String? {
         switch self {
         case .unreadable: "Could not read the selected file."
-        case .noParser: "No parser recognizes this file. Pick the source manually or check the format."
+        case .unsupportedFormat: "Hisab can't read this statement format yet."
+        case .unverifiedStatement: "Couldn't verify this statement — its running balance doesn't add up."
         }
     }
 }
@@ -26,11 +28,11 @@ enum ImportServiceError: Error, LocalizedError {
 @MainActor
 final class ImportService {
     private let context: ModelContext
-    private let registry: ParserRegistry
+    private let resolver: ImportResolver
 
-    init(context: ModelContext, registry: ParserRegistry = .live) {
+    init(context: ModelContext, resolver: ImportResolver = .live()) {
         self.context = context
-        self.registry = registry
+        self.resolver = resolver
     }
 
     func importFile(at url: URL, password: String?, overrideSource: Source?) throws -> ImportReport {
@@ -45,10 +47,17 @@ final class ImportService {
                                 monthsTouched: [], duplicateOfExistingFile: true)
         }
 
-        guard let parser = registry.detect(data: data, filename: url.lastPathComponent) else {
-            throw ImportServiceError.noParser
+        let parsed: ParsedDocument
+        switch resolver.resolve(data: data, filename: url.lastPathComponent, password: password) {
+        case .parsed(let doc):
+            parsed = doc
+        case .passwordRequired:
+            throw ParseError.passwordRequired
+        case .unsupported(let fingerprint):
+            throw ImportServiceError.unsupportedFormat(fingerprint)
+        case .unverified(let fingerprint, let detail):
+            throw ImportServiceError.unverifiedStatement(fingerprint, detail)
         }
-        let parsed = try parser.parse(data: data, password: password)
         let source = overrideSource ?? parsed.source
 
         let existingHashes = Set(
