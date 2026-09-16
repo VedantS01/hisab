@@ -4,6 +4,9 @@
 
 ![CI](https://github.com/VedantS01/hisab/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-A4243B)
+[![App Store](https://img.shields.io/badge/App_Store-Hisab-0D96F6?logo=apple&logoColor=white)](https://apps.apple.com/app/id6809138684)
+
+**Now on the App Store:** [Hisab — UPI Statement Ledger](https://apps.apple.com/app/id6809138684)
 
 <img src="docs/brand/icon.png" width="96" align="right" alt="Hisab icon: a red bahi-khata ledger with a rupee glyph" />
 
