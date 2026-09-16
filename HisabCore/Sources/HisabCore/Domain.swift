@@ -4,26 +4,46 @@ public enum SourceKind: String, Codable, Sendable {
     case paymentApp, bank
 }
 
-/// The four statement sources Hisab understands. Extend here to add a fifth.
-public enum Source: String, Codable, CaseIterable, Sendable, Identifiable {
-    case gpay, paytm, bhim, hdfc, idfc
-
+/// Statement sources. The five original ids are frozen (they live inside stored
+/// content hashes); new banks and apps use open ids like "bank:sbi" or "upi:phonepe".
+public struct Source: RawRepresentable, Codable, Hashable, Sendable, Identifiable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
     public var id: String { rawValue }
 
-    public var displayName: String {
-        switch self {
-        case .gpay: "Google Pay"
-        case .paytm: "Paytm"
-        case .bhim: "BHIM UPI"
-        case .hdfc: "HDFC Bank"
-        case .idfc: "IDFC First Bank"
+    public static let gpay = Source(rawValue: "gpay")
+    public static let paytm = Source(rawValue: "paytm")
+    public static let bhim = Source(rawValue: "bhim")
+    public static let hdfc = Source(rawValue: "hdfc")
+    public static let idfc = Source(rawValue: "idfc")
+    /// Sources with first-party parsers; drives pickers, filters, and capability copy.
+    public static let builtIn: [Source] = [.gpay, .paytm, .bhim, .hdfc, .idfc]
+
+    public var kind: SourceKind {
+        switch rawValue {
+        case "gpay", "paytm", "bhim": return .paymentApp
+        default: return rawValue.hasPrefix("upi:") ? .paymentApp : .bank
         }
     }
 
-    public var kind: SourceKind {
-        switch self {
-        case .gpay, .paytm, .bhim: .paymentApp
-        case .hdfc, .idfc: .bank
+    public var displayName: String {
+        switch rawValue {
+        case "gpay": return "Google Pay"
+        case "paytm": return "Paytm"
+        case "bhim": return "BHIM UPI"
+        case "hdfc": return "HDFC Bank"
+        case "idfc": return "IDFC First Bank"
+        default:
+            let slug = rawValue.split(separator: ":").last.map(String.init) ?? rawValue
+            return slug.count <= 4 ? slug.uppercased() : slug.capitalized
+        }
+    }
+
+    /// Payment apps first, then banks, alphabetical by display name within kind.
+    public static func ordered(_ sources: some Sequence<Source>) -> [Source] {
+        Set(sources).sorted { lhs, rhs in
+            if lhs.kind != rhs.kind { return lhs.kind == .paymentApp }
+            return lhs.displayName < rhs.displayName
         }
     }
 }

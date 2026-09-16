@@ -53,7 +53,7 @@ struct ImportSheet: View {
                 Section("Source") {
                     Picker("Source", selection: $overrideSource) {
                         Text("Auto-detect").tag(Source?.none)
-                        ForEach(Source.allCases) { source in
+                        ForEach(Source.builtIn) { source in
                             Text(source.displayName).tag(Source?.some(source))
                         }
                     }

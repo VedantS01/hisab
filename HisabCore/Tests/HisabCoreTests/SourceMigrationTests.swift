@@ -32,6 +32,22 @@ final class SourceMigrationTests: XCTestCase {
                        "a756f6fc0f7b272b2983b46c0a7855aba0d3adfed7de4e9809d8943ddba4657d")
     }
 
+    func testOpenSourceIDs() {
+        let sbi = Source(rawValue: "bank:sbi")
+        XCTAssertEqual(sbi.kind, .bank)
+        XCTAssertEqual(sbi.displayName, "SBI")
+        let phonepe = Source(rawValue: "upi:phonepe")
+        XCTAssertEqual(phonepe.kind, .paymentApp)
+        XCTAssertEqual(phonepe.displayName, "Phonepe")
+        XCTAssertEqual(Source(rawValue: "hdfc"), Source.hdfc)
+        XCTAssertEqual(Source.builtIn, [.gpay, .paytm, .bhim, .hdfc, .idfc])
+        // Codable stays a bare string, exactly like the old enum.
+        let encoded = try! JSONEncoder().encode([Source.hdfc, sbi])
+        XCTAssertEqual(String(data: encoded, encoding: .utf8), #"["hdfc","bank:sbi"]"#)
+        let decoded = try! JSONDecoder().decode([Source].self, from: encoded)
+        XCTAssertEqual(decoded, [.hdfc, sbi])
+    }
+
     func testCanonicalRawValuesAreFrozen() {
         XCTAssertEqual(Source.gpay.rawValue, "gpay")
         XCTAssertEqual(Source.paytm.rawValue, "paytm")

@@ -11,7 +11,7 @@ struct CoverageStrip: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             HStack(spacing: 10) {
-                ForEach(Source.allCases) { source in
+                ForEach(Source.builtIn) { source in
                     chip(source)
                 }
             }
@@ -47,12 +47,13 @@ struct CoverageStrip: View {
     }
 
     private func shortName(_ source: Source) -> String {
-        switch source {
-        case .gpay: "GPay"
-        case .paytm: "Paytm"
-        case .bhim: "BHIM"
-        case .hdfc: "HDFC"
-        case .idfc: "IDFC"
+        switch source.rawValue {
+        case "gpay": "GPay"
+        case "paytm": "Paytm"
+        case "bhim": "BHIM"
+        case "hdfc": "HDFC"
+        case "idfc": "IDFC"
+        default: source.displayName
         }
     }
 }

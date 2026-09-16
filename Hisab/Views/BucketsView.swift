@@ -71,7 +71,7 @@ struct BucketsView: View {
         HStack(spacing: 8) {
             Text("Month")
                 .frame(width: 76, alignment: .leading)
-            ForEach(Source.allCases) { source in
+            ForEach(Source.builtIn) { source in
                 Text(shortName(source))
                     .frame(maxWidth: .infinity)
             }
@@ -86,7 +86,7 @@ struct BucketsView: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(HisabTheme.primaryText)
                 .frame(width: 76, alignment: .leading)
-            ForEach(Source.allCases) { source in
+            ForEach(Source.builtIn) { source in
                 cell(month: month, source: source, state: grid.state(month: month, source: source))
             }
         }
@@ -119,12 +119,13 @@ struct BucketsView: View {
     }
 
     private func shortName(_ source: Source) -> String {
-        switch source {
-        case .gpay: "GPay"
-        case .paytm: "Paytm"
-        case .bhim: "BHIM"
-        case .hdfc: "HDFC"
-        case .idfc: "IDFC"
+        switch source.rawValue {
+        case "gpay": "GPay"
+        case "paytm": "Paytm"
+        case "bhim": "BHIM"
+        case "hdfc": "HDFC"
+        case "idfc": "IDFC"
+        default: source.displayName
         }
     }
 }

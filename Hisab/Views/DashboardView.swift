@@ -64,7 +64,7 @@ struct DashboardView: View {
                 MonthChipRow(months: monthOptions(grid: grid), selected: $selectedMonth)
                 HeroCard(stats: Analytics.monthStats(txns, month: selectedMonth),
                          previous: Analytics.monthStats(txns, month: selectedMonth.advanced(by: -1)),
-                         bankVerified: [Source.hdfc, .idfc].contains {
+                         bankVerified: Source.builtIn.filter { $0.kind == .bank }.contains {
                              if case .present = grid.state(month: selectedMonth, source: $0) { return true }
                              return false
                          })
