@@ -1,0 +1,22 @@
+{
+  "provisional": false,
+  "furniturePatterns": [],
+  "id": "axis-drcr",
+  "sourceID": "bank:axis",
+  "bankName": "Axis Bank",
+  "headerPatterns": {
+    "date": "^tran date$",
+    "narration": "^particulars$",
+    "amount": "^amount\\(inr\\)$",
+    "drcr": "^dr/cr$",
+    "balance": "^balance$"
+  },
+  "dateFormats": [
+    "dd-MM-yyyy",
+    "dd/MM/yyyy"
+  ],
+  "signConvention": "amountDRCR",
+  "detectPatterns": [
+    "axis bank"
+  ]
+}

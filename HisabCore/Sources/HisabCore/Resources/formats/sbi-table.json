@@ -1,0 +1,25 @@
+{
+  "provisional": false,
+  "furniturePatterns": [
+    "statement of account"
+  ],
+  "id": "sbi-table",
+  "sourceID": "bank:sbi",
+  "bankName": "State Bank of India",
+  "headerPatterns": {
+    "date": "^txn date$",
+    "narration": "^description$",
+    "reference": "^ref no",
+    "debit": "^debit$",
+    "credit": "^credit$",
+    "balance": "^balance$"
+  },
+  "dateFormats": [
+    "dd MMM yyyy",
+    "dd/MM/yyyy"
+  ],
+  "signConvention": "debitCredit",
+  "detectPatterns": [
+    "state bank of india|\\bSBI\\b|SBIN"
+  ]
+}

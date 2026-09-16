@@ -21,11 +21,15 @@ public struct FormatSpec: Codable, Equatable, Sendable {
     /// Optional regexes (one capture group) extracting a rail reference from
     /// the narration when no reference cell is present. See ColumnMapping.
     public var referencePatterns: [String]?
+    /// Optional case-insensitive regexes that must each match somewhere in the
+    /// document's text for the spec to apply — disambiguates banks whose table
+    /// shapes are identical (e.g. the bank's printed name).
+    public var detectPatterns: [String]?
 
     public init(id: String, sourceID: String, bankName: String, provisional: Bool = false,
                 headerPatterns: [String: String], furniturePatterns: [String] = [],
                 dateFormats: [String], signConvention: String,
-                referencePatterns: [String]? = nil) {
+                referencePatterns: [String]? = nil, detectPatterns: [String]? = nil) {
         self.id = id
         self.sourceID = sourceID
         self.bankName = bankName
@@ -35,6 +39,7 @@ public struct FormatSpec: Codable, Equatable, Sendable {
         self.dateFormats = dateFormats
         self.signConvention = signConvention
         self.referencePatterns = referencePatterns
+        self.detectPatterns = detectPatterns
     }
 }
 

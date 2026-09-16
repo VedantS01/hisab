@@ -1,0 +1,23 @@
+{
+  "provisional": false,
+  "furniturePatterns": [],
+  "id": "icici-classic",
+  "sourceID": "bank:icici",
+  "bankName": "ICICI Bank",
+  "headerPatterns": {
+    "date": "^transaction date$",
+    "narration": "^transaction remarks$",
+    "reference": "^cheque number$",
+    "debit": "^withdrawal amount",
+    "credit": "^deposit amount",
+    "balance": "^balance"
+  },
+  "dateFormats": [
+    "dd/MM/yyyy",
+    "dd-MM-yyyy"
+  ],
+  "signConvention": "debitCredit",
+  "detectPatterns": [
+    "icici"
+  ]
+}

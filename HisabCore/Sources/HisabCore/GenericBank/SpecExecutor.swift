@@ -5,6 +5,14 @@ import Foundation
 /// when the whole statement closes to the paisa.
 public enum SpecExecutor {
     public static func execute(table: NormalizedTable, spec: FormatSpec) -> ChainOutcome? {
+        if let detect = spec.detectPatterns, !detect.isEmpty {
+            let whole = table.rows.map { $0.joined(separator: "|") }.joined(separator: "\n")
+            for pattern in detect {
+                guard whole.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil else {
+                    return nil
+                }
+            }
+        }
         let required = requiredRoles(for: spec.signConvention)
         guard let (headerIndex, columns) = findHeader(table: table, spec: spec,
                                                       required: required) else { return nil }
