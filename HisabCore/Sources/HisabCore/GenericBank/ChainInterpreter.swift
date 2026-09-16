@@ -15,11 +15,16 @@ public struct ColumnMapping: Equatable, Sendable {
     public var balance: Int
     public var amountIsUnsigned: Bool
     public var dateFormat: String
+    /// Case-sensitive regexes with one capture group, tried in order against the
+    /// narration when the reference cell is empty; first non-empty capture wins,
+    /// else the balance-keyed synthetic reference applies.
+    public var referencePatterns: [String]
 
     public init(date: Int, narration: Int, reference: Int? = nil,
                 debit: Int? = nil, credit: Int? = nil,
                 amount: Int? = nil, drcr: Int? = nil,
-                balance: Int, amountIsUnsigned: Bool = false, dateFormat: String) {
+                balance: Int, amountIsUnsigned: Bool = false, dateFormat: String,
+                referencePatterns: [String] = []) {
         self.date = date
         self.narration = narration
         self.reference = reference
@@ -30,6 +35,7 @@ public struct ColumnMapping: Equatable, Sendable {
         self.balance = balance
         self.amountIsUnsigned = amountIsUnsigned
         self.dateFormat = dateFormat
+        self.referencePatterns = referencePatterns
     }
 }
 
@@ -71,6 +77,9 @@ public enum ChainInterpreter {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = mapping.dateFormat
 
+        let referenceRegexes = mapping.referencePatterns.compactMap {
+            try? NSRegularExpression(pattern: $0)
+        }
         var transactions: [ParsedTransaction] = []
         var previousBalance = openingBalance
 
@@ -159,9 +168,14 @@ public enum ChainInterpreter {
 
             let narration = cell(mapping.narration)
             let referenceCell = cell(mapping.reference)
-            let reference = referenceCell.isEmpty
-                ? SyntheticRef.make(balancePaise: balance, date: date, amountPaise: amount)
-                : referenceCell
+            let reference: String
+            if !referenceCell.isEmpty {
+                reference = referenceCell
+            } else if let extracted = extractReference(from: narration, regexes: referenceRegexes) {
+                reference = extracted
+            } else {
+                reference = SyntheticRef.make(balancePaise: balance, date: date, amountPaise: amount)
+            }
             transactions.append(ParsedTransaction(date: date, amountPaise: amount,
                                                   direction: direction,
                                                   counterparty: narration,
@@ -171,5 +185,18 @@ public enum ChainInterpreter {
         }
 
         return .validated(transactions)
+    }
+
+    private static func extractReference(from narration: String,
+                                         regexes: [NSRegularExpression]) -> String? {
+        for regex in regexes {
+            let range = NSRange(narration.startIndex..., in: narration)
+            guard let match = regex.firstMatch(in: narration, range: range),
+                  match.numberOfRanges > 1,
+                  let captured = Range(match.range(at: 1), in: narration) else { continue }
+            let reference = narration[captured].trimmingCharacters(in: .whitespaces)
+            if !reference.isEmpty { return reference }
+        }
+        return nil
     }
 }

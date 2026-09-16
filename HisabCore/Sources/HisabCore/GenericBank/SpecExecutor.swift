@@ -39,7 +39,8 @@ public enum SpecExecutor {
                                     drcr: columns["drcr"],
                                     balance: columns["balance"]!,
                                     amountIsUnsigned: spec.signConvention == "unsignedChain",
-                                    dateFormat: dateFormat)
+                                    dateFormat: dateFormat,
+                                    referencePatterns: spec.referencePatterns ?? [])
         return ChainInterpreter.interpret(rows: body, mapping: mapping)
     }
 

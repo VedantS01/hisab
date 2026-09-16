@@ -18,10 +18,14 @@ public struct FormatSpec: Codable, Equatable, Sendable {
     public var dateFormats: [String]
     /// "debitCredit" | "signedAmount" | "amountDRCR" | "unsignedChain"
     public var signConvention: String
+    /// Optional regexes (one capture group) extracting a rail reference from
+    /// the narration when no reference cell is present. See ColumnMapping.
+    public var referencePatterns: [String]?
 
     public init(id: String, sourceID: String, bankName: String, provisional: Bool = false,
                 headerPatterns: [String: String], furniturePatterns: [String] = [],
-                dateFormats: [String], signConvention: String) {
+                dateFormats: [String], signConvention: String,
+                referencePatterns: [String]? = nil) {
         self.id = id
         self.sourceID = sourceID
         self.bankName = bankName
@@ -30,6 +34,7 @@ public struct FormatSpec: Codable, Equatable, Sendable {
         self.furniturePatterns = furniturePatterns
         self.dateFormats = dateFormats
         self.signConvention = signConvention
+        self.referencePatterns = referencePatterns
     }
 }
 

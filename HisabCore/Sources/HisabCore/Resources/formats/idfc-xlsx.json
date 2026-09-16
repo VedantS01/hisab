@@ -1,0 +1,21 @@
+{
+  "id": "idfc-xlsx",
+  "sourceID": "idfc",
+  "bankName": "IDFC First Bank",
+  "provisional": false,
+  "headerPatterns": {
+    "date": "^transaction date$",
+    "narration": "^particulars$",
+    "debit": "^debit$",
+    "credit": "^credit$",
+    "balance": "^balance$"
+  },
+  "furniturePatterns": [],
+  "dateFormats": ["dd-MMM-yyyy"],
+  "signConvention": "debitCredit",
+  "referencePatterns": [
+    "^UPI\\/(?:DR|CR)\\/\\s*([^\\/]+?)\\s*\\/",
+    "^(?:NEFT|IMPS|RTGS)\\/\\s*([^\\/]+?)\\s*\\/",
+    "^POS[^\\/]*\\/[^\\/]*\\/(\\d+)(?:\\/|$)"
+  ]
+}
