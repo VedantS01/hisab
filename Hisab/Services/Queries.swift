@@ -14,12 +14,21 @@ enum Queries {
         (try? ctx.fetch(FetchDescriptor<StoredTransaction>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? []
     }
 
-    /// Seeds the rule table from Categorizer defaults on first launch.
+    /// Additively seeds the rule table from the bundled india-default ruleset:
+    /// any ruleset pattern the user doesn't already have (by case-insensitive
+    /// pattern) is inserted; existing rules — including ones the user edited —
+    /// are never touched. Idempotent, and ruleset version bumps just add rules.
     static func categoryRules(_ ctx: ModelContext) -> [CategoryRule] {
         var stored = (try? ctx.fetch(FetchDescriptor<StoredCategoryRule>(sortBy: [SortDescriptor(\.sortOrder)]))) ?? []
-        if stored.isEmpty {
-            for (index, rule) in Categorizer.seedRules.enumerated() {
-                ctx.insert(StoredCategoryRule(pattern: rule.pattern, category: rule.category, sortOrder: index))
+        let existing = Set(stored.map { $0.pattern.lowercased() })
+        let missing = Categorizer.defaultRuleset().rules.filter {
+            !existing.contains($0.pattern.lowercased())
+        }
+        if !missing.isEmpty {
+            var order = (stored.map(\.sortOrder).max() ?? -1) + 1
+            for rule in missing {
+                ctx.insert(StoredCategoryRule(pattern: rule.pattern, category: rule.category, sortOrder: order))
+                order += 1
             }
             try? ctx.save()
             stored = (try? ctx.fetch(FetchDescriptor<StoredCategoryRule>(sortBy: [SortDescriptor(\.sortOrder)]))) ?? []

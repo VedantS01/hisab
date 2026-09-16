@@ -12,6 +12,26 @@ public struct CategoryRule: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
+/// A versioned, bundled set of seed rules (rulesets/india-default.json).
+public struct Ruleset: Codable, Sendable {
+    public struct SeedRule: Codable, Sendable {
+        public var pattern: String
+        public var category: String
+        public init(pattern: String, category: String) {
+            self.pattern = pattern
+            self.category = category
+        }
+    }
+
+    public var version: Int
+    public var rules: [SeedRule]
+
+    public init(version: Int, rules: [SeedRule]) {
+        self.version = version
+        self.rules = rules
+    }
+}
+
 public enum Categorizer {
     public static let uncategorized = "Uncategorized"
     /// Bank-statement spending with no payment-app counterpart.
@@ -45,6 +65,21 @@ public enum Categorizer {
         CategoryRule(pattern: "bpcl", category: "Fuel"),
         CategoryRule(pattern: "petrol", category: "Fuel"),
     ]
+
+    /// The bundled india-default ruleset; falls back to the compiled seeds if
+    /// the resource is ever missing. User rules always take precedence at the
+    /// seeding layer — this only supplies defaults.
+    public static func defaultRuleset() -> Ruleset {
+        if let url = Bundle.module.url(forResource: "india-default", withExtension: "json",
+                                       subdirectory: "Resources/rulesets"),
+           let data = try? Data(contentsOf: url),
+           let ruleset = try? JSONDecoder().decode(Ruleset.self, from: data) {
+            return ruleset
+        }
+        return Ruleset(version: 0, rules: seedRules.map {
+            Ruleset.SeedRule(pattern: $0.pattern, category: $0.category)
+        })
+    }
 
     public static func category(for text: String, rules: [CategoryRule]) -> String {
         let haystack = text.lowercased()
