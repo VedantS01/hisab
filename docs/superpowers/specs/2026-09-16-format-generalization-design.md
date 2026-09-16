@@ -178,6 +178,79 @@ above.
   spec replace that code path — no behavior change for current users
   at any point.
 
+## Usefulness analysis
+
+A random user's value from Hisab is roughly: *my UPI apps parse* ×
+*my bank parses* × *the dashboard means something on day one*.
+
+- **UPI coverage**: GPay + PhonePe + Paytm carry ~95% of UPI volume;
+  with PhonePe added, the app-side story covers nearly everyone. This
+  is why PhonePe is in-scope now rather than left to contribution.
+- **Bank coverage**: the generic engine covers the long tail, but the
+  mapping UI must be the *exception*, not the onboarding experience —
+  a non-technical user hitting a column-tagging screen on first import
+  will bounce. Mitigation: seed bundled specs for the top ~10 retail
+  banks (SBI, HDFC, ICICI, Axis, Kotak, IDFC FIRST, PNB, BoB, Canara,
+  Yes) early — from public sample statements and community
+  contributions — so the common path is zero-touch.
+- **Day-one insight**: the india-default ruleset is what makes the
+  dashboard meaningful before the user writes a single rule; without
+  it everything lands in Uncategorized and the product looks empty.
+- **Bank-only users are a first-class mode**: reconciliation needs
+  both sides, but a user who imports only bank statements still gets
+  a categorized ledger and monthly analytics (everything is
+  "Miscellaneous"-by-default until rules bite). The UI must degrade
+  to this gracefully rather than nag about missing UPI exports.
+
+## Generality — honest limits (v1)
+
+- The engine assumes a **running-balance** table; that holds for
+  Indian savings/current-account statements but not credit-card
+  statements or wallet ledgers (no balance chain). Credit cards are a
+  future dimension (they do print totals, so a validated path exists);
+  v1 detects and says "not a bank account statement" rather than
+  guessing.
+- **Scanned/image PDFs** (no text layer) cannot be parsed; detect and
+  explain, no OCR in v1.
+- Single account per file, INR only. `FormatSpec` carries a currency
+  field for the future, but the engine asserts INR in v1.
+- Password-protected PDFs already work generically (existing prompt).
+
+## Store-review implications
+
+- **Remote specs are data, not code** (Apple guideline 2.5.2 / Play
+  equivalent): specs and rulesets are declarative JSON interpreted by
+  a fixed, shipped engine. Hard rule for all future work: the spec
+  format must never grow an expression language or anything
+  eval-like, or the opt-in fetch becomes downloadable code.
+- **Privacy label stays "Data Not Collected"**: the opt-in catalog
+  fetch sends no user data — it is a plain GET of a static file. But
+  our App Review notes and privacy policy currently say "no network
+  requests"; the next submission that ships the button must update
+  both to "no network requests except the explicit, user-initiated
+  format-catalog check (a static file on GitHub Pages; GitHub sees
+  your IP as with any download)". Never let marketing copy and
+  review-notes copy drift apart — that mismatch is what 2.1 rejections
+  are made of.
+- **Bank names in metadata**: in-app nominative use is fine (already
+  cleared in review), but don't stuff dozens of bank names into App
+  Store keywords/screenshots or Play listing text (Apple 2.3.7 /
+  Play metadata policy treat that as third-party-brand keyword
+  spam). Say "works with any Indian bank statement" and name only the
+  formats with bundled, tested specs.
+- **Finance-category declarations**: Hisab performs no financial
+  services (no accounts, transfers, lending). On Play this still
+  requires the **Financial Features declaration** (answer:
+  none-of-the-above) and the **Data safety form** (no data
+  collected/shared — same reasoning as Apple's label). Play's
+  pre-launch report robots will explore the app: the demo-data path
+  doubles as the way those bots (and human reviewers) see populated
+  screens.
+- **Community content**: shared specs contain mappings and patterns
+  only — no UGC surface, no moderation obligations. Keep it that way:
+  the share flow exports machine-generated JSON, never free text or
+  statement excerpts.
+
 ## Milestones
 
 1. `NormalizedTable` + `BalanceChainValidator` extraction (pure
