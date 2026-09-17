@@ -78,6 +78,15 @@ refuses (an in-app request then emails us a data-free format
 fingerprint, and support ships in an update — the engine never
 guesses).
 
+**Android**: a full-parity Flutter port lives in `hisab_flutter/` —
+a pure-Dart `hisab_core` mirrors the Swift core module-for-module, and
+a pinned-hash test suite proves that content hashes are **byte-identical
+across platforms**: importing the same statement on iPhone and Android
+produces the same transaction identities. All formats above are
+supported on Android except the IDFC *PDF* rendition (a PDF-library
+glyph issue would corrupt references; the IDFC XLSX rendition of the
+same statement parses perfectly). Play Store release in progress.
+
 Spreadsheet support is dependency-free: .xlsx via a minimal zip reader
 over Apple's Compression framework plus an XMLParser sheet reader, and
 legacy .xls via a purpose-built CDF/OLE2 + BIFF8 record reader

@@ -1,0 +1,26 @@
+// Dev tool: dump Syncfusion's visual-line extraction for a PDF.
+// dart run tool/dump_pdf.dart <file.pdf> [password] [maxLines]
+import 'dart:io';
+
+import 'package:hisab_core/src/parsers/pdf_text.dart';
+
+void main(List<String> args) {
+  final data = File(args[0]).readAsBytesSync();
+  final password = args.length > 1 && args[1].isNotEmpty ? args[1] : null;
+  final maxLines = args.length > 2 ? int.parse(args[2]) : 60;
+  final pages = PdfText.pageTexts(data, password);
+  if (pages == null) {
+    stderr.writeln('not a readable pdf');
+    exit(1);
+  }
+  var printed = 0;
+  for (var p = 0; p < pages.length && printed < maxLines; p++) {
+    print('=== page ${p + 1} ===');
+    for (final line in pages[p].split('\n')) {
+      print(line);
+      printed++;
+      if (printed >= maxLines) break;
+    }
+  }
+  print('--- total pages: ${pages.length}');
+}

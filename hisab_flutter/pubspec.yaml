@@ -1,0 +1,48 @@
+name: hisab
+description: "Hisab (हिसाब) — private, on-device expense analysis for Indian statements."
+publish_to: 'none'
+
+# versionName+versionCode for Android.
+version: 1.1.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  hisab_core:
+    path: packages/hisab_core
+  hisab_pdf:
+    path: packages/hisab_pdf
+  # Storage
+  drift: ^2.22.1
+  drift_flutter: ^0.2.4
+  path_provider: ^2.1.5
+  shared_preferences: ^2.3.4
+  flutter_secure_storage: ^9.2.2
+  # UI (system Noto renders Devanagari; no font downloads — zero network)
+  fl_chart: ^0.69.2
+  # Files & intents (no network involved)
+  file_picker: ^8.1.6
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  drift_dev: ^2.22.1
+  build_runner: ^2.4.13
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/formats/
+    - assets/rulesets/
+    - assets/demo/

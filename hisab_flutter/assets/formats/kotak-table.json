@@ -1,0 +1,23 @@
+{
+  "provisional": false,
+  "furniturePatterns": [],
+  "id": "kotak-table",
+  "sourceID": "bank:kotak",
+  "bankName": "Kotak Mahindra Bank",
+  "headerPatterns": {
+    "date": "^date$",
+    "narration": "^narration$",
+    "reference": "^chq/ref no$",
+    "debit": "^withdrawal amt",
+    "credit": "^deposit amt",
+    "balance": "^balance$"
+  },
+  "dateFormats": [
+    "dd/MM/yyyy",
+    "dd-MM-yyyy"
+  ],
+  "signConvention": "debitCredit",
+  "detectPatterns": [
+    "kotak"
+  ]
+}

@@ -1,0 +1,23 @@
+name: hisab_pdf
+description: >-
+  PDF statement parsers for Hisab (GPay, Paytm, BHIM, IDFC, HDFC) over
+  syncfusion_flutter_pdf. Flutter-only because Syncfusion needs dart:ui;
+  everything else lives in the pure-Dart hisab_core.
+version: 1.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  hisab_core:
+    path: ../hisab_core
+  syncfusion_flutter_pdf: ^28.1.33
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

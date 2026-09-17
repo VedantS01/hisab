@@ -1,8 +1,22 @@
 # Google Play — publishing formalities checklist
 
-Status: researched 2026-09-16. The Android app does not exist yet (the
-port is a separate decision — KMP vs Flutter vs Swift-on-Android);
-everything here is the *store-side* work, most of which can start now.
+Status: researched 2026-09-16; updated 2026-09-17 — **the Android app
+now exists** (Flutter, `hisab_flutter/`, full format parity with iOS,
+cross-platform hash parity proven). Now unblocked:
+
+- **Release AAB**: `cd hisab_flutter && flutter build appbundle --release`
+  (signed with the upload key at `~/keys/hisab-upload.jks` via the
+  gitignored `android/key.properties`; Play App Signing re-signs).
+- **Screenshots**: `docs/playstore/screenshots/` (1080×2400, captured
+  on the Android emulator with demo data). Feature graphic:
+  render via `tools/render-feature-graphic.swift`; 512px icon from
+  `docs/brand/icon.png`.
+- **First upload** registers `com.vedants.hisab` + the signing key,
+  which also satisfies the Sept-30 developer-verification notice.
+- Remaining owner actions: **[Vedant]** create the app entry +
+  declarations (steps 3–4 below), recruit the 12+ closed-test
+  testers, upload the AAB to a closed track.
+
 Owner actions are marked **[Vedant]**.
 
 ## 1. Long-lead items (start before the app exists)
