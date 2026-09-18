@@ -20,6 +20,22 @@ class PasswordStore {
     }
   }
 
+  /// Every remembered statement password, for pre-detection unlock
+  /// attempts (the source isn't known until the file parses).
+  static Future<List<String>> allPasswords() async {
+    try {
+      final all = await _storage.readAll();
+      final seen = <String>{};
+      return [
+        for (final e in all.entries)
+          if (e.key.startsWith('statement-password-') && seen.add(e.value))
+            e.value,
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   static Future<void> setPassword(Source source, String password) async {
     try {
       await _storage.write(key: _key(source), value: password);

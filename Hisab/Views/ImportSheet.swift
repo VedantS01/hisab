@@ -8,7 +8,6 @@ struct ImportSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var pickedURL: URL?
-    @State private var overrideSource: Source?
     @State private var password = ""
     @State private var needsPassword = false
     @State private var report: ImportReport?
@@ -58,20 +57,12 @@ struct ImportSheet: View {
     private var form: some View {
         Form {
             if let url = pickedURL {
-                Section("File") {
-                    Text(url.lastPathComponent).font(.subheadline)
-                }
                 Section {
-                    Picker("Source", selection: $overrideSource) {
-                        Text("Auto-detect").tag(Source?.none)
-                        ForEach(Source.builtIn) { source in
-                            Text(source.displayName).tag(Source?.some(source))
-                        }
-                    }
+                    Text(url.lastPathComponent).font(.subheadline)
                 } header: {
-                    Text("Source")
+                    Text("File")
                 } footer: {
-                    Text("Auto-detect also reads any Indian bank statement that prints a running balance.")
+                    Text("Hisab detects the format automatically — UPI apps and Indian bank statements alike.")
                 }
                 if needsPassword {
                     Section("Password") {
@@ -109,7 +100,7 @@ struct ImportSheet: View {
             } else {
                 Text("\(report.newCount) new transaction\(report.newCount == 1 ? "" : "s")")
                     .font(.title3.weight(.semibold))
-                Text("\(report.source.displayName) · \(report.totalParsed) parsed · \(report.totalParsed - report.newCount) duplicates skipped")
+                Text("Detected \(report.source.displayName) · \(report.totalParsed) parsed · \(report.totalParsed - report.newCount) duplicates skipped")
                     .font(.subheadline).foregroundStyle(.secondary)
                 if !report.monthsTouched.isEmpty {
                     Text("Months: \(report.monthsTouched.map(\.displayName).joined(separator: ", "))")
@@ -128,13 +119,13 @@ struct ImportSheet: View {
         guard let url = pickedURL else { return }
         errorMessage = nil
         let service = ImportService(context: context)
-        let effectivePassword = password.isEmpty
-            ? overrideSource.flatMap { KeychainHelper.password(for: $0) }
-            : password
         do {
-            let result = try service.importFile(at: url, password: effectivePassword,
-                                                overrideSource: overrideSource)
-            if !password.isEmpty {
+            let result: ImportReport
+            if password.isEmpty {
+                result = try importTryingStoredPasswords(service: service, url: url)
+            } else {
+                result = try service.importFile(at: url, password: password,
+                                                overrideSource: nil)
                 KeychainHelper.setPassword(password, for: result.source)
             }
             report = result
@@ -142,17 +133,34 @@ struct ImportSheet: View {
             needsPassword = true
             errorMessage = "This statement is password-protected."
         } catch ParseError.malformedRow(let line, _) {
-            errorMessage = "Could not parse line \(line) — is the right source selected?"
+            errorMessage = "Could not parse line \(line) of this statement."
         } catch ParseError.empty {
             errorMessage = "No transactions found in this file."
         } catch ParseError.unrecognizedFormat {
-            errorMessage = "Unrecognized format. Pick the source manually."
+            errorMessage = "Hisab couldn't recognize this file."
         } catch ImportServiceError.unsupportedFormat(let fingerprint) {
             requestTarget = RequestTarget(fingerprint: fingerprint, verificationDetail: nil)
         } catch ImportServiceError.unverifiedStatement(let fingerprint, let detail) {
             requestTarget = RequestTarget(fingerprint: fingerprint, verificationDetail: detail)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// The source isn't known until the file parses, so a locked file is
+    /// retried with every remembered password before asking the user.
+    private func importTryingStoredPasswords(service: ImportService,
+                                             url: URL) throws -> ImportReport {
+        do {
+            return try service.importFile(at: url, password: nil, overrideSource: nil)
+        } catch ParseError.passwordRequired {
+            for candidate in KeychainHelper.allPasswords() {
+                if let result = try? service.importFile(at: url, password: candidate,
+                                                        overrideSource: nil) {
+                    return result
+                }
+            }
+            throw ParseError.passwordRequired
         }
     }
 }

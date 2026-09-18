@@ -22,6 +22,15 @@ final class ImportResolverTests: XCTestCase {
     02/04/2026,SALARY,R2,,50.00,950.00
     """
 
+    // Pinned exactly so the Dart twin can assert the identical list.
+    func testSupportedFormatNamesListsParsersThenSpecBanksDeduped() {
+        XCTAssertEqual(ImportResolver.live().supportedFormatNames,
+                       ["Google Pay", "Paytm", "BHIM UPI", "HDFC Bank",
+                        "IDFC First Bank", "Axis Bank", "Bank of Baroda",
+                        "ICICI Bank", "Kotak Mahindra Bank",
+                        "Punjab National Bank", "State Bank of India"])
+    }
+
     func testCodeParserWinsFirst() throws {
         let url = Bundle.module.url(forResource: "idfc-fixture", withExtension: "xlsx",
                                     subdirectory: "Fixtures")!

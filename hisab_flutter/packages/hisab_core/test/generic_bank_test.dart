@@ -356,6 +356,17 @@ void main() {
         '01/04/2026,POS COFFEE,R1,100.00,,900.00\n'
         '02/04/2026,SALARY,R2,,50.00,950.00\n';
 
+    test('supportedFormatNames lists parsers then spec banks, deduped', () {
+      // Pinned to the exact list ImportResolverTests.swift asserts.
+      final specs = bundledSpecJsons().map(FormatSpec.fromJsonString).toList();
+      final res = ImportResolver(registry: const ParserRegistry([]), specs: specs);
+      expect(res.supportedFormatNames, [
+        'Google Pay', 'Paytm', 'BHIM UPI', 'HDFC Bank', 'IDFC First Bank',
+        'Axis Bank', 'Bank of Baroda', 'ICICI Bank', 'Kotak Mahindra Bank',
+        'Punjab National Bank', 'State Bank of India',
+      ]);
+    });
+
     test('spec parses when no code parser matches', () {
       final res = resolver(specs: [sbiSpec])
           .resolve(data: utf8.encode(sbiCsv), filename: 'sbi.csv');

@@ -20,6 +20,22 @@ enum KeychainHelper {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Every remembered statement password, for pre-detection unlock
+    /// attempts (the source isn't known until the file parses).
+    static func allPasswords() -> [String] {
+        let query: [String: Any] =
+            [kSecClass as String: kSecClassGenericPassword,
+             kSecAttrService as String: "com.vedants.hisab.statement-password",
+             kSecReturnData as String: true,
+             kSecMatchLimit as String: kSecMatchLimitAll]
+        var items: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &items) == errSecSuccess,
+              let datas = items as? [Data] else { return [] }
+        var seen = Set<String>()
+        return datas.compactMap { String(data: $0, encoding: .utf8) }
+            .filter { seen.insert($0).inserted }
+    }
+
     static func setPassword(_ password: String, for source: Source) {
         let base = query(for: source)
         SecItemDelete(base as CFDictionary)

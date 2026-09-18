@@ -28,6 +28,18 @@ public struct ImportResolver: Sendable {
         ImportResolver(registry: .live, specs: SpecStore.bundled())
     }
 
+    /// Display names of formats with first-class support — dedicated
+    /// parsers first, then bundled bank specs, deduplicated. Drives the
+    /// "what Hisab reads" copy; the inference engine extends beyond it.
+    public var supportedFormatNames: [String] {
+        var names = Source.builtIn.map(\.displayName)
+        var seen = Set(names)
+        for bank in specs.map(\.bankName).sorted() where seen.insert(bank).inserted {
+            names.append(bank)
+        }
+        return names
+    }
+
     public func resolve(data: Data, filename: String, password: String?) -> Resolution {
         // 1. Curated code parsers keep first claim; their errors fall through to
         //    the generic path rather than blocking it.
