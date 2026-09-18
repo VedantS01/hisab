@@ -19,25 +19,55 @@ Future<void> showImportFlow(BuildContext context) async {
   final data = file?.bytes;
   if (file == null || data == null || !context.mounted) return;
 
+  final supportedNames = state.importService.resolver.supportedFormatNames;
+
+  Future<void> runImport(String? password) async {
+    final report = await state.importService.importBytes(
+        data: data, filename: file.name, password: password);
+    if (password != null && !report.duplicateOfExistingFile) {
+      await PasswordStore.setPassword(report.source, password);
+    }
+    if (context.mounted) _showReport(context, report);
+  }
+
   Future<void> attempt(String? password) async {
     try {
-      final report = await state.importService.importBytes(
-          data: data, filename: file.name, password: password);
-      if (password != null && !report.duplicateOfExistingFile) {
-        await PasswordStore.setPassword(report.source, password);
-      }
-      if (context.mounted) _showReport(context, report);
+      await runImport(password);
     } on PasswordRequiredException {
       if (!context.mounted) return;
+      // The source isn't known until the file parses, so a locked file
+      // is retried with every remembered password before asking.
+      if (password == null) {
+        for (final stored in await PasswordStore.allPasswords()) {
+          try {
+            await runImport(stored);
+            return;
+          } on UnsupportedFormatException catch (e) {
+            if (context.mounted) {
+              _showFormatRequest(context, e.fingerprint, null, supportedNames);
+            }
+            return;
+          } on UnverifiedStatementException catch (e) {
+            if (context.mounted) {
+              _showFormatRequest(
+                  context, e.fingerprint, e.detail, supportedNames);
+            }
+            return;
+          } catch (_) {
+            // Wrong password for this file — try the next one.
+          }
+        }
+        if (!context.mounted) return;
+      }
       final typed = await _askPassword(context, file.name);
       if (typed != null && typed.isNotEmpty) await attempt(typed);
     } on UnsupportedFormatException catch (e) {
       if (context.mounted) {
-        _showFormatRequest(context, e.fingerprint, null);
+        _showFormatRequest(context, e.fingerprint, null, supportedNames);
       }
     } on UnverifiedStatementException catch (e) {
       if (context.mounted) {
-        _showFormatRequest(context, e.fingerprint, e.detail);
+        _showFormatRequest(context, e.fingerprint, e.detail, supportedNames);
       }
     } on ParseException catch (e) {
       if (context.mounted) {
@@ -127,7 +157,7 @@ void _showReport(BuildContext context, ImportReport report) {
 }
 
 void _showFormatRequest(BuildContext context, FormatFingerprint fingerprint,
-    String? verificationDetail) {
+    String? verificationDetail, List<String> supportedNames) {
   showModalBottomSheet<void>(
     context: context,
     builder: (context) => SafeArea(
@@ -162,6 +192,16 @@ void _showFormatRequest(BuildContext context, FormatFingerprint fingerprint,
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.black54, fontSize: 13),
             ),
+            if (verificationDetail == null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Hisab reads today: ${supportedNames.join(', ')} — plus '
+                  'most Indian bank statements that print a running balance.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black54, fontSize: 11),
+                ),
+              ),
             const SizedBox(height: 16),
             if (verificationDetail == null)
               FilledButton.icon(

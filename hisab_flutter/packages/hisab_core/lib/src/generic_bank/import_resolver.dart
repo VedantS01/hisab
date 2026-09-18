@@ -46,6 +46,18 @@ class ImportResolver {
   final List<FormatSpec> specs;
   const ImportResolver({required this.registry, required this.specs});
 
+  /// Display names of formats with first-class support — dedicated
+  /// parsers first, then bundled bank specs, deduplicated. Drives the
+  /// "what Hisab reads" copy; the inference engine extends beyond it.
+  List<String> get supportedFormatNames {
+    final names = [for (final s in Source.builtIn) s.displayName];
+    final seen = names.toSet();
+    for (final bank in specs.map((s) => s.bankName).toList()..sort()) {
+      if (seen.add(bank)) names.add(bank);
+    }
+    return names;
+  }
+
   Resolution resolve(
       {required List<int> data,
       required String filename,

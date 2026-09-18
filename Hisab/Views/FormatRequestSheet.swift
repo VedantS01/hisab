@@ -38,6 +38,9 @@ struct FormatRequestSheet: View {
                     Text("Support for new formats arrives in app updates. The request email contains only column labels and value shapes — no transactions.")
                         .font(.subheadline).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    Text("Hisab reads today: \(ImportResolver.live().supportedFormatNames.joined(separator: ", ")) — plus most Indian bank statements that print a running balance.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
                 if verificationDetail == nil,
                    let url = fingerprint.mailtoURL(appVersion: appVersion) {
