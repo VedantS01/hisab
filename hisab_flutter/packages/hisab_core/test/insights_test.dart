@@ -446,4 +446,156 @@ void main() {
       expect(series[0].transactionIDs, ['a', 'b', 'a1', 'z2', 'c']);
     });
   });
+
+  group('AnomalyDetector', () {
+    const config = InsightsConfig.fallback;
+
+    // "yyyy-MM-dd" lands on IST midnight (a statement row); the longer
+    // "yyyy-MM-dd HH:mm" carries a real IST clock time (a payment-app row).
+    DateTime stamp(String iso) {
+      final parts = iso.split(' ');
+      final d = parts[0].split('-').map(int.parse).toList();
+      if (parts.length == 1) {
+        return DateTime.utc(d[0], d[1], d[2]).subtract(istOffset);
+      }
+      final t = parts[1].split(':').map(int.parse).toList();
+      return DateTime.utc(d[0], d[1], d[2], t[0], t[1]).subtract(istOffset);
+    }
+
+    InsightRecord rec(String id, String iso, int paise, String merchant) =>
+        InsightRecord(
+            id: id,
+            date: stamp(iso),
+            amountPaise: paise,
+            direction: Direction.debit,
+            category: 'Food',
+            merchant: merchant);
+
+    final now = stamp('2026-09-15');
+
+    test('same-day identical payments are a possible duplicate', () {
+      final insights = AnomalyDetector.detect(
+        records: [
+          rec('a', '2026-09-10', 45000, 'Swiggy'),
+          rec('b', '2026-09-10', 45000, 'Swiggy'),
+        ],
+        now: now,
+        monthDebitTotalPaise: 90000,
+        config: config,
+      );
+      expect(insights.length, 1);
+      expect(insights[0].kind, InsightKind.possibleDuplicate);
+      expect(insights[0].headline, 'Swiggy: ₹450.00 ×2');
+      expect(insights[0].detail, '2 identical payments on 10 Sep 2026');
+      expect(insights[0].evidenceIDs, ['a', 'b']);
+      expect(insights[0].mute, const MuteMerchant('swiggy'));
+    });
+
+    test('different merchants at the same amount are not duplicates', () {
+      expect(
+          AnomalyDetector.detect(
+            records: [
+              rec('a', '2026-09-10', 45000, 'Swiggy'),
+              rec('b', '2026-09-10', 45000, 'Zomato'),
+            ],
+            now: now,
+            monthDebitTotalPaise: 90000,
+            config: config,
+          ),
+          isEmpty);
+    });
+
+    test('timestamped payments hours apart are not duplicates', () {
+      expect(
+          AnomalyDetector.detect(
+            records: [
+              rec('a', '2026-09-10 09:15', 45000, 'Swiggy'),
+              rec('b', '2026-09-10 20:40', 45000, 'Swiggy'),
+            ],
+            now: now,
+            monthDebitTotalPaise: 90000,
+            config: config,
+          ),
+          isEmpty);
+    });
+
+    test('timestamped payments within the window are duplicates', () {
+      final insights = AnomalyDetector.detect(
+        records: [
+          rec('a', '2026-09-10 09:15', 45000, 'Swiggy'),
+          rec('b', '2026-09-10 09:19', 45000, 'Swiggy'),
+        ],
+        now: now,
+        monthDebitTotalPaise: 90000,
+        config: config,
+      );
+      expect(insights.length, 1);
+      expect(insights[0].kind, InsightKind.possibleDuplicate);
+    });
+
+    test('an amount far above the merchant median is an outlier', () {
+      final records = [
+        for (var i = 1; i <= 5; i++)
+          rec('p$i', '2026-08-0$i', 30000, 'Blue Tokai'),
+        rec('big', '2026-09-10', 250000, 'Blue Tokai'),
+      ];
+      final insights = AnomalyDetector.detect(
+        records: records,
+        now: now,
+        monthDebitTotalPaise: 400000,
+        config: config,
+      );
+      expect(insights.length, 1);
+      expect(insights[0].kind, InsightKind.outlierAmount);
+      expect(insights[0].headline, 'Blue Tokai: ₹2,500.00');
+      expect(insights[0].detail, 'about 8× your usual ₹300.00');
+      expect(insights[0].evidenceIDs, ['big']);
+    });
+
+    test('too few priors means no outlier', () {
+      final records = [
+        for (var i = 1; i <= 4; i++)
+          rec('p$i', '2026-08-0$i', 30000, 'Blue Tokai'),
+        rec('big', '2026-09-10', 250000, 'Blue Tokai'),
+      ];
+      expect(
+          AnomalyDetector.detect(
+            records: records,
+            now: now,
+            monthDebitTotalPaise: 400000,
+            config: config,
+          ),
+          isEmpty);
+    });
+
+    test('a small multiple below the rupee floor is not an outlier', () {
+      final records = [
+        for (var i = 1; i <= 5; i++)
+          rec('p$i', '2026-08-0$i', 10000, 'Chaiwala'),
+        rec('big', '2026-09-10', 40000, 'Chaiwala'),
+      ];
+      expect(
+          AnomalyDetector.detect(
+            records: records,
+            now: now,
+            monthDebitTotalPaise: 90000,
+            config: config,
+          ),
+          isEmpty);
+    });
+
+    test('anything older than the lookback is ignored', () {
+      expect(
+          AnomalyDetector.detect(
+            records: [
+              rec('a', '2026-06-10', 45000, 'Swiggy'),
+              rec('b', '2026-06-10', 45000, 'Swiggy'),
+            ],
+            now: now,
+            monthDebitTotalPaise: 90000,
+            config: config,
+          ),
+          isEmpty);
+    });
+  });
 }
