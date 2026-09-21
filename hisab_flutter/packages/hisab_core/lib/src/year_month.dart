@@ -22,6 +22,15 @@ String istDayString(DateTime date) {
 String istCompactDayString(DateTime date) =>
     istDayString(date).replaceAll('-', '');
 
+/// Whole IST calendar days from [from] to [to]; negative when [to] is earlier.
+int istDaysBetween(DateTime from, DateTime to) {
+  final a = istClock(from);
+  final b = istClock(to);
+  final dayA = DateTime.utc(a.year, a.month, a.day);
+  final dayB = DateTime.utc(b.year, b.month, b.day);
+  return dayB.difference(dayA).inDays;
+}
+
 class YearMonth implements Comparable<YearMonth> {
   final int year;
   final int month; // 1...12

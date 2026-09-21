@@ -20,6 +20,7 @@ export 'src/content_hash.dart';
 export 'src/coverage.dart';
 export 'src/dedup.dart';
 export 'src/domain.dart';
+export 'src/insights/insight.dart';
 export 'src/insights/insights_config.dart';
 export 'src/money.dart';
 export 'src/reconciliation.dart';

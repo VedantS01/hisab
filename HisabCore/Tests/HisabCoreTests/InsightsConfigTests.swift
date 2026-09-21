@@ -19,12 +19,11 @@ final class InsightsConfigTests: XCTestCase {
         XCTAssertEqual(InsightsConfig.bundled(), InsightsConfig.fallback)
     }
 
-    // Uncommented in Task 2
-    // func testEveryInsightKindHasARankerWeight() {
-    //     let config = InsightsConfig.bundled()
-    //     for kind in InsightKind.allCases {
-    //         XCTAssertNotNil(config.ranker.weights[kind.rawValue],
-    //                         "missing ranker weight for \(kind.rawValue)")
-    //     }
-    // }
+    func testEveryInsightKindHasARankerWeight() {
+        let config = InsightsConfig.bundled()
+        for kind in InsightKind.allCases {
+            XCTAssertNotNil(config.ranker.weights[kind.rawValue],
+                            "missing ranker weight for \(kind.rawValue)")
+        }
+    }
 }
