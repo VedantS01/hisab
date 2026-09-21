@@ -44,6 +44,26 @@ void main() {
       final b = a.add(const Duration(days: 3));
       expect(istDaysBetween(a, b), 3);
       expect(istDaysBetween(b, a), -3);
+
+      // IST has no DST, so an exact day-multiple offset can't distinguish
+      // calendar-day truncation from a naive elapsed-seconds/86400 divide.
+      // These pin actual IST wall-clock instants to rule that out.
+      // 2026-08-03 23:00 IST -> 2026-08-04 01:00 IST: 2 hours elapsed, but
+      // it crosses an IST midnight, so it must count as 1 day.
+      final crossMidnightBefore =
+          DateTime.fromMillisecondsSinceEpoch(1785778200 * 1000, isUtc: true);
+      final crossMidnightAfter =
+          DateTime.fromMillisecondsSinceEpoch(1785785400 * 1000, isUtc: true);
+      expect(istDaysBetween(crossMidnightBefore, crossMidnightAfter), 1);
+      expect(istDaysBetween(crossMidnightAfter, crossMidnightBefore), -1);
+
+      // 2026-08-04 00:30 IST -> 2026-08-04 23:30 IST: 23 hours elapsed but
+      // stays inside one IST calendar day, so it must count as 0 days.
+      final sameDayEarly =
+          DateTime.fromMillisecondsSinceEpoch(1785783600 * 1000, isUtc: true);
+      final sameDayLate =
+          DateTime.fromMillisecondsSinceEpoch(1785866400 * 1000, isUtc: true);
+      expect(istDaysBetween(sameDayEarly, sameDayLate), 0);
     });
   });
 }
