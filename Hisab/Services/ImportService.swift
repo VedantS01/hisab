@@ -35,12 +35,20 @@ final class ImportService {
         self.resolver = resolver
     }
 
-    func importFile(at url: URL, password: String?, overrideSource: Source?) throws -> ImportReport {
+    /// `fileHash` overrides the identity used for the file-level duplicate
+    /// check. Real imports leave it nil and are identified by their bytes; the
+    /// demo statements are rewritten to the current month before import, so
+    /// their bytes differ every month and they pass the *bundle's* hash instead
+    /// — otherwise loading the demo twice in different months would import it
+    /// twice. See DemoData.
+    func importFile(at url: URL, password: String?, overrideSource: Source?,
+                    fileHash fileHashOverride: String? = nil) throws -> ImportReport {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else { throw ImportServiceError.unreadable }
 
-        let fileHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let fileHash = fileHashOverride
+            ?? SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         let existingDocs = (try? context.fetch(FetchDescriptor<StoredDocument>())) ?? []
         if let dup = existingDocs.first(where: { $0.fileSHA256 == fileHash }) {
             return ImportReport(source: dup.source, totalParsed: 0, newCount: 0,

@@ -52,17 +52,8 @@ class ImportService {
     Source? overrideSource,
   }) async {
     final fileHash = sha256.convert(data).toString();
-    final existingDocs = await db.select(db.storedDocuments).get();
-    for (final doc in existingDocs) {
-      if (doc.fileSha256 == fileHash) {
-        return ImportReport(
-            source: Source(doc.sourceRaw),
-            totalParsed: 0,
-            newCount: 0,
-            monthsTouched: const [],
-            duplicateOfExistingFile: true);
-      }
-    }
+    final duplicate = await _alreadyImported(fileHash);
+    if (duplicate != null) return duplicate;
 
     final ParsedDocument parsed;
     switch (resolver.resolve(data: data, filename: filename, password: password)) {
@@ -80,12 +71,35 @@ class ImportService {
         parsed: parsed, source: source, filename: filename, fileHash: fileHash);
   }
 
+  /// "Have I already taken this file in?", answered in one place. Identity is
+  /// whatever the caller calls the file: its bytes for a real import, a stable
+  /// key for the demo statements, whose bytes are rewritten on every load.
+  Future<ImportReport?> _alreadyImported(String fileHash) async {
+    final existingDocs = await db.select(db.storedDocuments).get();
+    for (final doc in existingDocs) {
+      if (doc.fileSha256 == fileHash) {
+        return ImportReport(
+            source: Source(doc.sourceRaw),
+            totalParsed: 0,
+            newCount: 0,
+            monthsTouched: const [],
+            duplicateOfExistingFile: true);
+      }
+    }
+    return null;
+  }
+
+  /// The single insertion point, so the duplicate check is asked here too and
+  /// not only on the [importBytes] path — DemoData comes straight in here.
   Future<ImportReport> insertParsedDocument({
     required ParsedDocument parsed,
     required Source source,
     required String filename,
     required String fileHash,
   }) async {
+    final duplicate = await _alreadyImported(fileHash);
+    if (duplicate != null) return duplicate;
+
     final existingHashes = <String>{};
     final txnRows = await db.select(db.storedTransactions).get();
     for (final row in txnRows) {

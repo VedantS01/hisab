@@ -17,16 +17,36 @@ class DemoData {
     'assets/demo/demo-idfc.csv': Source.idfc,
   };
 
-  static Future<void> load(ImportService service) async {
+  /// Identity of a demo statement for the import pipeline's file-level
+  /// duplicate check. Deliberately *not* a hash of the imported bytes: those
+  /// are rewritten by [shiftToPresent] and so differ from month to month, which
+  /// would make each month's "Load demo data" look like a brand-new file.
+  /// Tapping it twice has to be a no-op whenever the second tap happens.
+  static String fileHash(Source source) => 'demo-${source.rawValue}';
+
+  static Future<void> load(ImportService service, {DateTime? now}) async {
+    final texts = <String, String>{};
+    for (final key in _files.keys) {
+      texts[key] = await rootBundle.loadString(key);
+    }
+    return loadTexts(service, texts, now: now);
+  }
+
+  /// The bundle-free half of [load], so a test can hand over the same CSVs and
+  /// exercise the real import path without an asset bundle.
+  static Future<void> loadTexts(
+      ImportService service, Map<String, String> texts,
+      {DateTime? now}) async {
     for (final entry in _files.entries) {
-      final text = shiftToPresent(await rootBundle.loadString(entry.key));
+      final raw = texts[entry.key];
+      if (raw == null) continue;
       final parser = SyntheticCsvParser(source: entry.value);
-      final parsed = parser.parse(utf8.encode(text));
+      final parsed = parser.parse(utf8.encode(shiftToPresent(raw, now: now)));
       await service.insertParsedDocument(
         parsed: parsed,
         source: entry.value,
         filename: entry.key.split('/').last,
-        fileHash: 'demo-${entry.value.rawValue}',
+        fileHash: fileHash(entry.value),
       );
     }
   }

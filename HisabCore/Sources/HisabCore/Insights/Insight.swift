@@ -13,6 +13,16 @@ public enum ISTDay {
         return formatter.string(from: date)
     }
 
+    /// Inverse of `string(_:)`: "yyyy-MM-dd" in IST, or nil if it isn't one.
+    public static func date(from text: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = YearMonth.istCalendar
+        formatter.timeZone = YearMonth.istCalendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: text)
+    }
+
     /// "28 Aug 2026" — the one day rendering both apps use, so a date in a
     /// card's sentence and the same date in its evidence list read alike.
     public static func label(_ date: Date) -> String {

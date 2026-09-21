@@ -24,9 +24,11 @@ final class InsightStripUITests: XCTestCase {
     }
 
     @discardableResult
-    private func launch(reset: Bool) -> XCUIApplication {
+    private func launch(reset: Bool, demoNow: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["--seed-demo"] + (reset ? ["--reset-insights"] : [])
+        app.launchArguments = ["--seed-demo"]
+            + (reset ? ["--reset-insights"] : [])
+            + (demoNow.map { ["--demo-now", $0] } ?? [])
         app.launch()
         XCTAssertTrue(app.staticTexts["For you"].waitForExistence(timeout: 30))
         dismissSuggestionPrompt(app)
@@ -142,6 +144,33 @@ final class InsightStripUITests: XCTestCase {
         waitForStrip(relaunched, "dismissal did not survive relaunch") { shown in
             shown.count == 5 && !shown.contains { $0.hasPrefix("UNUSUAL. Blue Tokai") }
         }
+    }
+
+    /// "Load demo data" is a button, and a user can come back to it next month.
+    /// The statements are rewritten to the current month on every load, so if
+    /// they were identified by the bytes actually imported, each new month's
+    /// load would look like a new file and land a second copy. The proof that
+    /// it does not: seed as-of a date months back, relaunch with today's
+    /// anchor, and the strip must still be reporting the *older* months —
+    /// unchanged, because the second load did nothing at all.
+    func testLoadingTheDemoAgainInALaterMonthChangesNothing() {
+        // Deliberately asserts the invariant rather than a fixed month: this
+        // suite shares one simulator, so by the time it runs the demo may
+        // already be loaded under some other anchor — which is exactly the
+        // state a returning user is in, and the state this must hold in.
+        let app = launch(reset: true, demoNow: "2026-06-15")
+        let before = waitForStrip(app, "strip never settled on the first anchor") {
+            $0.count == self.baseline.count
+        }
+        XCTAssertTrue(before.last?.hasPrefix("COMMITTED. ") == true)
+
+        app.terminate()
+        let again = launch(reset: false, demoNow: "2027-01-20")
+        let after = waitForStrip(again, "strip never settled after the second load") {
+            $0.count == self.baseline.count
+        }
+        XCTAssertEqual(after, before,
+                       "a demo load anchored seven months on changed the data")
     }
 
     func testLongPressOffersMuteAndMutingSilencesThatMerchant() {

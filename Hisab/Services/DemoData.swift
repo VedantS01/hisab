@@ -8,7 +8,7 @@ import HisabCore
 @MainActor
 enum DemoData {
     @discardableResult
-    static func load(into context: ModelContext) -> Bool {
+    static func load(into context: ModelContext, now: Date = Date()) -> Bool {
         guard let gpayURL = Bundle.main.url(forResource: "demo-gpay", withExtension: "csv"),
               let hdfcURL = Bundle.main.url(forResource: "demo-hdfc", withExtension: "csv"),
               let idfcURL = Bundle.main.url(forResource: "demo-idfc", withExtension: "csv") else {
@@ -17,9 +17,11 @@ enum DemoData {
         let service = ImportService(context: context)
         do {
             for (url, source) in [(gpayURL, Source.gpay), (hdfcURL, .hdfc), (idfcURL, .idfc)] {
-                let shifted = try shiftedCopy(of: url)
+                let bundled = try Data(contentsOf: url)
+                let shifted = try shiftedCopy(of: url, data: bundled, now: now)
                 defer { try? FileManager.default.removeItem(at: shifted) }
-                _ = try service.importFile(at: shifted, password: nil, overrideSource: source)
+                _ = try service.importFile(at: shifted, password: nil, overrideSource: source,
+                                           fileHash: fileHash(for: source))
             }
             return true
         } catch {
@@ -27,14 +29,28 @@ enum DemoData {
         }
     }
 
-    /// Reads a bundled statement, slides its dates into the present and writes
-    /// the result to a temp file under the same name, so the import pipeline —
-    /// which works from a URL and hashes the bytes — sees it as an ordinary file.
-    private static func shiftedCopy(of url: URL) throws -> URL {
-        let text = try String(contentsOf: url, encoding: .utf8)
+    /// Identity of a demo statement for the import pipeline's file-level
+    /// duplicate check. There is exactly one demo statement per source, ever,
+    /// so the identity is that slot — not the bytes. The bytes are the wrong
+    /// answer twice over: `shiftToPresent` rewrites them every month, so a
+    /// returning user's second tap would look like a new file; and if a later
+    /// release ships different demo statements, hashing the bundle would land a
+    /// second, overlapping demo set on top of the first rather than doing
+    /// nothing. Same string Flutter uses, so the two platforms agree by
+    /// construction rather than by coincidence.
+    static func fileHash(for source: Source) -> String { "demo-\(source.rawValue)" }
+
+    /// Slides a bundled statement's dates into the present and writes the result
+    /// to a temp file under the same name, so the import pipeline — which works
+    /// from a URL — sees it as an ordinary file.
+    private static func shiftedCopy(of url: URL, data: Data, now: Date) throws -> URL {
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
         let destination = FileManager.default.temporaryDirectory
             .appending(path: url.lastPathComponent)
-        try shiftToPresent(text).write(to: destination, atomically: true, encoding: .utf8)
+        try shiftToPresent(text, now: now).write(to: destination, atomically: true,
+                                                 encoding: .utf8)
         return destination
     }
 

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hisab/services/demo_data.dart';
 import 'package:hisab/services/import_service.dart';
 import 'package:hisab/services/queries.dart';
 import 'package:hisab/storage/database.dart';
@@ -164,5 +165,44 @@ void main() {
 
     final docs = await db.select(db.storedDocuments).get();
     expect(Queries.insightPeriods(docs).length, 1);
+  });
+
+  // "Load demo data" is a button a user can press twice. The statements are
+  // rewritten to the current month on every load, so identifying them by the
+  // bytes actually imported would make the same demo look like a new file in
+  // every new month — and a second load would then land a second copy. Two
+  // kinds of row make that visible: rows carrying a reference dedup on it and
+  // survive, but reference-less rows hash on their *date* and would duplicate
+  // outright, silently double-counting that spend.
+  test('loading the demo twice is a no-op, even months apart', () async {
+    final texts = {
+      for (final name in ['demo-gpay.csv', 'demo-hdfc.csv', 'demo-idfc.csv'])
+        'assets/demo/$name': File('assets/demo/$name').readAsStringSync(),
+    };
+    Future<(int, int)> counts() async => (
+          (await db.select(db.storedDocuments).get()).length,
+          (await db.select(db.storedTransactions).get()).length,
+        );
+
+    await DemoData.loadTexts(service, texts, now: DateTime.utc(2026, 9, 21));
+    final afterFirst = await counts();
+    expect(afterFirst.$1, 3, reason: 'one document per demo statement');
+    expect(afterFirst.$2, greaterThan(200));
+
+    await DemoData.loadTexts(service, texts, now: DateTime.utc(2026, 9, 21));
+    expect(await counts(), afterFirst, reason: 'same-month reload must be a no-op');
+
+    await DemoData.loadTexts(service, texts, now: DateTime.utc(2026, 12, 15));
+    expect(await counts(), afterFirst,
+        reason: 'reload three months later must be a no-op too');
+
+    await DemoData.loadTexts(service, texts, now: DateTime.utc(2027, 6, 2));
+    expect(await counts(), afterFirst,
+        reason: 'and one that crosses a year boundary');
+
+    // The shift also has to have left the first load's dates alone.
+    final txns = await db.select(db.storedTransactions).get();
+    expect(txns.map((t) => t.contentHash).toSet(), hasLength(txns.length),
+        reason: 'no two stored rows may share a content hash');
   });
 }
