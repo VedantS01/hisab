@@ -684,6 +684,100 @@ void main() {
       }
     });
 
+    // The shared dataset never over-fills the strip, so the cap, the slot
+    // reserved for committed spend and the per-kind guard all hold there by
+    // accident. This dataset over-fills every one of them: six non-committed
+    // candidates, four of them trends, and the fourth trend outranks both
+    // recurring cards - so the per-kind guard has to skip it and let a
+    // lower-ranked card of another kind take the freed slot.
+    test('the cap, the reserved slot and the per-kind guard all fire', () {
+      final rows = <InsightRecord>[];
+      // Four trending categories: flat ₹1,000 in Jun and Jul, then a much
+      // larger August. A distinct merchant per month, so none is a series.
+      const trending = [
+        ('Food', 500000),
+        ('Travel', 450000),
+        ('Health', 400000),
+        ('Bills', 350000),
+      ];
+      for (final (category, august) in trending) {
+        rows.add(record(
+            '$category-jun', '2026-06-10', 100000, category, '$category Jun'));
+        rows.add(record(
+            '$category-jul', '2026-07-10', 100000, category, '$category Jul'));
+        rows.add(record(
+            '$category-aug', '2026-08-20', august, category, '$category Aug'));
+      }
+      // Two small new monthly series: a second kind ranked below every trend,
+      // and enough series for a committed-spend card. Their category total is
+      // too small a delta to trend on its own.
+      const subs = [('Alpha Gym', 30000), ('Beta Books', 25000)];
+      for (var index = 0; index < subs.length; index++) {
+        final (merchant, amount) = subs[index];
+        for (final month in ['07', '08', '09']) {
+          rows.add(record(
+              'sub$index-$month', '2026-$month-05', amount, 'Subs', merchant));
+        }
+      }
+      final result = InsightsEngine.generate(
+        input: InsightsInput(records: rows, documentPeriods: periods, now: now),
+        config: config,
+        suppressions: const Suppressions(),
+      );
+
+      // Six non-committed candidates plus the committed card were generated;
+      // only maxCards of them can be shown.
+      expect(result.allIDs.length, 7);
+      expect(result.cards.length, config.ranker.maxCards);
+      expect(result.cards.last.kind, InsightKind.committedSpend);
+
+      final counts = <InsightKind, int>{};
+      for (final card in result.cards) {
+        counts[card.kind] = (counts[card.kind] ?? 0) + 1;
+      }
+      counts.forEach((kind, count) {
+        if (kind != InsightKind.committedSpend) {
+          expect(count, lessThanOrEqualTo(config.ranker.maxPerType),
+              reason: '$kind exceeded maxPerType');
+        }
+      });
+      // The exact shape: three of the four trends, and the freed fourth slot
+      // taken by the top recurring card rather than the loop stopping there.
+      expect(counts[InsightKind.trend], config.ranker.maxPerType);
+      expect(counts[InsightKind.recurringNew], 1);
+    });
+
+    // Every score in the shared dataset is distinct, so the id tie-break
+    // never runs there. Two series of identical amount give identical
+    // magnitudes and so identical scores; the detector emits them in
+    // merchant-key order (alpha before beta), which here is *descending* id
+    // order - a comparator that ignored the tie-break would leave them as-is.
+    test('equal scores tie-break on id ascending', () {
+      final rows = <InsightRecord>[];
+      const merchants = ['Alpha Gym', 'Beta Books'];
+      for (var index = 0; index < merchants.length; index++) {
+        for (final month in ['07', '08', '09']) {
+          rows.add(record('tie$index-$month', '2026-$month-05', 250000, 'Subs',
+              merchants[index]));
+        }
+      }
+      final result = InsightsEngine.generate(
+        input: InsightsInput(records: rows, documentPeriods: periods, now: now),
+        config: config,
+        suppressions: const Suppressions(),
+      );
+
+      final tied = result.cards
+          .where((c) => c.kind == InsightKind.recurringNew)
+          .toList();
+      expect(tied.length, 2);
+      expect(tied[0].score, tied[1].score,
+          reason: 'the fixture must actually tie');
+      expect(tied[0].id, InsightID.make('recurring-new|beta books|250000'));
+      expect(tied[1].id, InsightID.make('recurring-new|alpha gym|250000'));
+      expect(tied[0].id.compareTo(tied[1].id), lessThan(0));
+    });
+
     test('dismissed ids are removed but still reported in allIDs', () {
       final first = generate().cards[0];
       final result = generate(Suppressions(dismissedIDs: {first.id}));
