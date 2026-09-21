@@ -1,13 +1,6 @@
 {
   "expected" : [
     {
-      "detail" : "up 50% vs your 3-month average — driven by one ₹15,000.00 payment to Landlord",
-      "headline" : "Housing: ₹15,000.00",
-      "id" : "c0965913a9392766",
-      "kind" : "trend",
-      "score" : 253
-    },
-    {
       "detail" : "usually ₹1,000.00 per month",
       "headline" : "Swiggy: ₹2,200.00",
       "id" : "b3d11f78a5405c02",
@@ -15,11 +8,11 @@
       "score" : 180
     },
     {
-      "detail" : "up 515% vs your 3-month average",
+      "detail" : "up 310% vs your 2-month average",
       "headline" : "Food: ₹4,100.00",
-      "id" : "2383403618647a64",
+      "id" : "a4eeced53dd0980b",
       "kind" : "trend",
-      "score" : 173
+      "score" : 156
     },
     {
       "detail" : "₹649.00 per month since Jul 2026",
@@ -27,6 +20,13 @@
       "id" : "47007c34745ef802",
       "kind" : "recurringNew",
       "score" : 96
+    },
+    {
+      "detail" : "2 identical payments on 25 Aug 2026",
+      "headline" : "Zomato: ₹450.00 ×2",
+      "id" : "3623978f1f11e6b4",
+      "kind" : "possibleDuplicate",
+      "score" : 88
     },
     {
       "detail" : "across 3 recurring payments",
@@ -40,7 +40,7 @@
   "periods" : [
     {
       "end" : "2026-08-31T18:29:59Z",
-      "start" : "2026-01-01T00:00:00Z"
+      "start" : "2026-05-31T18:30:00Z"
     }
   ],
   "records" : [
