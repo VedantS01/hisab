@@ -24,6 +24,7 @@ export 'src/insights/anomaly_detector.dart';
 export 'src/insights/complete_months.dart';
 export 'src/insights/insight.dart';
 export 'src/insights/insights_config.dart';
+export 'src/insights/insights_engine.dart';
 export 'src/insights/recurrence_detector.dart';
 export 'src/insights/trend_detector.dart';
 export 'src/money.dart';

@@ -598,4 +598,171 @@ void main() {
           isEmpty);
     });
   });
+
+  group('InsightsEngine', () {
+    const config = InsightsConfig.fallback;
+
+    DateTime day(String yyyyMmDd) {
+      final p = yyyyMmDd.split('-').map(int.parse).toList();
+      return DateTime.utc(p[0], p[1], p[2]).subtract(istOffset);
+    }
+
+    InsightRecord record(
+            String id, String iso, int paise, String category, String merchant) =>
+        InsightRecord(
+            id: id,
+            date: day(iso),
+            amountPaise: paise,
+            direction: Direction.debit,
+            category: category,
+            merchant: merchant);
+
+    // Jan-Aug complete, "now" mid-September: August is the latest complete
+    // month. The period has to end at 2026-09-01 00:00 IST, because August's
+    // last instant is 2026-08-31 23:59:59 - a period ending at 2026-08-31
+    // 00:00 leaves August incomplete and every August assertion vacuous.
+    final periods = [DatePeriod(day('2026-01-01'), day('2026-09-01'))];
+    final now = day('2026-09-15');
+
+    // A rent series (recurring), a Food trend, and a duplicate pair.
+    List<InsightRecord> dataset() {
+      final rows = <InsightRecord>[];
+      const months = ['06', '07', '08'];
+      for (var index = 0; index < months.length; index++) {
+        rows.add(record(
+            'rent$index', '2026-${months[index]}-05', 1500000, 'Housing', 'Landlord'));
+        rows.add(record(
+            'food$index', '2026-${months[index]}-12', 100000, 'Food', 'Swiggy'));
+      }
+      rows.add(record('foodspike', '2026-08-20', 300000, 'Food', 'Swiggy'));
+      rows.add(record('dup1', '2026-08-25', 45000, 'Food', 'Zomato'));
+      rows.add(record('dup2', '2026-08-25', 45000, 'Food', 'Zomato'));
+      return rows;
+    }
+
+    InsightsResult generate([Suppressions suppressions = const Suppressions()]) =>
+        InsightsEngine.generate(
+          input: InsightsInput(
+              records: dataset(), documentPeriods: periods, now: now),
+          config: config,
+          suppressions: suppressions,
+        );
+
+    test('committed spend is always the last card', () {
+      final result = generate();
+      expect(result.cards, isNotEmpty);
+      expect(result.cards.last.kind, InsightKind.committedSpend);
+      expect(
+          result.cards
+              .where((c) => c.kind == InsightKind.committedSpend)
+              .length,
+          1);
+    });
+
+    test('cards are capped at maxCards', () {
+      expect(generate().cards.length, lessThanOrEqualTo(config.ranker.maxCards));
+    });
+
+    // Ranking is score descending, id ascending as the tie-break - kind
+    // weight only feeds the score, it is not a separate sort key.
+    test('cards are ordered by score then id', () {
+      final ranked = generate()
+          .cards
+          .where((c) => c.kind != InsightKind.committedSpend)
+          .toList();
+      expect(ranked.length, greaterThan(1));
+      for (var index = 1; index < ranked.length; index++) {
+        final previous = ranked[index - 1];
+        final current = ranked[index];
+        if (previous.score == current.score) {
+          expect(previous.id.compareTo(current.id), lessThan(0),
+              reason: 'equal scores must tie-break on id ascending');
+        } else {
+          expect(previous.score, greaterThan(current.score),
+              reason: 'cards must be ordered by score descending');
+        }
+      }
+    });
+
+    test('dismissed ids are removed but still reported in allIDs', () {
+      final first = generate().cards[0];
+      final result = generate(Suppressions(dismissedIDs: {first.id}));
+      expect(result.cards.any((c) => c.id == first.id), isFalse);
+      expect(result.allIDs.contains(first.id), isTrue,
+          reason: 'allIDs must list every generated id so the app can prune');
+    });
+
+    test('muting a merchant silences its cards', () {
+      final result = generate(const Suppressions(mutedMerchants: {'zomato'}));
+      expect(result.cards.any((c) => c.kind == InsightKind.possibleDuplicate),
+          isFalse);
+    });
+
+    test('muting a category silences its trend', () {
+      final result = generate(const Suppressions(mutedCategories: {'Food'}));
+      // The dataset also trends Housing, which muting Food must not touch.
+      expect(
+          result.cards.any((c) =>
+              c.kind == InsightKind.trend && c.headline.startsWith('Food')),
+          isFalse);
+      expect(
+          result.cards.any((c) =>
+              c.kind == InsightKind.trend && c.headline.startsWith('Housing')),
+          isTrue);
+    });
+
+    test('an outlier on a recurring payment is suppressed', () {
+      // Six monthly payments plus a spike inside the 35-day anomaly
+      // lookback: the recurrence card claims the spike, so no outlier card.
+      final rows = [
+        for (var index = 1; index <= 6; index++)
+          record('g$index', '2026-0$index-05', 200000, 'Bills', 'Gym'),
+        record('spike', '2026-09-05', 900000, 'Bills', 'Gym'),
+      ];
+      final result = InsightsEngine.generate(
+        input: InsightsInput(records: rows, documentPeriods: periods, now: now),
+        config: config,
+        suppressions: const Suppressions(),
+      );
+      expect(result.cards.any((c) => c.kind == InsightKind.recurringChanged),
+          isTrue,
+          reason: 'the recurrence card must be the one that owns the spike');
+      expect(result.cards.any((c) => c.kind == InsightKind.outlierAmount),
+          isFalse);
+    });
+
+    test('a duplicated outlier is one duplicate card, not two outliers', () {
+      // Five priors set a typical amount; the same recent day then carries
+      // two identical charges, each an outlier on its own. "You may have
+      // paid twice" supersedes "that was unusually large", twice over.
+      final rows = [
+        for (var index = 2; index <= 6; index++)
+          record('prior$index', '2026-08-1$index', 30000, 'Shopping', 'Acme'),
+        record('twin1', '2026-09-10', 200000, 'Shopping', 'Acme'),
+        record('twin2', '2026-09-10', 200000, 'Shopping', 'Acme'),
+      ];
+      final result = InsightsEngine.generate(
+        input: InsightsInput(records: rows, documentPeriods: periods, now: now),
+        config: config,
+        suppressions: const Suppressions(),
+      );
+      expect(result.cards.any((c) => c.kind == InsightKind.possibleDuplicate),
+          isTrue);
+      expect(result.cards.any((c) => c.kind == InsightKind.outlierAmount),
+          isFalse,
+          reason:
+              'a possible-duplicate card supersedes outliers on the same rows');
+    });
+
+    test('without a complete month no trend cards appear', () {
+      final partial = [DatePeriod(day('2026-08-15'), day('2026-09-14'))];
+      final result = InsightsEngine.generate(
+        input: InsightsInput(
+            records: dataset(), documentPeriods: partial, now: now),
+        config: config,
+        suppressions: const Suppressions(),
+      );
+      expect(result.cards.any((c) => c.kind == InsightKind.trend), isFalse);
+    });
+  });
 }
