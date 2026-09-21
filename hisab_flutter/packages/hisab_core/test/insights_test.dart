@@ -867,51 +867,74 @@ void main() {
   });
 
   group('Insights parity', () {
-    test('the shared fixture produces Swift-identical cards', () {
-      final fixture = jsonDecode(
-              File('test/fixtures/insights-parity.json').readAsStringSync())
-          as Map<String, dynamic>;
+    // Keep in step with InsightsParityTests.cases on the Swift side; the
+    // fixture files themselves are copied here by tool/sync_assets.sh.
+    const cases = [
+      'insights-parity',
+      'insights-parity-2',
+      'insights-parity-3',
+    ];
 
-      final input = InsightsInput(
-        records: [
-          for (final r in fixture['records'] as List)
-            InsightRecord(
-              id: r['id'] as String,
-              date: DateTime.parse(r['date'] as String),
-              amountPaise: r['amountPaise'] as int,
-              direction: r['direction'] == 'credit'
-                  ? Direction.credit
-                  : Direction.debit,
-              category: r['category'] as String,
-              merchant: r['merchant'] as String,
-            )
-        ],
-        documentPeriods: [
-          for (final p in fixture['periods'] as List)
-            DatePeriod(DateTime.parse(p['start'] as String),
-                DateTime.parse(p['end'] as String))
-        ],
-        now: DateTime.parse(fixture['now'] as String),
-      );
+    Set<String> keys(Map<String, dynamic> fixture, String field) {
+      final block = fixture['suppressions'] as Map<String, dynamic>?;
+      return {...?(block?[field] as List?)?.cast<String>()};
+    }
 
-      final result = InsightsEngine.generate(
+    for (final name in cases) {
+      test('$name produces Swift-identical cards and ids', () {
+        final fixture = jsonDecode(
+                File('test/fixtures/$name.json').readAsStringSync())
+            as Map<String, dynamic>;
+
+        final input = InsightsInput(
+          records: [
+            for (final r in fixture['records'] as List)
+              InsightRecord(
+                id: r['id'] as String,
+                date: DateTime.parse(r['date'] as String),
+                amountPaise: r['amountPaise'] as int,
+                direction: r['direction'] == 'credit'
+                    ? Direction.credit
+                    : Direction.debit,
+                category: r['category'] as String,
+                merchant: r['merchant'] as String,
+              )
+          ],
+          documentPeriods: [
+            for (final p in fixture['periods'] as List)
+              DatePeriod(DateTime.parse(p['start'] as String),
+                  DateTime.parse(p['end'] as String))
+          ],
+          now: DateTime.parse(fixture['now'] as String),
+        );
+
+        final result = InsightsEngine.generate(
           input: input,
           config: InsightsConfig.fallback,
-          suppressions: const Suppressions());
+          suppressions: Suppressions(
+            dismissedIDs: keys(fixture, 'dismissedIDs'),
+            mutedMerchants: keys(fixture, 'mutedMerchants'),
+            mutedCategories: keys(fixture, 'mutedCategories'),
+          ),
+        );
 
-      final expected = fixture['expected'] as List;
-      expect(expected, isNotEmpty,
-          reason: 'fixture has no expected output — regenerate with '
-              'INSIGHTS_GT_OUT on the Swift side');
-      expect(result.cards.length, expected.length);
-      for (var i = 0; i < expected.length; i++) {
-        final e = expected[i] as Map<String, dynamic>;
-        expect(result.cards[i].id, e['id']);
-        expect(result.cards[i].kind.name, e['kind']);
-        expect(result.cards[i].headline, e['headline']);
-        expect(result.cards[i].detail, e['detail']);
-        expect(result.cards[i].score, e['score']);
-      }
-    });
+        final expected = fixture['expected'] as List;
+        final expectedAllIDs =
+            (fixture['expectedAllIDs'] as List).cast<String>();
+        expect(expectedAllIDs, isNotEmpty,
+            reason: '$name has no expected output — regenerate with '
+                'INSIGHTS_GT_OUT on the Swift side');
+        expect(result.cards.length, expected.length);
+        for (var i = 0; i < expected.length; i++) {
+          final e = expected[i] as Map<String, dynamic>;
+          expect(result.cards[i].id, e['id']);
+          expect(result.cards[i].kind.name, e['kind']);
+          expect(result.cards[i].headline, e['headline']);
+          expect(result.cards[i].detail, e['detail']);
+          expect(result.cards[i].score, e['score']);
+        }
+        expect(result.allIDs.toList()..sort(), expectedAllIDs);
+      });
+    }
   });
 }
