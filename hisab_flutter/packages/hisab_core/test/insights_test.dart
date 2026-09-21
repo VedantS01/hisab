@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:hisab_core/hisab_core.dart';
@@ -862,6 +863,55 @@ void main() {
         suppressions: const Suppressions(),
       );
       expect(result.cards.any((c) => c.kind == InsightKind.trend), isFalse);
+    });
+  });
+
+  group('Insights parity', () {
+    test('the shared fixture produces Swift-identical cards', () {
+      final fixture = jsonDecode(
+              File('test/fixtures/insights-parity.json').readAsStringSync())
+          as Map<String, dynamic>;
+
+      final input = InsightsInput(
+        records: [
+          for (final r in fixture['records'] as List)
+            InsightRecord(
+              id: r['id'] as String,
+              date: DateTime.parse(r['date'] as String),
+              amountPaise: r['amountPaise'] as int,
+              direction: r['direction'] == 'credit'
+                  ? Direction.credit
+                  : Direction.debit,
+              category: r['category'] as String,
+              merchant: r['merchant'] as String,
+            )
+        ],
+        documentPeriods: [
+          for (final p in fixture['periods'] as List)
+            DatePeriod(DateTime.parse(p['start'] as String),
+                DateTime.parse(p['end'] as String))
+        ],
+        now: DateTime.parse(fixture['now'] as String),
+      );
+
+      final result = InsightsEngine.generate(
+          input: input,
+          config: InsightsConfig.fallback,
+          suppressions: const Suppressions());
+
+      final expected = fixture['expected'] as List;
+      expect(expected, isNotEmpty,
+          reason: 'fixture has no expected output — regenerate with '
+              'INSIGHTS_GT_OUT on the Swift side');
+      expect(result.cards.length, expected.length);
+      for (var i = 0; i < expected.length; i++) {
+        final e = expected[i] as Map<String, dynamic>;
+        expect(result.cards[i].id, e['id']);
+        expect(result.cards[i].kind.name, e['kind']);
+        expect(result.cards[i].headline, e['headline']);
+        expect(result.cards[i].detail, e['detail']);
+        expect(result.cards[i].score, e['score']);
+      }
     });
   });
 }

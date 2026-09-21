@@ -1,0 +1,152 @@
+{
+  "expected" : [
+    {
+      "detail" : "up 50% vs your 3-month average — driven by one ₹15,000.00 payment to Landlord",
+      "headline" : "Housing: ₹15,000.00",
+      "id" : "c0965913a9392766",
+      "kind" : "trend",
+      "score" : 253
+    },
+    {
+      "detail" : "usually ₹1,000.00 per month",
+      "headline" : "Swiggy: ₹2,200.00",
+      "id" : "b3d11f78a5405c02",
+      "kind" : "recurringChanged",
+      "score" : 180
+    },
+    {
+      "detail" : "up 515% vs your 3-month average",
+      "headline" : "Food: ₹4,100.00",
+      "id" : "2383403618647a64",
+      "kind" : "trend",
+      "score" : 173
+    },
+    {
+      "detail" : "₹649.00 per month since Jul 2026",
+      "headline" : "New recurring: Netflix",
+      "id" : "47007c34745ef802",
+      "kind" : "recurringNew",
+      "score" : 96
+    },
+    {
+      "detail" : "across 3 recurring payments",
+      "headline" : "₹16,649.00 per month committed",
+      "id" : "c28456df00a52616",
+      "kind" : "committedSpend",
+      "score" : 0
+    }
+  ],
+  "now" : "2026-09-15T00:00:00Z",
+  "periods" : [
+    {
+      "end" : "2026-08-31T18:29:59Z",
+      "start" : "2026-01-01T00:00:00Z"
+    }
+  ],
+  "records" : [
+    {
+      "amountPaise" : 1500000,
+      "category" : "Housing",
+      "date" : "2026-06-05T00:00:00Z",
+      "direction" : "debit",
+      "id" : "rent-06",
+      "merchant" : "Landlord"
+    },
+    {
+      "amountPaise" : 1500000,
+      "category" : "Housing",
+      "date" : "2026-07-05T00:00:00Z",
+      "direction" : "debit",
+      "id" : "rent-07",
+      "merchant" : "Landlord"
+    },
+    {
+      "amountPaise" : 1500000,
+      "category" : "Housing",
+      "date" : "2026-08-05T00:00:00Z",
+      "direction" : "debit",
+      "id" : "rent-08",
+      "merchant" : "Landlord"
+    },
+    {
+      "amountPaise" : 64900,
+      "category" : "Subscriptions",
+      "date" : "2026-07-09T00:00:00Z",
+      "direction" : "debit",
+      "id" : "net-07",
+      "merchant" : "Netflix"
+    },
+    {
+      "amountPaise" : 64900,
+      "category" : "Subscriptions",
+      "date" : "2026-08-09T00:00:00Z",
+      "direction" : "debit",
+      "id" : "net-08",
+      "merchant" : "Netflix"
+    },
+    {
+      "amountPaise" : 64900,
+      "category" : "Subscriptions",
+      "date" : "2026-09-09T00:00:00Z",
+      "direction" : "debit",
+      "id" : "net-09",
+      "merchant" : "Netflix"
+    },
+    {
+      "amountPaise" : 100000,
+      "category" : "Food",
+      "date" : "2026-06-12T00:00:00Z",
+      "direction" : "debit",
+      "id" : "food-06",
+      "merchant" : "Swiggy"
+    },
+    {
+      "amountPaise" : 100000,
+      "category" : "Food",
+      "date" : "2026-07-12T00:00:00Z",
+      "direction" : "debit",
+      "id" : "food-07",
+      "merchant" : "Swiggy"
+    },
+    {
+      "amountPaise" : 100000,
+      "category" : "Food",
+      "date" : "2026-08-12T00:00:00Z",
+      "direction" : "debit",
+      "id" : "food-08a",
+      "merchant" : "Swiggy"
+    },
+    {
+      "amountPaise" : 220000,
+      "category" : "Food",
+      "date" : "2026-08-22T00:00:00Z",
+      "direction" : "debit",
+      "id" : "food-08b",
+      "merchant" : "Swiggy"
+    },
+    {
+      "amountPaise" : 45000,
+      "category" : "Food",
+      "date" : "2026-08-25T00:00:00Z",
+      "direction" : "debit",
+      "id" : "dup-1",
+      "merchant" : "Zomato"
+    },
+    {
+      "amountPaise" : 45000,
+      "category" : "Food",
+      "date" : "2026-08-25T00:00:00Z",
+      "direction" : "debit",
+      "id" : "dup-2",
+      "merchant" : "Zomato"
+    },
+    {
+      "amountPaise" : 9000000,
+      "category" : "Income",
+      "date" : "2026-08-01T00:00:00Z",
+      "direction" : "credit",
+      "id" : "salary-08",
+      "merchant" : "Employer"
+    }
+  ]
+}
