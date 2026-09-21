@@ -70,7 +70,8 @@ For each category with spend in the latest complete month: compare to
 the trailing `windowMonths` (3) complete months' average. Emit when
 |change| ≥ `minPct` (25) **and** |change| ≥ `minAbsPaise` (₹500).
 Both directions. Concentration annotation: if one transaction
-accounts for ≥ `concentrationPct` (70) of the increase, the card says
+accounts for ≥ `concentrationPct` (70) of the month's spend in that
+category, the card says
 "driven by one ₹X purchase at M" — and no separate outlier card is
 emitted for that transaction (collision rule).
 
