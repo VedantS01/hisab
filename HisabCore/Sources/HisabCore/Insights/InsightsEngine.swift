@@ -48,7 +48,10 @@ public enum InsightsEngine {
         }
 
         let everything = trends + recurrences + deduped
-        let allIDs = Set(everything.map(\.id))
+        // allIDs covers every card this pass generated, collision-suppressed
+        // ones included, so a dismissal survives a suppression that later
+        // lifts rather than being pruned while its card is merely hidden.
+        let allIDs = Set((trends + recurrences + anomalies).map(\.id))
 
         let surviving = everything.filter { insight in
             guard !suppressions.dismissedIDs.contains(insight.id) else { return false }

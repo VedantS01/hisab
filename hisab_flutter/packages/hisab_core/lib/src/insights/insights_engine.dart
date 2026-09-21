@@ -72,7 +72,12 @@ class InsightsEngine {
     ];
 
     final everything = [...trends, ...recurrences, ...deduped];
-    final allIDs = {for (final i in everything) i.id};
+    // allIDs covers every card this pass generated, collision-suppressed ones
+    // included, so a dismissal survives a suppression that later lifts rather
+    // than being pruned while its card is merely hidden.
+    final allIDs = {
+      for (final i in [...trends, ...recurrences, ...anomalies]) i.id
+    };
 
     final surviving = [
       for (final insight in everything)

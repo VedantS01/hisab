@@ -132,6 +132,11 @@ final class InsightsEngineTests: XCTestCase {
         XCTAssertTrue(result.cards.contains { $0.kind == .possibleDuplicate })
         XCTAssertFalse(result.cards.contains { $0.kind == .outlierAmount },
                        "a possible-duplicate card supersedes outliers on the same rows")
+        // Hidden is not ungenerated: the collision-suppressed outlier ids stay
+        // in allIDs, so a dismissal isn't pruned while the card is merely
+        // suppressed and doesn't come back undismissed when the collision lifts.
+        XCTAssertTrue(result.allIDs.contains(InsightID.make("outlier|twin1")))
+        XCTAssertTrue(result.allIDs.contains(InsightID.make("outlier|twin2")))
     }
 
     func testWithoutACompleteMonthNoTrendCardsAppear() {

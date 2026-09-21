@@ -752,6 +752,11 @@ void main() {
           isFalse,
           reason:
               'a possible-duplicate card supersedes outliers on the same rows');
+      // Hidden is not ungenerated: the collision-suppressed outlier ids stay
+      // in allIDs, so a dismissal isn't pruned while the card is merely
+      // suppressed and doesn't come back undismissed when the collision lifts.
+      expect(result.allIDs.contains(InsightID.make('outlier|twin1')), isTrue);
+      expect(result.allIDs.contains(InsightID.make('outlier|twin2')), isTrue);
     });
 
     test('without a complete month no trend cards appear', () {
