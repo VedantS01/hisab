@@ -35,7 +35,10 @@ struct InsightEvidenceSheet: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(txn.counterparty.isEmpty ? txn.narration : txn.counterparty)
                                         .lineLimit(1)
-                                    Text(txn.date.formatted(date: .abbreviated, time: .omitted))
+                                    // Core's day rendering, not the locale's:
+                                    // the same string Android shows, and the
+                                    // same one the duplicate card's sentence uses.
+                                    Text(ISTDay.label(txn.date))
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()

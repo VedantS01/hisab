@@ -128,6 +128,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // The strip sits above the month chips, matching iOS: it always
+        // speaks about the latest complete month, so mounting it under the
+        // chips would imply it follows the selection. Everything below the
+        // chip row does.
+        InsightStrip(
+          insights: insights.cards,
+          onOpen: (insight) =>
+              showInsightEvidence(context, insight, data.txns),
+          onDismiss: (insight) async {
+            await InsightStore.dismiss(insight.id);
+            final refreshed = await InsightStore.load();
+            if (mounted) setState(() => state.suppressions = refreshed);
+          },
+          onMute: (insight) async {
+            final target = insight.mute;
+            if (target == null) return;
+            await InsightStore.mute(target);
+            final refreshed = await InsightStore.load();
+            if (mounted) setState(() => state.suppressions = refreshed);
+          },
+        ),
+        if (insights.cards.isNotEmpty) const SizedBox(height: 8),
         SizedBox(
           height: 40,
           child: ListView(
@@ -147,24 +169,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        InsightStrip(
-          insights: insights.cards,
-          onOpen: (insight) =>
-              showInsightEvidence(context, insight, data.txns),
-          onDismiss: (insight) async {
-            await InsightStore.dismiss(insight.id);
-            final refreshed = await InsightStore.load();
-            if (mounted) setState(() => state.suppressions = refreshed);
-          },
-          onMute: (insight) async {
-            final target = insight.mute;
-            if (target == null) return;
-            await InsightStore.mute(target);
-            final refreshed = await InsightStore.load();
-            if (mounted) setState(() => state.suppressions = refreshed);
-          },
-        ),
-        if (insights.cards.isNotEmpty) const SizedBox(height: 8),
         _heroCard(stats, bankVerified),
         _trendCard(trend),
         _breakdownCard(breakdown),

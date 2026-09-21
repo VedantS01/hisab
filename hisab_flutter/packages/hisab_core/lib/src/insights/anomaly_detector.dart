@@ -113,6 +113,5 @@ class AnomalyDetector {
     return c.hour != 0 || c.minute != 0 || c.second != 0;
   }
 
-  static String dayLabel(DateTime date) =>
-      '${istClock(date).day} ${YearMonth.fromDate(date).displayName}';
+  static String dayLabel(DateTime date) => istDayLabel(date);
 }

@@ -13,10 +13,12 @@ struct DashboardView: View {
     @State private var showImport = false
     @State private var pushRecon = false
     @State private var openInsight: Insight?
-    /// Bumped after every dismiss/mute so `body` recomputes: UserDefaults
-    /// writes (where suppressions live) aren't Observable, so nothing else
-    /// tells SwiftUI to re-read `InsightStore.suppressions`.
-    @State private var suppressionsVersion = 0
+    /// Re-read after every dismiss/mute: UserDefaults writes (where
+    /// suppressions live) aren't Observable, so nothing else would tell
+    /// SwiftUI to look again. It has to be the value the body *reads* — a
+    /// write-only version counter creates no dependency in the attribute
+    /// graph, so bumping one never invalidates anything (it didn't).
+    @State private var suppressions = InsightStore.suppressions
 
     var body: some View {
         NavigationStack {
@@ -53,7 +55,7 @@ struct DashboardView: View {
                 }
                 if args.contains("--reset-insights") {
                     InsightStore.resetForDebug()
-                    suppressionsVersion += 1
+                    suppressions = InsightStore.suppressions
                 }
                 if args.contains("--push-recon") {
                     try? await Task.sleep(for: .seconds(1))
@@ -68,8 +70,8 @@ struct DashboardView: View {
         let txns = Queries.analytics(txns: storedTxns, matches: matchRows,
                                      rules: Queries.rules(from: ruleRows))
         let grid = Queries.grid(documents: storedDocs, pinned: pins)
-        // Recomputed every time `content` runs, including after
-        // `suppressionsVersion` bumps — see its declaration.
+        // Recomputed every time `content` runs, including after `suppressions`
+        // is re-read — see its declaration.
         let insightResult = InsightsEngine.generate(
             input: InsightsInput(
                 records: Queries.insightRecords(storedTxns, matches: matchRows,
@@ -77,7 +79,7 @@ struct DashboardView: View {
                 documentPeriods: Queries.insightPeriods(storedDocs),
                 now: Date()),
             config: InsightsConfig.bundled(),
-            suppressions: InsightStore.suppressions)
+            suppressions: suppressions)
 
         if txns.isEmpty {
             emptyState
@@ -87,11 +89,11 @@ struct DashboardView: View {
                              onOpen: { openInsight = $0 },
                              onDismiss: { insight in
                                  InsightStore.dismiss(insight.id)
-                                 suppressionsVersion += 1
+                                 suppressions = InsightStore.suppressions
                              },
                              onMute: { insight in
                                  if let target = insight.mute { InsightStore.mute(target) }
-                                 suppressionsVersion += 1
+                                 suppressions = InsightStore.suppressions
                              })
                 // Prunes stale dismissals against this pass's live id set.
                 // `.task(id:)` reruns whenever the id set's *value* changes

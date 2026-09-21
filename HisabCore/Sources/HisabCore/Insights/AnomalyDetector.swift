@@ -86,8 +86,5 @@ public enum AnomalyDetector {
         return (comps.hour ?? 0) != 0 || (comps.minute ?? 0) != 0 || (comps.second ?? 0) != 0
     }
 
-    static func dayLabel(_ date: Date) -> String {
-        let day = YearMonth.istCalendar.dateComponents([.day], from: date).day ?? 1
-        return "\(day) \(YearMonth(date: date).displayName)"
-    }
+    static func dayLabel(_ date: Date) -> String { ISTDay.label(date) }
 }

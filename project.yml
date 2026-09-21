@@ -30,3 +30,18 @@ targets:
         DEVELOPMENT_TEAM: AQQHT55AT9
         CODE_SIGN_STYLE: Automatic
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+  HisabUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - HisabUITests
+    dependencies:
+      - target: Hisab
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vedants.hisab.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: Hisab
+        DEVELOPMENT_TEAM: AQQHT55AT9
+        CODE_SIGN_STYLE: Automatic

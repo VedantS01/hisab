@@ -13,6 +13,13 @@ public enum ISTDay {
         return formatter.string(from: date)
     }
 
+    /// "28 Aug 2026" — the one day rendering both apps use, so a date in a
+    /// card's sentence and the same date in its evidence list read alike.
+    public static func label(_ date: Date) -> String {
+        let day = YearMonth.istCalendar.dateComponents([.day], from: date).day ?? 1
+        return "\(day) \(YearMonth(date: date).displayName)"
+    }
+
     /// Whole IST calendar days from `from` to `to`; negative when `to` is earlier.
     public static func daysBetween(_ from: Date, _ to: Date) -> Int {
         let cal = YearMonth.istCalendar

@@ -1,6 +1,6 @@
 # Spending Insights — design
 
-Date: 2026-09-18 · Status: approved (Vedant, in-chat, sections 1–5)
+Date: 2026-09-18 · Status: implemented (2026-09-21)
 Scope: iOS (HisabCore + Hisab app) and Android (hisab_core + Flutter
 app), shipped together with parity tests.
 
