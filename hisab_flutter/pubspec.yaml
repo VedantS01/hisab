@@ -3,7 +3,7 @@ description: "Hisab (हिसाब) — private, on-device expense analysis fo
 publish_to: 'none'
 
 # versionName+versionCode for Android.
-version: 1.1.0+1
+version: 1.2.0+2
 
 environment:
   sdk: ^3.6.0
