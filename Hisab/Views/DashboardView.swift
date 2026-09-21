@@ -12,6 +12,11 @@ struct DashboardView: View {
     @State private var selectedMonth = YearMonth(date: Date())
     @State private var showImport = false
     @State private var pushRecon = false
+    @State private var openInsight: Insight?
+    /// Bumped after every dismiss/mute so `body` recomputes: UserDefaults
+    /// writes (where suppressions live) aren't Observable, so nothing else
+    /// tells SwiftUI to re-read `InsightStore.suppressions`.
+    @State private var suppressionsVersion = 0
 
     var body: some View {
         NavigationStack {
@@ -34,6 +39,9 @@ struct DashboardView: View {
             .sheet(isPresented: $showImport) {
                 ImportSheet()
             }
+            .sheet(item: $openInsight) { insight in
+                InsightEvidenceSheet(insight: insight, transactions: storedTxns)
+            }
             .navigationDestination(isPresented: $pushRecon) {
                 ReconciliationView(initialMonth: selectedMonth)
             }
@@ -42,6 +50,10 @@ struct DashboardView: View {
                 if let index = args.firstIndex(of: "--month"), args.indices.contains(index + 1) {
                     let parts = args[index + 1].split(separator: "-").compactMap { Int($0) }
                     if parts.count == 2 { selectedMonth = YearMonth(year: parts[0], month: parts[1]) }
+                }
+                if args.contains("--reset-insights") {
+                    InsightStore.resetForDebug()
+                    suppressionsVersion += 1
                 }
                 if args.contains("--push-recon") {
                     try? await Task.sleep(for: .seconds(1))
@@ -56,11 +68,41 @@ struct DashboardView: View {
         let txns = Queries.analytics(txns: storedTxns, matches: matchRows,
                                      rules: Queries.rules(from: ruleRows))
         let grid = Queries.grid(documents: storedDocs, pinned: pins)
+        // Recomputed every time `content` runs, including after
+        // `suppressionsVersion` bumps — see its declaration.
+        let insightResult = InsightsEngine.generate(
+            input: InsightsInput(
+                records: Queries.insightRecords(storedTxns, matches: matchRows,
+                                                rules: Queries.rules(from: ruleRows)),
+                documentPeriods: Queries.insightPeriods(storedDocs),
+                now: Date()),
+            config: InsightsConfig.bundled(),
+            suppressions: InsightStore.suppressions)
 
         if txns.isEmpty {
             emptyState
         } else {
             VStack(spacing: 16) {
+                InsightStrip(insights: insightResult.cards,
+                             onOpen: { openInsight = $0 },
+                             onDismiss: { insight in
+                                 InsightStore.dismiss(insight.id)
+                                 suppressionsVersion += 1
+                             },
+                             onMute: { insight in
+                                 if let target = insight.mute { InsightStore.mute(target) }
+                                 suppressionsVersion += 1
+                             })
+                // Prunes stale dismissals against this pass's live id set.
+                // `.task(id:)` reruns whenever the id set's *value* changes
+                // (and once on first appearance) without a separate @State
+                // mirror of it, so there's no window where a stale/empty
+                // copy could be used — the guard below is still kept as a
+                // hard backstop against ever intersecting with {}.
+                .task(id: insightResult.allIDs) {
+                    guard !insightResult.allIDs.isEmpty else { return }
+                    InsightStore.prune(keeping: insightResult.allIDs)
+                }
                 MonthChipRow(months: monthOptions(grid: grid), selected: $selectedMonth)
                 HeroCard(stats: Analytics.monthStats(txns, month: selectedMonth),
                          previous: Analytics.monthStats(txns, month: selectedMonth.advanced(by: -1)),
