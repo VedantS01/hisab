@@ -23,6 +23,7 @@ export 'src/domain.dart';
 export 'src/insights/complete_months.dart';
 export 'src/insights/insight.dart';
 export 'src/insights/insights_config.dart';
+export 'src/insights/trend_detector.dart';
 export 'src/money.dart';
 export 'src/reconciliation.dart';
 export 'src/self_transfers.dart';
