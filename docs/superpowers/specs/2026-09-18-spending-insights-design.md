@@ -88,6 +88,11 @@ amount spread ≤ `amountSpreadPct` (15) of the median. Emits:
   series exist: monthly total + count, where a weekly series
   contributes its median amount × 52/12.
 
+A series is **active** while its most recent payment is within
+`activeWithinCadences` (2) cadence-lengths of now, so a cancelled
+subscription stops counting as committed spend instead of lingering
+forever.
+
 ### 3. AnomalyDetector
 
 Looks at the last `lookbackDays` (35) only.
@@ -102,9 +107,11 @@ Looks at the last `lookbackDays` (35) only.
 ## Ranking & lifecycle
 
 - Score = rupee magnitude (normalized against the month's total
-  debits) × config type weight. No separate recency factor: every
-  detector already bounds its window, so everything emitted is
-  current by construction. Default weight order:
+  debits, in permille) × config type weight. No separate recency
+  factor: every detector already bounds its window, so everything
+  emitted is current by construction. **Integer arithmetic only** —
+  a float score risks the two platforms ordering cards differently.
+  Default weight order:
   duplicate > recurring new/changed > outlier > trend.
 - Cap `maxCards` (5), variety guard `maxPerType` (3).
 - Collision rules — one event, one card: recurrence card supersedes
@@ -115,8 +122,10 @@ Looks at the last `lookbackDays` (35) only.
 - **Mute** (overflow/long-press): per-merchant (recurrence/anomaly)
   or per-category (trend) muted sets, same mechanism as
   SuggestionEngine's.
-- **Committed-spend card** is pinned last while eligible, updates in
-  place, not dismissible (mutable via overflow).
+- **Committed-spend card** is pinned last while eligible and updates
+  in place. It is neither dismissible nor mutable: it is a single
+  standing summary, and there is no sensible per-merchant target to
+  mute it by.
 - No insight history. The transactions are the history.
 
 ## Dashboard UI
@@ -132,11 +141,12 @@ mute action. Kagaz-cream cards; delta arrows Khata Red (spend up) /
 Hara (spend down); Sona gold accent for anomaly + committed cards.
 No in-card charts in v1.
 
-Tap-through — every card lands on evidence: trend → Transactions
-filtered to category+month; recurrence → merchant-filtered
-transactions; anomaly → the specific transaction(s) highlighted;
-committed → sheet listing active series (merchant, cadence, amount,
-first-seen), rows tap through.
+Tap-through — every card lands on evidence via an **evidence sheet**
+listing exactly the transactions behind the number (a self-contained
+sheet rather than driving the Transactions tab: same "show me why",
+no tab-selection state plumbed through either app). The
+committed-spend card's sheet lists the active series instead
+(merchant, cadence, amount, first-seen).
 
 Accessibility: VoiceOver/TalkBack read the full sentence; Dynamic
 Type scaling. iOS: `ScrollView(.horizontal)` +
@@ -163,7 +173,9 @@ updates by editing one file.
   ranges).
 - Demo dataset extended to deterministically produce ≥ 1 card of
   every type — end-to-end UI verification in simulator/emulator and
-  honest store screenshots.
+  honest store screenshots. Demo statement dates are shifted forward
+  at load time so the set keeps producing cards as months pass
+  (a frozen demo would age out of every detector's window).
 
 ## Out of scope (deliberate)
 
