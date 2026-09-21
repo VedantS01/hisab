@@ -56,6 +56,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Widget _list(Snapshot data) {
     final ruleList = Queries.rules(data.ruleRows);
+    final matcher = CategoryMatcher(ruleList);
     final selfTransfers = Queries.selfTransferUuids(data.txns);
     var txns = Queries.visible(data.txns, data.matches);
     txns.sort((a, b) => b.dateMs.compareTo(a.dateMs));
@@ -66,7 +67,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 YearMonth.fromDate(dateOf(txn)) == _monthFilter) &&
             (_sourceFilter == null || sourceOf(txn) == _sourceFilter) &&
             (_categoryFilter == null ||
-                Queries.effectiveCategory(txn, ruleList, selfTransfers) ==
+                Queries.effectiveCategory(txn, matcher, selfTransfers) ==
                     _categoryFilter))
           txn
     ];
@@ -106,7 +107,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       itemBuilder: (context, index) {
         final txn = txns[index];
         final category =
-            Queries.effectiveCategory(txn, ruleList, selfTransfers);
+            Queries.effectiveCategory(txn, matcher, selfTransfers);
         return ListTile(
           leading: Icon(HisabTheme.sourceGlyph(sourceOf(txn)),
               color: HisabTheme.khataRed),
@@ -195,7 +196,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   void _showFilters(Snapshot data) {
-    final ruleList = Queries.rules(data.ruleRows);
+    final matcher = Queries.matcher(data.ruleRows);
     final selfTransfers = Queries.selfTransferUuids(data.txns);
     final months = {
       for (final txn in data.txns) YearMonth.fromDate(dateOf(txn))
@@ -204,7 +205,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final sources = Source.ordered(data.txns.map(sourceOf));
     final categories = {
       for (final txn in Queries.visible(data.txns, data.matches))
-        Queries.effectiveCategory(txn, ruleList, selfTransfers)
+        Queries.effectiveCategory(txn, matcher, selfTransfers)
     }.toList()
       ..sort();
 

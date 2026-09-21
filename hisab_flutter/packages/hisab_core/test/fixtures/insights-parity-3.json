@@ -1,0 +1,220 @@
+{
+  "expected" : [
+    {
+      "detail" : "up 200% vs your 3-month average — driven by one ₹30,000.00 payment to Skyways",
+      "headline" : "Travel: ₹30,000.00",
+      "id" : "414e1bfe16cb4293",
+      "kind" : "trend",
+      "score" : 221
+    },
+    {
+      "detail" : "up 333% vs your 3-month average — driven by one ₹26,000.00 payment to Urban Outfit",
+      "headline" : "Shopping: ₹26,000.00",
+      "id" : "a4482ba8d4685cc0",
+      "kind" : "trend",
+      "score" : 221
+    },
+    {
+      "detail" : "down 90% vs your 3-month average",
+      "headline" : "Education: ₹2,000.00",
+      "id" : "9c065ed10c33f33e",
+      "kind" : "trend",
+      "score" : 199
+    },
+    {
+      "detail" : "₹650.00 per week since Aug 2026",
+      "headline" : "New recurring: Weekly Grocer",
+      "id" : "60b944ddf2aa563b",
+      "kind" : "recurringNew",
+      "score" : 93
+    },
+    {
+      "detail" : "across 2 recurring payments",
+      "headline" : "₹12,816.66 per month committed",
+      "id" : "4200e7aeee849774",
+      "kind" : "committedSpend",
+      "score" : 0
+    }
+  ],
+  "expectedAllIDs" : [
+    "414e1bfe16cb4293",
+    "4200e7aeee849774",
+    "60b944ddf2aa563b",
+    "9c065ed10c33f33e",
+    "a4482ba8d4685cc0",
+    "c7f68032429a7c67"
+  ],
+  "now" : "2026-09-15T00:00:00Z",
+  "periods" : [
+    {
+      "end" : "2026-07-31T18:29:59Z",
+      "start" : "2026-04-30T18:30:00Z"
+    },
+    {
+      "end" : "2026-08-31T18:29:59Z",
+      "start" : "2026-07-31T18:30:00Z"
+    }
+  ],
+  "records" : [
+    {
+      "amountPaise" : 1000000,
+      "category" : "Housing",
+      "date" : "2026-05-05T00:00:00Z",
+      "direction" : "debit",
+      "id" : "rent-05",
+      "merchant" : "Landlord"
+    },
+    {
+      "amountPaise" : 1000000,
+      "category" : "Housing",
+      "date" : "2026-06-05T00:00:00Z",
+      "direction" : "debit",
+      "id" : "rent-06",
+      "merchant" : "Landlord"
+    },
+    {
+      "amountPaise" : 1000000,
+      "category" : "Housing",
+      "date" : "2026-07-05T00:00:00Z",
+      "direction" : "debit",
+      "id" : "rent-07",
+      "merchant" : "Landlord"
+    },
+    {
+      "amountPaise" : 1000000,
+      "category" : "Housing",
+      "date" : "2026-08-05T00:00:00Z",
+      "direction" : "debit",
+      "id" : "rent-08",
+      "merchant" : "Landlord"
+    },
+    {
+      "amountPaise" : 65000,
+      "category" : "Groceries",
+      "date" : "2026-08-24T00:00:00Z",
+      "direction" : "debit",
+      "id" : "grocer-1",
+      "merchant" : "Weekly Grocer"
+    },
+    {
+      "amountPaise" : 65000,
+      "category" : "Groceries",
+      "date" : "2026-08-31T00:00:00Z",
+      "direction" : "debit",
+      "id" : "grocer-2",
+      "merchant" : "Weekly Grocer"
+    },
+    {
+      "amountPaise" : 65000,
+      "category" : "Groceries",
+      "date" : "2026-09-07T00:00:00Z",
+      "direction" : "debit",
+      "id" : "grocer-3",
+      "merchant" : "Weekly Grocer"
+    },
+    {
+      "amountPaise" : 65000,
+      "category" : "Groceries",
+      "date" : "2026-09-14T00:00:00Z",
+      "direction" : "debit",
+      "id" : "grocer-4",
+      "merchant" : "Weekly Grocer"
+    },
+    {
+      "amountPaise" : 800000,
+      "category" : "Shopping",
+      "date" : "2026-06-14T00:00:00Z",
+      "direction" : "debit",
+      "id" : "shop-06",
+      "merchant" : "Bigmart"
+    },
+    {
+      "amountPaise" : 1000000,
+      "category" : "Shopping",
+      "date" : "2026-07-14T00:00:00Z",
+      "direction" : "debit",
+      "id" : "shop-07",
+      "merchant" : "Bigmart"
+    },
+    {
+      "amountPaise" : 2600000,
+      "category" : "Shopping",
+      "date" : "2026-08-14T00:00:00Z",
+      "direction" : "debit",
+      "id" : "shop-08",
+      "merchant" : "Urban Outfit"
+    },
+    {
+      "amountPaise" : 1400000,
+      "category" : "Travel",
+      "date" : "2026-06-09T00:00:00Z",
+      "direction" : "debit",
+      "id" : "trip-06",
+      "merchant" : "Railways"
+    },
+    {
+      "amountPaise" : 1600000,
+      "category" : "Travel",
+      "date" : "2026-07-09T00:00:00Z",
+      "direction" : "debit",
+      "id" : "trip-07",
+      "merchant" : "Railways"
+    },
+    {
+      "amountPaise" : 3000000,
+      "category" : "Travel",
+      "date" : "2026-08-09T00:00:00Z",
+      "direction" : "debit",
+      "id" : "trip-08",
+      "merchant" : "Skyways"
+    },
+    {
+      "amountPaise" : 2800000,
+      "category" : "Education",
+      "date" : "2026-06-20T00:00:00Z",
+      "direction" : "debit",
+      "id" : "edu-06",
+      "merchant" : "Tutor Group"
+    },
+    {
+      "amountPaise" : 3200000,
+      "category" : "Education",
+      "date" : "2026-07-20T00:00:00Z",
+      "direction" : "debit",
+      "id" : "edu-07",
+      "merchant" : "Tutor Group"
+    },
+    {
+      "amountPaise" : 200000,
+      "category" : "Education",
+      "date" : "2026-08-20T00:00:00Z",
+      "direction" : "debit",
+      "id" : "edu-08",
+      "merchant" : "Book House"
+    },
+    {
+      "amountPaise" : 700000,
+      "category" : "Health",
+      "date" : "2026-06-18T00:00:00Z",
+      "direction" : "debit",
+      "id" : "care-06",
+      "merchant" : "City Clinic"
+    },
+    {
+      "amountPaise" : 800000,
+      "category" : "Health",
+      "date" : "2026-07-18T00:00:00Z",
+      "direction" : "debit",
+      "id" : "care-07",
+      "merchant" : "City Clinic"
+    },
+    {
+      "amountPaise" : 2100000,
+      "category" : "Health",
+      "date" : "2026-08-18T00:00:00Z",
+      "direction" : "debit",
+      "id" : "care-08",
+      "merchant" : "Dental Care"
+    }
+  ]
+}

@@ -16,9 +16,9 @@ struct TransactionsView: View {
     var body: some View {
         NavigationStack {
             List {
-                let rules = Queries.rules(from: ruleRows)
+                let matcher = Queries.matcher(from: ruleRows)
                 let selfTransfers = Queries.selfTransferUUIDs(in: allTxns)
-                let txns = filtered(rules: rules, selfTransfers: selfTransfers)
+                let txns = filtered(matcher: matcher, selfTransfers: selfTransfers)
                 if txns.isEmpty {
                     if hasActiveFilters {
                         VStack(alignment: .leading, spacing: 10) {
@@ -39,7 +39,7 @@ struct TransactionsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 TxnRow(txn: txn)
                                 HStack(spacing: 6) {
-                                    categoryChip(Queries.effectiveCategory(of: txn, rules: rules,
+                                    categoryChip(Queries.effectiveCategory(of: txn, matcher: matcher,
                                                                            selfTransfers: selfTransfers))
                                     if unmatchedSet.contains(txn.uuid) {
                                         Text("unmatched")
@@ -115,10 +115,10 @@ struct TransactionsView: View {
     }
 
     private var availableCategories: [String] {
-        let rules = Queries.rules(from: ruleRows)
+        let matcher = Queries.matcher(from: ruleRows)
         let selfTransfers = Queries.selfTransferUUIDs(in: allTxns)
         let cats = Set(Queries.visible(allTxns, matches: matchRows)
-            .map { Queries.effectiveCategory(of: $0, rules: rules, selfTransfers: selfTransfers) })
+            .map { Queries.effectiveCategory(of: $0, matcher: matcher, selfTransfers: selfTransfers) })
         return cats.sorted()
     }
 
@@ -136,13 +136,13 @@ struct TransactionsView: View {
         return result
     }
 
-    private func filtered(rules: [CategoryRule], selfTransfers: Set<UUID>) -> [StoredTransaction] {
+    private func filtered(matcher: CategoryMatcher, selfTransfers: Set<UUID>) -> [StoredTransaction] {
         var txns = Queries.visible(allTxns, matches: matchRows)
         if let monthFilter { txns = txns.filter { $0.month == monthFilter } }
         if let sourceFilter { txns = txns.filter { $0.source == sourceFilter } }
         if let categoryFilter {
             txns = txns.filter {
-                Queries.effectiveCategory(of: $0, rules: rules, selfTransfers: selfTransfers) == categoryFilter
+                Queries.effectiveCategory(of: $0, matcher: matcher, selfTransfers: selfTransfers) == categoryFilter
             }
         }
         if unmatchedOnly {

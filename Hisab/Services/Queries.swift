@@ -49,6 +49,13 @@ enum Queries {
         rows.map(\.asRule)
     }
 
+    /// Build once per render and pass it down — these projections categorize
+    /// every visible row, and rebuilding the automaton per row would cost more
+    /// than the matching does.
+    static func matcher(from rows: [StoredCategoryRule]) -> CategoryMatcher {
+        CategoryMatcher(rules: rules(from: rows))
+    }
+
     /// UUIDs of bank rows confirmed as the bank-side copy of an app payment.
     static func matchedBankUUIDs(in matches: [StoredMatch]) -> Set<UUID> {
         Set(matches.map(\.bankUUID))
@@ -71,19 +78,50 @@ enum Queries {
     }
 
     /// Counted analytics rows: visible history minus self transfers.
+    ///
+    /// `selfTransfers` is O(bank debits × bank credits) to derive, and a
+    /// dashboard render needs it for both this projection and `insightRecords`.
+    /// Pass it in to compute it once per render; nil recomputes it, which is
+    /// what one-shot callers want.
     static func analytics(txns: [StoredTransaction], matches: [StoredMatch],
-                          rules: [CategoryRule]) -> [AnalyticsTxn] {
-        let selfTransfers = selfTransferUUIDs(in: txns)
+                          matcher: CategoryMatcher,
+                          selfTransfers: Set<UUID>? = nil) -> [AnalyticsTxn] {
+        let selfTransfers = selfTransfers ?? selfTransferUUIDs(in: txns)
         return visible(txns, matches: matches)
             .filter { !selfTransfers.contains($0.uuid) }
             .map { txn in
                 AnalyticsTxn(month: txn.month,
                              amountPaise: txn.amountPaise,
                              direction: txn.direction,
-                             category: effectiveCategory(of: txn, rules: rules, selfTransfers: []),
+                             category: effectiveCategory(of: txn, matcher: matcher, selfTransfers: []),
                              merchant: txn.counterparty,
                              sourceKind: txn.source.kind)
             }
+    }
+
+    /// Insight input: the same counted rows analytics uses, carrying the row
+    /// id so a card can point back at its evidence. See `analytics` for why
+    /// `selfTransfers` is injectable.
+    static func insightRecords(_ txns: [StoredTransaction], matches: [StoredMatch],
+                               matcher: CategoryMatcher,
+                               selfTransfers: Set<UUID>? = nil) -> [InsightRecord] {
+        let selfTransfers = selfTransfers ?? selfTransferUUIDs(in: txns)
+        return visible(txns, matches: matches)
+            .filter { !selfTransfers.contains($0.uuid) }
+            .map { txn in
+                InsightRecord(id: txn.uuid.uuidString,
+                              date: txn.date,
+                              amountPaise: txn.amountPaise,
+                              direction: txn.direction,
+                              category: effectiveCategory(of: txn, matcher: matcher,
+                                                          selfTransfers: []),
+                              merchant: txn.counterparty.isEmpty ? txn.narration
+                                                                 : txn.counterparty)
+            }
+    }
+
+    static func insightPeriods(_ documents: [StoredDocument]) -> [DatePeriod] {
+        documents.map(\.period)
     }
 
     static func grid(documents: [StoredDocument], pinned: [PinnedMonth]) -> CoverageGrid {
@@ -107,11 +145,11 @@ enum Queries {
 
     /// Display/analytics category. Bank-only rows fall back to Miscellaneous rather
     /// than Uncategorized; self transfers are labeled as such.
-    static func effectiveCategory(of txn: StoredTransaction, rules: [CategoryRule],
+    static func effectiveCategory(of txn: StoredTransaction, matcher: CategoryMatcher,
                                   selfTransfers: Set<UUID>) -> String {
         if selfTransfers.contains(txn.uuid) { return Categorizer.selfTransfer }
         if let override = txn.categoryOverride { return override }
-        let auto = Categorizer.category(for: "\(txn.counterparty) \(txn.narration)", rules: rules)
+        let auto = matcher.category(for: "\(txn.counterparty) \(txn.narration)")
         if auto == Categorizer.uncategorized && txn.source.kind == .bank {
             return Categorizer.miscellaneous
         }
@@ -122,7 +160,7 @@ enum Queries {
     /// evidence excluded) with their effective categories.
     static func suggestionRecords(_ ctx: ModelContext) -> [SpendRecord] {
         let txns = allTransactions(ctx)
-        let rules = categoryRules(ctx)
+        let matcher = CategoryMatcher(rules: categoryRules(ctx))
         let selfTransfers = selfTransferUUIDs(in: txns)
         let matches = (try? ctx.fetch(FetchDescriptor<StoredMatch>())) ?? []
         return visible(txns, matches: matches).map { txn in
@@ -130,7 +168,7 @@ enum Queries {
                         amountPaise: txn.amountPaise,
                         date: txn.date,
                         direction: txn.direction,
-                        effectiveCategory: effectiveCategory(of: txn, rules: rules,
+                        effectiveCategory: effectiveCategory(of: txn, matcher: matcher,
                                                              selfTransfers: selfTransfers))
         }
     }

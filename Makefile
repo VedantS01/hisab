@@ -2,7 +2,7 @@
 # ~/.claude/scripts/cpu-gate.sh on shared machines.
 SIM := platform=iOS Simulator,name=iPhone 17 Pro
 
-.PHONY: gen build test run
+.PHONY: gen build test uitest run
 
 gen:
 	xcodegen generate
@@ -12,6 +12,13 @@ build: gen
 
 test:
 	cd HisabCore && swift test
+
+# The insight strip's five device behaviours, driven through the real UI.
+# CODE_SIGNING_ALLOWED=NO: HisabCore's SwiftPM resource bundle can't be
+# re-signed for the simulator, and nothing here needs a signed build.
+uitest: gen
+	xcodebuild test -project Hisab.xcodeproj -scheme Hisab \
+	  -destination '$(SIM)' CODE_SIGNING_ALLOWED=NO
 
 run: build
 	xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true

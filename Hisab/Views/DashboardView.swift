@@ -12,6 +12,13 @@ struct DashboardView: View {
     @State private var selectedMonth = YearMonth(date: Date())
     @State private var showImport = false
     @State private var pushRecon = false
+    @State private var openInsight: Insight?
+    /// Re-read after every dismiss/mute: UserDefaults writes (where
+    /// suppressions live) aren't Observable, so nothing else would tell
+    /// SwiftUI to look again. It has to be the value the body *reads* — a
+    /// write-only version counter creates no dependency in the attribute
+    /// graph, so bumping one never invalidates anything (it didn't).
+    @State private var suppressions = InsightStore.suppressions
 
     var body: some View {
         NavigationStack {
@@ -34,14 +41,30 @@ struct DashboardView: View {
             .sheet(isPresented: $showImport) {
                 ImportSheet()
             }
+            .sheet(item: $openInsight) { insight in
+                InsightEvidenceSheet(insight: insight, transactions: storedTxns)
+            }
             .navigationDestination(isPresented: $pushRecon) {
                 ReconciliationView(initialMonth: selectedMonth)
+            }
+            .onAppear {
+                // Settings' "Erase all data" clears the suppression keys, and
+                // UserDefaults writes aren't Observable — without this re-read
+                // the dashboard would keep suppressing against the wiped set
+                // until the app restarted. Guarded so an unchanged value
+                // doesn't invalidate the body on every tab switch.
+                let current = InsightStore.suppressions
+                if current != suppressions { suppressions = current }
             }
             .task {
                 let args = ProcessInfo.processInfo.arguments
                 if let index = args.firstIndex(of: "--month"), args.indices.contains(index + 1) {
                     let parts = args[index + 1].split(separator: "-").compactMap { Int($0) }
                     if parts.count == 2 { selectedMonth = YearMonth(year: parts[0], month: parts[1]) }
+                }
+                if args.contains("--reset-insights") {
+                    InsightStore.resetForDebug()
+                    suppressions = InsightStore.suppressions
                 }
                 if args.contains("--push-recon") {
                     try? await Task.sleep(for: .seconds(1))
@@ -53,14 +76,50 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var content: some View {
+        let matcher = Queries.matcher(from: ruleRows)
+        // Derived once and handed to both projections: detecting self
+        // transfers compares every bank debit against every bank credit, and
+        // `content` runs on every body pass.
+        let selfTransfers = Queries.selfTransferUUIDs(in: storedTxns)
         let txns = Queries.analytics(txns: storedTxns, matches: matchRows,
-                                     rules: Queries.rules(from: ruleRows))
+                                     matcher: matcher, selfTransfers: selfTransfers)
         let grid = Queries.grid(documents: storedDocs, pinned: pins)
+        // Recomputed every time `content` runs, including after `suppressions`
+        // is re-read — see its declaration.
+        let insightResult = InsightsEngine.generate(
+            input: InsightsInput(
+                records: Queries.insightRecords(storedTxns, matches: matchRows,
+                                                matcher: matcher,
+                                                selfTransfers: selfTransfers),
+                documentPeriods: Queries.insightPeriods(storedDocs),
+                now: Date()),
+            config: InsightsConfig.cached,
+            suppressions: suppressions)
 
         if txns.isEmpty {
             emptyState
         } else {
             VStack(spacing: 16) {
+                InsightStrip(insights: insightResult.cards,
+                             onOpen: { openInsight = $0 },
+                             onDismiss: { insight in
+                                 InsightStore.dismiss(insight.id)
+                                 suppressions = InsightStore.suppressions
+                             },
+                             onMute: { insight in
+                                 if let target = insight.mute { InsightStore.mute(target) }
+                                 suppressions = InsightStore.suppressions
+                             })
+                // Prunes stale dismissals against this pass's live id set.
+                // `.task(id:)` reruns whenever the id set's *value* changes
+                // (and once on first appearance) without a separate @State
+                // mirror of it, so there's no window where a stale/empty
+                // copy could be used — the guard below is still kept as a
+                // hard backstop against ever intersecting with {}.
+                .task(id: insightResult.allIDs) {
+                    guard !insightResult.allIDs.isEmpty else { return }
+                    InsightStore.prune(keeping: insightResult.allIDs)
+                }
                 MonthChipRow(months: monthOptions(grid: grid), selected: $selectedMonth)
                 HeroCard(stats: Analytics.monthStats(txns, month: selectedMonth),
                          previous: Analytics.monthStats(txns, month: selectedMonth.advanced(by: -1)),

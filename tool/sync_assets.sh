@@ -7,14 +7,16 @@ cd "$(dirname "$0")/.."
 
 SRC_FORMATS="HisabCore/Sources/HisabCore/Resources/formats"
 SRC_RULESETS="HisabCore/Sources/HisabCore/Resources/rulesets"
+SRC_INSIGHTS="HisabCore/Sources/HisabCore/Resources/insights"
 SRC_FIXTURES="HisabCore/Tests/HisabCoreTests/Fixtures"
 DST_FORMATS="hisab_flutter/assets/formats"
 DST_RULESETS="hisab_flutter/assets/rulesets"
+DST_INSIGHTS="hisab_flutter/assets/insights"
 DST_FIXTURES="hisab_flutter/packages/hisab_core/test/fixtures"
 
 if [[ "${1:-}" == "--check" ]]; then
   fail=0
-  for pair in "$SRC_FORMATS:$DST_FORMATS" "$SRC_RULESETS:$DST_RULESETS" "$SRC_FIXTURES:$DST_FIXTURES"; do
+  for pair in "$SRC_FORMATS:$DST_FORMATS" "$SRC_RULESETS:$DST_RULESETS" "$SRC_INSIGHTS:$DST_INSIGHTS" "$SRC_FIXTURES:$DST_FIXTURES"; do
     src="${pair%%:*}"; dst="${pair##*:}"
     if ! diff -rq "$src" "$dst" >/dev/null 2>&1; then
       echo "DRIFT: $dst differs from $src (run tool/sync_assets.sh)"
@@ -24,9 +26,10 @@ if [[ "${1:-}" == "--check" ]]; then
   exit $fail
 fi
 
-rm -rf "$DST_FORMATS" "$DST_RULESETS" "$DST_FIXTURES"
-mkdir -p "$DST_FORMATS" "$DST_RULESETS" "$DST_FIXTURES"
+rm -rf "$DST_FORMATS" "$DST_RULESETS" "$DST_INSIGHTS" "$DST_FIXTURES"
+mkdir -p "$DST_FORMATS" "$DST_RULESETS" "$DST_INSIGHTS" "$DST_FIXTURES"
 cp "$SRC_FORMATS"/* "$DST_FORMATS"/
 cp "$SRC_RULESETS"/* "$DST_RULESETS"/
+cp "$SRC_INSIGHTS"/* "$DST_INSIGHTS"/
 cp "$SRC_FIXTURES"/* "$DST_FIXTURES"/
-echo "synced formats, rulesets, fixtures"
+echo "synced formats, rulesets, insights, fixtures"

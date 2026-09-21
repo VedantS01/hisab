@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "trend": {
+    "minPct": 25,
+    "minAbsPaise": 50000,
+    "windowMonths": 3,
+    "concentrationPct": 70
+  },
+  "recurrence": {
+    "minOccurrences": 3,
+    "monthlyMinDays": 28,
+    "monthlyMaxDays": 33,
+    "weeklyMinDays": 6,
+    "weeklyMaxDays": 8,
+    "amountSpreadPct": 15,
+    "changedPct": 10,
+    "newWithinMonths": 2,
+    "activeWithinCadences": 2
+  },
+  "anomaly": {
+    "outlierMultiple": 3,
+    "outlierMinPaise": 100000,
+    "minPriors": 5,
+    "lookbackDays": 35,
+    "duplicateWindowMinutes": 10
+  },
+  "ranker": {
+    "maxCards": 5,
+    "maxPerType": 3,
+    "weights": {
+      "possibleDuplicate": 4,
+      "recurringNew": 3,
+      "recurringChanged": 3,
+      "outlierAmount": 2,
+      "trend": 1,
+      "committedSpend": 0
+    }
+  }
+}

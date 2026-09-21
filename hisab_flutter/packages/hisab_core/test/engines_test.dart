@@ -170,13 +170,136 @@ void main() {
   });
 
   group('Categorizer + Ruleset', () {
-    test('first match wins; unknown is Uncategorized', () {
+    // Mirrors HisabCore/Tests/HisabCoreTests/CategoriesTests.swift case for
+    // case — both cores must agree on every assertion below.
+    var ruleSeq = 0;
+    CategoryRule rule(String pattern, String category) => CategoryRule(
+        id: 'r${ruleSeq++}', pattern: pattern, category: category);
+
+    test('longest match wins; unknown is Uncategorized', () {
       final rules = [
-        const CategoryRule(id: '1', pattern: 'swiggy', category: 'Food Delivery'),
-        const CategoryRule(id: '2', pattern: 'sw', category: 'Wrong'),
+        rule('swiggy', 'Food Delivery'),
+        rule('sw', 'Wrong'),
       ];
       expect(Categorizer.category('UPI/SWIGGY/123', rules), 'Food Delivery');
       expect(Categorizer.category('mystery shop', rules), Categorizer.uncategorized);
+    });
+
+    test('longer pattern wins regardless of order', () {
+      final payFirst = [rule('amazon pay', 'Wallet'), rule('amazon', 'Shopping')];
+      final amazonFirst = [rule('amazon', 'Shopping'), rule('amazon pay', 'Wallet')];
+      for (final rules in [payFirst, amazonFirst]) {
+        expect(Categorizer.category('AMAZON PAY RECHARGE', rules), 'Wallet');
+        expect(Categorizer.category('AMAZON RETAIL', rules), 'Shopping');
+      }
+    });
+
+    test('ajio beats jio in either order', () {
+      final ajioFirst = [rule('ajio', 'Shopping'), rule('jio', 'Recharges & Bills')];
+      final jioFirst = [rule('jio', 'Recharges & Bills'), rule('ajio', 'Shopping')];
+      for (final rules in [ajioFirst, jioFirst]) {
+        expect(Categorizer.category('UPI/AJIO RETAIL/8812', rules), 'Shopping');
+        expect(Categorizer.category('JIO PREPAID RECHARGE', rules), 'Recharges & Bills');
+      }
+    });
+
+    test('equal-length tie goes to the lower rule index', () {
+      final rules = [rule('abcd', 'First'), rule('wxyz', 'Second')];
+      expect(Categorizer.category('wxyz then abcd', rules), 'First');
+      expect(Categorizer.category('abcd then wxyz', rules), 'First');
+    });
+
+    test('duplicate pattern resolves to the lower index', () {
+      final rules = [rule('ola', 'Transport'), rule('ola', 'Cabs')];
+      expect(Categorizer.category('OLA CABS 7781', rules), 'Transport');
+    });
+
+    test('empty pattern is ignored', () {
+      final rules = [rule('', 'Swallow All'), rule('swiggy', 'Food Delivery')];
+      expect(Categorizer.category('SWIGGY*ORDER', rules), 'Food Delivery');
+      expect(Categorizer.category('nothing here', rules), Categorizer.uncategorized);
+      expect(Categorizer.category('', rules), Categorizer.uncategorized);
+      expect(Categorizer.category('anything', [rule('', 'Swallow All')]),
+          Categorizer.uncategorized);
+    });
+
+    test('matches at start, at end, and rejects overlong patterns', () {
+      final rules = [rule('zepto', 'Groceries'), rule('supermarket chain', 'Groceries')];
+      expect(Categorizer.category('zepto marketplace', rules), 'Groceries');
+      expect(Categorizer.category('upi payment to zepto', rules), 'Groceries');
+      expect(Categorizer.category('market', rules), Categorizer.uncategorized);
+    });
+
+    test('shorter suffix pattern still matches on its own', () {
+      final rules = [rule('bigbasket', 'Groceries'), rule('basket', 'Shopping')];
+      expect(Categorizer.category('gift basket co', rules), 'Shopping');
+      expect(Categorizer.category('bigbasket daily', rules), 'Groceries');
+    });
+
+    test('non-ASCII patterns match and do not crash', () {
+      final rules = [
+        rule('café', 'Dining'),
+        rule('स्विगी', 'Food Delivery'),
+        rule('上海', 'Travel'),
+      ];
+      expect(Categorizer.category('PAIEMENT CAFÉ CENTRAL', rules), 'Dining');
+      expect(Categorizer.category('UPI/स्विगी/8812', rules), 'Food Delivery');
+      expect(Categorizer.category('上海 HOTEL', rules), 'Travel');
+      expect(Categorizer.category('cafe without an accent', rules),
+          Categorizer.uncategorized);
+    });
+
+    // Pins the indexing unit. '🍕🍕' is 4 UTF-16 code units but only 2 grapheme
+    // clusters; 'abc' is 3 of either. Swift would pick the ASCII rule if it
+    // counted Characters — asserting the emoji rule wins in both cores proves
+    // they index identically.
+    test('longest is measured in UTF-16 code units, not grapheme clusters', () {
+      final rules = [rule('abc', 'ASCII'), rule('🍕🍕', 'Emoji')];
+      expect(Categorizer.category('abc 🍕🍕', rules), 'Emoji');
+    });
+
+    // Pins the cross-core case-mapping guarantee. Swift and Dart lowercase
+    // 1,112,064 code points identically except for 466, none of them ASCII or
+    // Latin-1 (see the CategoryMatcher doc comment). U+0130 is the interesting
+    // one — Swift lowercases it to `i` + U+0307, Dart to plain `i` — but as
+    // long as rule and narration spell it the same way, both cores agree, and
+    // that agreement is what this asserts.
+    test('case-insensitivity holds across cores for ASCII and Latin-1', () {
+      // (pattern, text, expected) — escaped so the source encoding cannot
+      // silently normalize a literal differently in the two repos.
+      final cases = <List<String>>[
+        ['CAF\u00C9', 'paiement caf\u00E9 central', 'Hit'],
+        ['caf\u00E9', 'PAIEMENT CAF\u00C9 CENTRAL', 'Hit'],
+        ['\u00C5NGSTR\u00D6M', '\u00E5ngstr\u00F6m labs', 'Hit'],
+        // ß has no uppercase in either core's simple mapping: no match.
+        ['stra\u00DFe', 'STRASSE', Categorizer.uncategorized],
+        // U+0130 spelled the same way on both sides — the safe case.
+        ['\u0130stanbul', '\u0130STANBUL KEBAB', 'Hit'],
+      ];
+      for (final c in cases) {
+        expect(Categorizer.category(c[1], [rule(c[0], 'Hit')]), c[2],
+            reason: "pattern '${c[0]}' vs text '${c[1]}'");
+      }
+    });
+
+    // Normalization is explicitly not handled, identically in both cores.
+    test('unicode normalization is not applied', () {
+      final rules = [rule('café', 'Dining')];
+      expect(Categorizer.category('café central', rules),
+          Categorizer.uncategorized);
+      expect(Categorizer.category('café central', rules), 'Dining');
+    });
+
+    test('a matcher is reusable across many texts', () {
+      final rules = [
+        for (final seed in Categorizer.seedRules)
+          rule(seed.pattern, seed.category)
+      ];
+      final matcher = CategoryMatcher(rules);
+      expect(matcher.category('SWIGGY*ORDER 8123'), 'Food Delivery');
+      expect(matcher.category('UPI/BLINKIT/99'), 'Groceries');
+      expect(matcher.category('nothing at all'), Categorizer.uncategorized);
+      expect(matcher.category('SWIGGY*ORDER 8123'), 'Food Delivery');
     });
 
     test('bundled india-default ruleset loads, is substantial, no dupes', () {
@@ -190,6 +313,40 @@ void main() {
       for (final seed in Categorizer.seedRules) {
         expect(patterns, contains(seed.pattern.toLowerCase()),
             reason: 'compiled seed ${seed.pattern} missing');
+      }
+    });
+
+    test('overlapping bundled patterns resolve by length, in either order', () {
+      final json = File('../../assets/rulesets/india-default.json')
+          .readAsStringSync();
+      final ruleset = Ruleset.fromJsonString(json);
+      final rules = [
+        for (final r in ruleset.rules) rule(r.pattern, r.category)
+      ];
+      for (final list in [rules, rules.reversed.toList()]) {
+        expect(Categorizer.category('UPI/AJIO RETAIL/8812', list), 'Shopping');
+        expect(Categorizer.category('JIOMART GROCERY ORDER', list), 'Groceries');
+        expect(Categorizer.category('JIO PREPAID RECHARGE', list),
+            'Recharges & Bills');
+      }
+      expect(Categorizer.category('ZERODHA BROKING LTD', rules), 'Investments');
+      expect(Categorizer.category('UPI/DR/1/BLINKIT', rules), 'Groceries');
+      expect(Categorizer.category('totally unknown merchant', rules),
+          Categorizer.uncategorized);
+    });
+
+    test('every bundled pattern still classifies to its own category', () {
+      final json = File('../../assets/rulesets/india-default.json')
+          .readAsStringSync();
+      final ruleset = Ruleset.fromJsonString(json);
+      final rules = [
+        for (final r in ruleset.rules) rule(r.pattern, r.category)
+      ];
+      final matcher = CategoryMatcher(rules);
+      for (final seed in ruleset.rules) {
+        expect(matcher.category('UPI/${seed.pattern.toUpperCase()}/8812'),
+            seed.category,
+            reason: "'${seed.pattern}' was shadowed");
       }
     });
   });

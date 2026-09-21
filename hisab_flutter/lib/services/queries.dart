@@ -33,6 +33,12 @@ class Queries {
     ];
   }
 
+  /// Build once per render and pass it down — these projections categorize
+  /// every visible row, and rebuilding the automaton per row would cost more
+  /// than the matching does.
+  static CategoryMatcher matcher(List<StoredCategoryRule> rows) =>
+      CategoryMatcher(rules(rows));
+
   static Set<String> matchedBankUuids(List<StoredMatche> matches) =>
       matches.map((m) => m.bankUuid).toSet();
 
@@ -67,12 +73,11 @@ class Queries {
   /// Display/analytics category. Bank-only rows fall back to Miscellaneous;
   /// self transfers are labeled as such.
   static String effectiveCategory(StoredTransaction txn,
-      List<CategoryRule> ruleList, Set<String> selfTransfers) {
+      CategoryMatcher matcher, Set<String> selfTransfers) {
     if (selfTransfers.contains(txn.uuid)) return Categorizer.selfTransfer;
     final override = txn.categoryOverride;
     if (override != null) return override;
-    final auto = Categorizer.category(
-        '${txn.counterparty} ${txn.narration}', ruleList);
+    final auto = matcher.category('${txn.counterparty} ${txn.narration}');
     if (auto == Categorizer.uncategorized &&
         sourceOf(txn).kind == SourceKind.bank) {
       return Categorizer.miscellaneous;
@@ -80,22 +85,57 @@ class Queries {
     return auto;
   }
 
+  /// `selfTransfers` is O(bank debits × bank credits) to derive, and a
+  /// dashboard build needs it for both this projection and [insightRecords].
+  /// Pass it in to compute it once per build; null recomputes it, which is
+  /// what one-shot callers want.
   static List<AnalyticsTxn> analytics(List<StoredTransaction> txns,
-      List<StoredMatche> matches, List<CategoryRule> ruleList) {
-    final selfTransfers = selfTransferUuids(txns);
+      List<StoredMatche> matches, CategoryMatcher matcher,
+      {Set<String>? selfTransfers}) {
+    final self = selfTransfers ?? selfTransferUuids(txns);
     return [
       for (final txn in visible(txns, matches))
-        if (!selfTransfers.contains(txn.uuid))
+        if (!self.contains(txn.uuid))
           AnalyticsTxn(
             month: YearMonth.fromDate(dateOf(txn)),
             amountPaise: txn.amountPaise,
             direction: directionOf(txn),
-            category: effectiveCategory(txn, ruleList, selfTransfers),
+            category: effectiveCategory(txn, matcher, self),
             merchant: txn.counterparty,
             sourceKind: sourceOf(txn).kind,
           )
     ];
   }
+
+  /// Insight input: the same counted rows analytics uses, carrying the row
+  /// id so a card can point back at its evidence. See [analytics] for why
+  /// `selfTransfers` is injectable.
+  static List<InsightRecord> insightRecords(List<StoredTransaction> txns,
+      List<StoredMatche> matches, CategoryMatcher matcher,
+      {Set<String>? selfTransfers}) {
+    final self = selfTransfers ?? selfTransferUuids(txns);
+    return [
+      for (final txn in visible(txns, matches))
+        if (!self.contains(txn.uuid))
+          InsightRecord(
+            id: txn.uuid,
+            date: dateOf(txn),
+            amountPaise: txn.amountPaise,
+            direction: directionOf(txn),
+            category: effectiveCategory(txn, matcher, self),
+            merchant:
+                txn.counterparty.isEmpty ? txn.narration : txn.counterparty,
+          )
+    ];
+  }
+
+  static List<DatePeriod> insightPeriods(List<StoredDocument> documents) => [
+        for (final doc in documents)
+          DatePeriod(
+              DateTime.fromMillisecondsSinceEpoch(doc.periodStartMs,
+                  isUtc: true),
+              DateTime.fromMillisecondsSinceEpoch(doc.periodEndMs, isUtc: true))
+      ];
 
   static CoverageGrid grid(
       List<StoredDocument> documents, List<PinnedMonth> pins) {
@@ -140,7 +180,7 @@ class Queries {
 
   /// Projection feeding SuggestionEngine.
   static List<SpendRecord> suggestionRecords(List<StoredTransaction> txns,
-      List<StoredMatche> matches, List<CategoryRule> ruleList) {
+      List<StoredMatche> matches, CategoryMatcher matcher) {
     final selfTransfers = selfTransferUuids(txns);
     return [
       for (final txn in visible(txns, matches))
@@ -149,7 +189,7 @@ class Queries {
           amountPaise: txn.amountPaise,
           date: dateOf(txn),
           direction: directionOf(txn),
-          effectiveCategory: effectiveCategory(txn, ruleList, selfTransfers),
+          effectiveCategory: effectiveCategory(txn, matcher, selfTransfers),
         )
     ];
   }

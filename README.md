@@ -29,6 +29,10 @@ and shows a dashboard of where the money went.
   app payment are evidence, never duplicate records; bank-only spending
   lands as "Miscellaneous"; HDFC↔IDFC self transfers are recognized and
   excluded from spend/income entirely.
+- **Spending insights** — neutral, on-device observations at the top of
+  the dashboard: category trends against your own average, new or
+  changed recurring payments, committed monthly spend, and possible
+  duplicate charges. Every card opens the transactions behind it.
 - **HisabCore** — all parsing, dedup, bucketing, reconciliation, and
   analytics logic lives in a pure-Swift package with a full XCTest
   suite that runs on macOS in milliseconds.
@@ -52,8 +56,9 @@ make build      # build for the iPhone simulator
 make run        # boot simulator, install, launch
 ```
 
-Then in the app: **Settings → Load demo data** fills three months of
-synthetic GPay + HDFC statements so every screen is explorable.
+Then in the app: **Settings → Load demo data** fills seven months of
+synthetic GPay, HDFC and IDFC statements so every screen is explorable.
+Tapping it again replaces the demo with a fresh copy anchored on today.
 
 ## Status
 

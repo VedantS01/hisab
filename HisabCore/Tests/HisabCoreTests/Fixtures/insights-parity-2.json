@@ -1,0 +1,147 @@
+{
+  "expected" : [
+    {
+      "detail" : "2 identical payments on 30 Aug 2026",
+      "headline" : "Grand Hotel: ₹4,500.00 ×2",
+      "id" : "0a6b33d60c36fc4a",
+      "kind" : "possibleDuplicate",
+      "score" : 976
+    },
+    {
+      "detail" : "about 5× your usual ₹300.00",
+      "headline" : "Grand Hotel: ₹1,500.00",
+      "id" : "e58ab3aed9add5af",
+      "kind" : "outlierAmount",
+      "score" : 162
+    }
+  ],
+  "expectedAllIDs" : [
+    "0a6b33d60c36fc4a",
+    "48aeb66d04199c53",
+    "53a88663e973a90c",
+    "a8665da07642b8a7",
+    "e58ab3aed9add5af",
+    "ed9ba58f07285d7e"
+  ],
+  "now" : "2026-09-15T00:00:00Z",
+  "periods" : [
+    {
+      "end" : "2026-08-31T18:29:59Z",
+      "start" : "2026-07-31T18:30:00Z"
+    }
+  ],
+  "records" : [
+    {
+      "amountPaise" : 30000,
+      "category" : "Dining",
+      "date" : "2026-08-11T00:00:00Z",
+      "direction" : "debit",
+      "id" : "gh-1",
+      "merchant" : "Grand Hotel"
+    },
+    {
+      "amountPaise" : 30000,
+      "category" : "Dining",
+      "date" : "2026-08-13T00:00:00Z",
+      "direction" : "debit",
+      "id" : "gh-2",
+      "merchant" : "Grand Hotel"
+    },
+    {
+      "amountPaise" : 30000,
+      "category" : "Dining",
+      "date" : "2026-08-16T00:00:00Z",
+      "direction" : "debit",
+      "id" : "gh-3",
+      "merchant" : "Grand Hotel"
+    },
+    {
+      "amountPaise" : 30000,
+      "category" : "Dining",
+      "date" : "2026-08-18T00:00:00Z",
+      "direction" : "debit",
+      "id" : "gh-4",
+      "merchant" : "Grand Hotel"
+    },
+    {
+      "amountPaise" : 30000,
+      "category" : "Dining",
+      "date" : "2026-08-21T00:00:00Z",
+      "direction" : "debit",
+      "id" : "gh-5",
+      "merchant" : "Grand Hotel"
+    },
+    {
+      "amountPaise" : 150000,
+      "category" : "Dining",
+      "date" : "2026-08-28T00:00:00Z",
+      "direction" : "debit",
+      "id" : "gh-6",
+      "merchant" : "Grand Hotel"
+    },
+    {
+      "amountPaise" : 450000,
+      "category" : "Dining",
+      "date" : "2026-08-30T00:00:00Z",
+      "direction" : "debit",
+      "id" : "gh-7",
+      "merchant" : "Grand Hotel"
+    },
+    {
+      "amountPaise" : 450000,
+      "category" : "Dining",
+      "date" : "2026-08-30T00:00:00Z",
+      "direction" : "debit",
+      "id" : "gh-8",
+      "merchant" : "Grand Hotel"
+    },
+    {
+      "amountPaise" : 120000,
+      "category" : "Transport",
+      "date" : "2026-08-20T00:00:00Z",
+      "direction" : "debit",
+      "id" : "fuel-1",
+      "merchant" : "Fuel Stop"
+    },
+    {
+      "amountPaise" : 120000,
+      "category" : "Transport",
+      "date" : "2026-08-20T00:00:00Z",
+      "direction" : "debit",
+      "id" : "fuel-2",
+      "merchant" : "Fuel Stop"
+    },
+    {
+      "amountPaise" : 200000,
+      "category" : "Takeout",
+      "date" : "2026-08-25T00:00:00Z",
+      "direction" : "debit",
+      "id" : "zom-1",
+      "merchant" : "Zomato"
+    },
+    {
+      "amountPaise" : 200000,
+      "category" : "Takeout",
+      "date" : "2026-08-25T00:00:00Z",
+      "direction" : "debit",
+      "id" : "zom-2",
+      "merchant" : "Zomato"
+    },
+    {
+      "amountPaise" : 5000000,
+      "category" : "Income",
+      "date" : "2026-08-01T00:00:00Z",
+      "direction" : "credit",
+      "id" : "salary-08",
+      "merchant" : "Employer"
+    }
+  ],
+  "suppressions" : {
+    "dismissedIDs" : [
+      "a8665da07642b8a7"
+    ],
+    "mutedMerchants" : [
+      "zomato"
+    ]
+  }
+}
