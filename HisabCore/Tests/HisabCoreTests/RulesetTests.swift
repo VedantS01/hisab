@@ -35,4 +35,38 @@ final class RulesetTests: XCTestCase {
         XCTAssertEqual(Categorizer.category(for: "totally unknown merchant", rules: rules),
                        Categorizer.uncategorized)
     }
+
+    /// `jio` is a substring of both `jiomart` and `ajio` — the only overlapping
+    /// patterns in the bundled ruleset. Longest-match resolves all three without
+    /// the list order mattering, so the file stays pure data.
+    func testOverlappingBundledPatternsResolveByLength() {
+        let rules = Categorizer.defaultRuleset().rules.map {
+            CategoryRule(pattern: $0.pattern, category: $0.category)
+        }
+        XCTAssertEqual(Categorizer.category(for: "UPI/AJIO RETAIL/8812", rules: rules), "Shopping")
+        XCTAssertEqual(Categorizer.category(for: "JIOMART GROCERY ORDER", rules: rules), "Groceries")
+        XCTAssertEqual(Categorizer.category(for: "JIO PREPAID RECHARGE", rules: rules),
+                       "Recharges & Bills")
+
+        // Shuffled input must give the same answers: order is no longer meaningful.
+        let reversed = Array(rules.reversed())
+        XCTAssertEqual(Categorizer.category(for: "UPI/AJIO RETAIL/8812", rules: reversed), "Shopping")
+        XCTAssertEqual(Categorizer.category(for: "JIOMART GROCERY ORDER", rules: reversed), "Groceries")
+        XCTAssertEqual(Categorizer.category(for: "JIO PREPAID RECHARGE", rules: reversed),
+                       "Recharges & Bills")
+    }
+
+    /// Every bundled pattern must still classify to its own category when it is
+    /// the only merchant token in the text — a guard against a future rule
+    /// addition silently shadowing an existing one.
+    func testEveryBundledPatternStillClassifiesToItsOwnCategory() {
+        let seeds = Categorizer.defaultRuleset().rules
+        let rules = seeds.map { CategoryRule(pattern: $0.pattern, category: $0.category) }
+        let matcher = CategoryMatcher(rules: rules)
+        for seed in seeds {
+            let resolved = matcher.category(for: "UPI/\(seed.pattern.uppercased())/8812")
+            XCTAssertEqual(resolved, seed.category,
+                           "'\(seed.pattern)' resolved to \(resolved), expected \(seed.category)")
+        }
+    }
 }

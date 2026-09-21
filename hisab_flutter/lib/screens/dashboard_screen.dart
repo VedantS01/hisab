@@ -62,8 +62,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _body(Snapshot data) {
-    final ruleList = Queries.rules(data.ruleRows);
-    final txns = Queries.analytics(data.txns, data.matches, ruleList);
+    final matcher = Queries.matcher(data.ruleRows);
+    final txns = Queries.analytics(data.txns, data.matches, matcher);
     if (txns.isEmpty) {
       return Center(
         child: Padding(
@@ -111,7 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final state = AppScope.of(context);
     final insights = InsightsEngine.generate(
       input: InsightsInput(
-        records: Queries.insightRecords(data.txns, data.matches, ruleList),
+        records: Queries.insightRecords(data.txns, data.matches, matcher),
         documentPeriods: Queries.insightPeriods(data.documents),
         now: DateTime.now(),
       ),

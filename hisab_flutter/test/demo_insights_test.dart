@@ -46,7 +46,7 @@ Future<(List<Insight> generated, InsightsResult strip)> run(DateTime now) async 
   final records = Queries.insightRecords(
       await db.select(db.storedTransactions).get(),
       await db.select(db.storedMatches).get(),
-      rules);
+      CategoryMatcher(rules));
   final periods =
       Queries.insightPeriods(await db.select(db.storedDocuments).get());
 

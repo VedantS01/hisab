@@ -102,7 +102,7 @@ class _RootTabsState extends State<RootTabs> {
     final matches = await state.db.select(state.db.storedMatches).get();
     final ruleRows = await state.db.select(state.db.storedCategoryRules).get();
     final records =
-        Queries.suggestionRecords(txns, matches, Queries.rules(ruleRows));
+        Queries.suggestionRecords(txns, matches, Queries.matcher(ruleRows));
     final queue = SuggestionEngine.queue(
         records: records, now: DateTime.now(), muted: muted);
     if (queue.isEmpty || !mounted) return;

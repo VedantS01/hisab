@@ -67,15 +67,16 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var content: some View {
+        let matcher = Queries.matcher(from: ruleRows)
         let txns = Queries.analytics(txns: storedTxns, matches: matchRows,
-                                     rules: Queries.rules(from: ruleRows))
+                                     matcher: matcher)
         let grid = Queries.grid(documents: storedDocs, pinned: pins)
         // Recomputed every time `content` runs, including after `suppressions`
         // is re-read — see its declaration.
         let insightResult = InsightsEngine.generate(
             input: InsightsInput(
                 records: Queries.insightRecords(storedTxns, matches: matchRows,
-                                                rules: Queries.rules(from: ruleRows)),
+                                                matcher: matcher),
                 documentPeriods: Queries.insightPeriods(storedDocs),
                 now: Date()),
             config: InsightsConfig.bundled(),

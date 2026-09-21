@@ -33,6 +33,12 @@ class Queries {
     ];
   }
 
+  /// Build once per render and pass it down — these projections categorize
+  /// every visible row, and rebuilding the automaton per row would cost more
+  /// than the matching does.
+  static CategoryMatcher matcher(List<StoredCategoryRule> rows) =>
+      CategoryMatcher(rules(rows));
+
   static Set<String> matchedBankUuids(List<StoredMatche> matches) =>
       matches.map((m) => m.bankUuid).toSet();
 
@@ -67,12 +73,11 @@ class Queries {
   /// Display/analytics category. Bank-only rows fall back to Miscellaneous;
   /// self transfers are labeled as such.
   static String effectiveCategory(StoredTransaction txn,
-      List<CategoryRule> ruleList, Set<String> selfTransfers) {
+      CategoryMatcher matcher, Set<String> selfTransfers) {
     if (selfTransfers.contains(txn.uuid)) return Categorizer.selfTransfer;
     final override = txn.categoryOverride;
     if (override != null) return override;
-    final auto = Categorizer.category(
-        '${txn.counterparty} ${txn.narration}', ruleList);
+    final auto = matcher.category('${txn.counterparty} ${txn.narration}');
     if (auto == Categorizer.uncategorized &&
         sourceOf(txn).kind == SourceKind.bank) {
       return Categorizer.miscellaneous;
@@ -81,7 +86,7 @@ class Queries {
   }
 
   static List<AnalyticsTxn> analytics(List<StoredTransaction> txns,
-      List<StoredMatche> matches, List<CategoryRule> ruleList) {
+      List<StoredMatche> matches, CategoryMatcher matcher) {
     final selfTransfers = selfTransferUuids(txns);
     return [
       for (final txn in visible(txns, matches))
@@ -90,7 +95,7 @@ class Queries {
             month: YearMonth.fromDate(dateOf(txn)),
             amountPaise: txn.amountPaise,
             direction: directionOf(txn),
-            category: effectiveCategory(txn, ruleList, selfTransfers),
+            category: effectiveCategory(txn, matcher, selfTransfers),
             merchant: txn.counterparty,
             sourceKind: sourceOf(txn).kind,
           )
@@ -100,7 +105,7 @@ class Queries {
   /// Insight input: the same counted rows analytics uses, carrying the row
   /// id so a card can point back at its evidence.
   static List<InsightRecord> insightRecords(List<StoredTransaction> txns,
-      List<StoredMatche> matches, List<CategoryRule> ruleList) {
+      List<StoredMatche> matches, CategoryMatcher matcher) {
     final selfTransfers = selfTransferUuids(txns);
     return [
       for (final txn in visible(txns, matches))
@@ -110,7 +115,7 @@ class Queries {
             date: dateOf(txn),
             amountPaise: txn.amountPaise,
             direction: directionOf(txn),
-            category: effectiveCategory(txn, ruleList, selfTransfers),
+            category: effectiveCategory(txn, matcher, selfTransfers),
             merchant:
                 txn.counterparty.isEmpty ? txn.narration : txn.counterparty,
           )
@@ -168,7 +173,7 @@ class Queries {
 
   /// Projection feeding SuggestionEngine.
   static List<SpendRecord> suggestionRecords(List<StoredTransaction> txns,
-      List<StoredMatche> matches, List<CategoryRule> ruleList) {
+      List<StoredMatche> matches, CategoryMatcher matcher) {
     final selfTransfers = selfTransferUuids(txns);
     return [
       for (final txn in visible(txns, matches))
@@ -177,7 +182,7 @@ class Queries {
           amountPaise: txn.amountPaise,
           date: dateOf(txn),
           direction: directionOf(txn),
-          effectiveCategory: effectiveCategory(txn, ruleList, selfTransfers),
+          effectiveCategory: effectiveCategory(txn, matcher, selfTransfers),
         )
     ];
   }

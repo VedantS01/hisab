@@ -69,7 +69,7 @@ void main() {
     final ruleList = [
       const CategoryRule(id: 'r', pattern: 'blue tokai', category: 'Coffee')
     ];
-    final analytics = Queries.analytics(txns, matches, ruleList);
+    final analytics = Queries.analytics(txns, matches, CategoryMatcher(ruleList));
     final stats = Analytics.monthStats(analytics, YearMonth(2026, 4));
     // Spend: 125.00 (coffee, counted once) + 900.00 (rent, Miscellaneous).
     expect(stats.spendPaise, 12500 + 90000);
@@ -154,7 +154,7 @@ void main() {
 
     final txns = await db.select(db.storedTransactions).get();
     final matches = await db.select(db.storedMatches).get();
-    final records = Queries.insightRecords(txns, matches, const []);
+    final records = Queries.insightRecords(txns, matches, CategoryMatcher(const []));
     expect(records.length, 1);
     expect(records.first.id, 'uuid-1');
     expect(records.first.merchant, 'Swiggy');
