@@ -66,4 +66,41 @@ void main() {
       expect(istDaysBetween(sameDayEarly, sameDayLate), 0);
     });
   });
+
+  group('CompleteMonths', () {
+    // IST midnight expressed as a UTC instant.
+    DateTime ist(String yyyyMmDd) {
+      final p = yyyyMmDd.split('-').map(int.parse).toList();
+      return DateTime.utc(p[0], p[1], p[2]).subtract(istOffset);
+    }
+
+    test('a month is complete only when one period spans it entirely', () {
+      // Apr 1 - Jun 30, both at IST midnight: April and May are covered
+      // end to end, but June's last instant is 2026-06-30T23:59:59 IST -
+      // past where the period ends - so June is not complete.
+      final period = DatePeriod(ist('2026-04-01'), ist('2026-06-30'));
+      expect(CompleteMonths.of([period]),
+          {YearMonth(2026, 4), YearMonth(2026, 5)});
+    });
+
+    test('partial edge months are excluded', () {
+      final period = DatePeriod(ist('2026-04-15'), ist('2026-06-14'));
+      expect(CompleteMonths.of([period]), {YearMonth(2026, 5)});
+    });
+
+    test('latest ignores months after now', () {
+      // Jan 1 - Dec 31, both at IST midnight: January-November are
+      // complete (December fails for the same reason June did above).
+      // notAfter caps at September, which is itself complete, so that's
+      // the answer.
+      final period = DatePeriod(ist('2026-01-01'), ist('2026-12-31'));
+      expect(CompleteMonths.latest([period], ist('2026-09-10')),
+          YearMonth(2026, 9));
+    });
+
+    test('no periods means no complete months', () {
+      expect(CompleteMonths.of([]), isEmpty);
+      expect(CompleteMonths.latest([], ist('2026-09-10')), isNull);
+    });
+  });
 }
