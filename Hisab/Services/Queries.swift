@@ -86,6 +86,29 @@ enum Queries {
             }
     }
 
+    /// Insight input: the same counted rows analytics uses, carrying the row
+    /// id so a card can point back at its evidence.
+    static func insightRecords(_ txns: [StoredTransaction], matches: [StoredMatch],
+                               rules: [CategoryRule]) -> [InsightRecord] {
+        let selfTransfers = selfTransferUUIDs(in: txns)
+        return visible(txns, matches: matches)
+            .filter { !selfTransfers.contains($0.uuid) }
+            .map { txn in
+                InsightRecord(id: txn.uuid.uuidString,
+                              date: txn.date,
+                              amountPaise: txn.amountPaise,
+                              direction: txn.direction,
+                              category: effectiveCategory(of: txn, rules: rules,
+                                                          selfTransfers: []),
+                              merchant: txn.counterparty.isEmpty ? txn.narration
+                                                                 : txn.counterparty)
+            }
+    }
+
+    static func insightPeriods(_ documents: [StoredDocument]) -> [DatePeriod] {
+        documents.map(\.period)
+    }
+
     static func grid(documents: [StoredDocument], pinned: [PinnedMonth]) -> CoverageGrid {
         CoverageGrid.derive(
             documents: documents.map { DocumentSummary(id: $0.uuid, source: $0.source, period: $0.period) },
