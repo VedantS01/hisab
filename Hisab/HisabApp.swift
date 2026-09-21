@@ -51,6 +51,13 @@ struct RootView: View {
         .task {
             _ = Queries.categoryRules(context)  // seed defaults on first launch
             let args = ProcessInfo.processInfo.arguments
+            #if DEBUG
+            // Puts the store in the state a pre-1.2 user upgrades with: a demo
+            // imported under the old byte-hash identity. See DemoData.
+            if args.contains("--seed-legacy-demo") {
+                DemoData.loadLegacyForTesting(into: context)
+            }
+            #endif
             if args.contains("--seed-demo") {
                 // `--demo-now yyyy-MM-dd` anchors the demo's month shift to a
                 // day other than today, so a test can put the simulator in the

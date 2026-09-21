@@ -266,4 +266,54 @@ void main() {
     expect(survivors, mineTxns,
         reason: "the user's rows must survive, same rows, same ids");
   });
+
+  // iOS shipped a demo identified by the SHA-256 of the bundled file before
+  // 1.2 and had to learn to recognise that older identity on upgrade. Android
+  // never did: `insertParsedDocument` has taken a `fileHash` since the Flutter
+  // demo loader's first commit and DemoData has always handed it the slot key,
+  // so `eraseExisting` already matches every demo document this platform has
+  // ever written. This test is what keeps that true — if a demo document ever
+  // lands under its bytes again, Android inherits the iOS upgrade bug, and the
+  // fix for it would be the risky kind (matching on filenames).
+  test('demo documents are identified by their slot key, never by their bytes',
+      () async {
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2026, 9, 21));
+    final docs = await db.select(db.storedDocuments).get();
+    expect(docs, hasLength(3));
+    for (final doc in docs) {
+      expect(DemoData.slotKeys, contains(doc.fileSha256),
+          reason: '${doc.filename} was stored under "${doc.fileSha256}"');
+      expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(doc.fileSha256), isFalse,
+          reason: '${doc.filename} was stored under a content hash');
+    }
+  });
+
+  // The other half of the same property, from the user's side: the demo is
+  // recognised by an identity only the demo loader writes, so a statement of
+  // the user's is safe even when it is named exactly like one of ours. Matching
+  // demo documents by filename would break this, on either platform.
+  test("a demo refresh spares the user's own file named like a demo", () async {
+    final mine = await service.importBytes(
+        data: utf8.encode(demoCsv), filename: 'demo-gpay.csv');
+    expect(mine.newCount, 2);
+    final mineDoc = (await db.select(db.storedDocuments).get())
+        .firstWhere((d) => d.filename == 'demo-gpay.csv');
+    final mineTxns = (await db.select(db.storedTransactions).get())
+        .where((t) => t.documentId == mineDoc.id)
+        .map((t) => t.uuid)
+        .toSet();
+    expect(mineTxns, hasLength(2));
+
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2026, 9, 21));
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2027, 3, 4));
+
+    final docs = await db.select(db.storedDocuments).get();
+    expect(docs.where((d) => d.id == mineDoc.id), hasLength(1),
+        reason: "the user's identically-named document must survive");
+    final survivors = (await db.select(db.storedTransactions).get())
+        .where((t) => t.documentId == mineDoc.id)
+        .map((t) => t.uuid)
+        .toSet();
+    expect(survivors, mineTxns, reason: "and so must its rows");
+  });
 }

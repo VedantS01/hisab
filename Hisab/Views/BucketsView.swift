@@ -114,6 +114,10 @@ struct BucketsView: View {
                     }
             }
             .buttonStyle(.plain)
+            // Identifier, not label: this is for UI tests to address one cell
+            // without counting checkmarks, and identifiers are not spoken, so
+            // VoiceOver is unaffected.
+            .accessibilityIdentifier("coverage-\(source.rawValue)-\(month)")
         case .awaiting:
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4]))

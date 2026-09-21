@@ -28,15 +28,29 @@ final class InsightStripUITests: XCTestCase {
     /// standing in for a tap on "Load demo data", which now refreshes the demo
     /// — so anything checking that state survives a relaunch has to leave it
     /// out, or it is testing a reload rather than a relaunch.
+    ///
+    /// `legacyDemo: true` is the state a pre-1.2 user upgrades with: a demo
+    /// imported the old way, under its file's byte hash rather than the
+    /// `demo-<source>` slot key.
     @discardableResult
     private func launch(reset: Bool, seedDemo: Bool = true,
-                        demoNow: String? = nil) -> XCUIApplication {
+                        demoNow: String? = nil,
+                        legacyDemo: Bool = false,
+                        requireStrip: Bool = true) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = (seedDemo ? ["--seed-demo"] : [])
+        app.launchArguments = (legacyDemo ? ["--seed-legacy-demo"] : [])
+            + (seedDemo ? ["--seed-demo"] : [])
             + (reset ? ["--reset-insights"] : [])
             + (demoNow.map { ["--demo-now", $0] } ?? [])
         app.launch()
-        XCTAssertTrue(app.staticTexts["For you"].waitForExistence(timeout: 30))
+        if requireStrip {
+            XCTAssertTrue(app.staticTexts["For you"].waitForExistence(timeout: 30))
+        } else {
+            // The caller is about to assert on stored documents, not on cards;
+            // whether this particular seed still produces insights is not its
+            // subject, and demanding a strip would fail it for the wrong reason.
+            XCTAssertTrue(app.buttons["Buckets"].waitForExistence(timeout: 30))
+        }
         dismissSuggestionPrompt(app)
         return app
     }
@@ -187,6 +201,66 @@ final class InsightStripUITests: XCTestCase {
         let lastMonth = YearMonth(date: Date()).advanced(by: -1).displayName
         XCTAssertTrue(after.contains { $0.hasSuffix("identical payments on 28 \(lastMonth)") },
                       "demo was not re-anchored to today: \(after)")
+    }
+
+    /// The 1.1 -> 1.2 upgrade path. A user who tapped "Load demo data" before
+    /// this release has demo documents stored under the SHA-256 of the bundled
+    /// file, not the `demo-<source>` slot key 1.2 identifies them by. If
+    /// `eraseExisting` doesn't recognise that older identity it erases nothing,
+    /// the import guard doesn't fire either, and the next tap lands a *second*
+    /// demo set alongside the first.
+    ///
+    /// The observable is the document list behind a coverage cell: one
+    /// `demo-gpay.csv`, not two, and no empty document left over from a
+    /// fully-deduplicated second import.
+    func testLoadingTheDemoCleansUpAPre12Demo() {
+        // Arrive as an upgrading user: the old demo, the old identity, and no
+        // 1.2 load yet.
+        let seeded = launch(reset: true, seedDemo: false, legacyDemo: true,
+                            requireStrip: false)
+        let month = YearMonth(date: Date())
+        openCoverageDocuments(seeded, source: "gpay", month: month,
+                              message: "the legacy demo did not seed")
+        XCTAssertEqual(documentRows(seeded, named: "demo-gpay.csv"), 1,
+                       "the legacy seed itself should be one document")
+        seeded.buttons["Done"].tap()
+        seeded.terminate()
+
+        // Upgrade in place and tap "Load demo data".
+        let refreshed = launch(reset: false, seedDemo: true)
+        openCoverageDocuments(refreshed, source: "gpay", month: month,
+                              message: "no GPay coverage after the refresh")
+        XCTAssertEqual(documentRows(refreshed, named: "demo-gpay.csv"), 1,
+                       "the pre-1.2 demo was left behind and a second one "
+                       + "imported on top of it")
+        // A second import whose rows all deduplicate against the first leaves a
+        // document with nothing in it — the quiet shape of the same bug.
+        XCTAssertFalse(refreshed.staticTexts.allElementsBoundByIndex
+            .contains { $0.exists && $0.label.contains("· 0 transactions") },
+                       "a demo document survived with no transactions")
+        refreshed.buttons["Done"].tap()
+    }
+
+    /// Buckets -> the coverage cell for one source and month -> its documents.
+    private func openCoverageDocuments(_ app: XCUIApplication, source: String,
+                                       month: YearMonth, message: String) {
+        app.buttons["Buckets"].tap()
+        let cell = app.buttons["coverage-\(source)-\(month)"]
+        // Also the horizon guard: the demo statements carry fixed dates and
+        // the loader slides them onto the current month, so the legacy (unshifted)
+        // and refreshed sets only share a month while that slide is smaller than
+        // the demo's own span. If this ever fails, the demo CSVs need re-anchoring
+        // — the test is telling you the fixture aged out, not that the fix broke.
+        XCTAssertTrue(cell.waitForExistence(timeout: 10), message)
+        cell.tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5),
+                      "the document list did not open")
+    }
+
+    private func documentRows(_ app: XCUIApplication, named filename: String) -> Int {
+        app.staticTexts.allElementsBoundByIndex
+            .filter { $0.exists && $0.label == filename }
+            .count
     }
 
     func testLongPressOffersMuteAndMutingSilencesThatMerchant() {
