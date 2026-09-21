@@ -117,7 +117,11 @@ Looks at the last `lookbackDays` (35) only.
 - Cap `maxCards` (5), variety guard `maxPerType` (3).
 - Collision rules — one event, one card: recurrence card supersedes
   outlier for the same transaction; concentration annotation
-  supersedes a separate outlier card (see TrendDetector).
+  supersedes a separate outlier card (see TrendDetector); a
+  possible-duplicate card supersedes an outlier card for the same
+  transactions (a double charge that is also unusually large is one
+  event, and "you may have paid twice" is the more actionable
+  reading).
 - **Dismiss** (✕): stores the insight id locally; pruned when the
   insight no longer generates.
 - **Mute** (overflow/long-press): per-merchant (recurrence/anomaly)
