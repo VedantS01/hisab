@@ -130,13 +130,37 @@ void main() {
           narration: 'UPI payment',
           contentHash: 'ch-1',
         ));
+    // Bank-side evidence for the same spend, reconciled against uuid-1.
+    // Matched bank rows must be excluded from insightRecords.
+    await db.into(db.storedTransactions).insert(
+        StoredTransactionsCompanion.insert(
+          uuid: 'uuid-2',
+          documentId: 'doc-1',
+          sourceRaw: 'hdfc',
+          dateMs: DateTime.utc(2026, 8, 12).millisecondsSinceEpoch,
+          amountPaise: 45000,
+          direction: 'debit',
+          counterparty: 'SWIGGY POS',
+          narration: 'POS swiggy',
+          contentHash: 'ch-2',
+        ));
+    await db.into(db.storedMatches).insert(StoredMatchesCompanion.insert(
+          id: 'match-1',
+          monthKey: '2026-08',
+          appUuid: 'uuid-1',
+          bankUuid: 'uuid-2',
+          tier: 'reference',
+        ));
 
     final txns = await db.select(db.storedTransactions).get();
-    final records = Queries.insightRecords(txns, const [], const []);
+    final matches = await db.select(db.storedMatches).get();
+    final records = Queries.insightRecords(txns, matches, const []);
     expect(records.length, 1);
     expect(records.first.id, 'uuid-1');
     expect(records.first.merchant, 'Swiggy');
     expect(records.first.amountPaise, 45000);
+    expect(records.any((r) => r.id == 'uuid-2'), isFalse,
+        reason: 'matched bank row must be excluded');
 
     final docs = await db.select(db.storedDocuments).get();
     expect(Queries.insightPeriods(docs).length, 1);
