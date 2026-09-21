@@ -63,7 +63,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _body(Snapshot data) {
     final matcher = Queries.matcher(data.ruleRows);
-    final txns = Queries.analytics(data.txns, data.matches, matcher);
+    // Derived once and handed to both projections: detecting self transfers
+    // compares every bank debit against every bank credit, and `_body` runs
+    // on every build.
+    final selfTransfers = Queries.selfTransferUuids(data.txns);
+    final txns = Queries.analytics(data.txns, data.matches, matcher,
+        selfTransfers: selfTransfers);
     if (txns.isEmpty) {
       return Center(
         child: Padding(
@@ -111,7 +116,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final state = AppScope.of(context);
     final insights = InsightsEngine.generate(
       input: InsightsInput(
-        records: Queries.insightRecords(data.txns, data.matches, matcher),
+        records: Queries.insightRecords(data.txns, data.matches, matcher,
+            selfTransfers: selfTransfers),
         documentPeriods: Queries.insightPeriods(data.documents),
         now: DateTime.now(),
       ),

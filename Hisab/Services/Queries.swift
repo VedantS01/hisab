@@ -78,9 +78,15 @@ enum Queries {
     }
 
     /// Counted analytics rows: visible history minus self transfers.
+    ///
+    /// `selfTransfers` is O(bank debits × bank credits) to derive, and a
+    /// dashboard render needs it for both this projection and `insightRecords`.
+    /// Pass it in to compute it once per render; nil recomputes it, which is
+    /// what one-shot callers want.
     static func analytics(txns: [StoredTransaction], matches: [StoredMatch],
-                          matcher: CategoryMatcher) -> [AnalyticsTxn] {
-        let selfTransfers = selfTransferUUIDs(in: txns)
+                          matcher: CategoryMatcher,
+                          selfTransfers: Set<UUID>? = nil) -> [AnalyticsTxn] {
+        let selfTransfers = selfTransfers ?? selfTransferUUIDs(in: txns)
         return visible(txns, matches: matches)
             .filter { !selfTransfers.contains($0.uuid) }
             .map { txn in
@@ -94,10 +100,12 @@ enum Queries {
     }
 
     /// Insight input: the same counted rows analytics uses, carrying the row
-    /// id so a card can point back at its evidence.
+    /// id so a card can point back at its evidence. See `analytics` for why
+    /// `selfTransfers` is injectable.
     static func insightRecords(_ txns: [StoredTransaction], matches: [StoredMatch],
-                               matcher: CategoryMatcher) -> [InsightRecord] {
-        let selfTransfers = selfTransferUUIDs(in: txns)
+                               matcher: CategoryMatcher,
+                               selfTransfers: Set<UUID>? = nil) -> [InsightRecord] {
+        let selfTransfers = selfTransfers ?? selfTransferUUIDs(in: txns)
         return visible(txns, matches: matches)
             .filter { !selfTransfers.contains($0.uuid) }
             .map { txn in

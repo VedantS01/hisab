@@ -52,10 +52,20 @@ class InsightStore {
     }
   }
 
-  static Future<void> resetForDebug() async {
+  /// Drops every dismissal and mute.
+  ///
+  /// "Erase all data" has to reach these. Dismissals are keyed by insight id
+  /// and mutes by merchant key, so leaving them behind means a user who wipes
+  /// the app and re-imports gets cards silently suppressed against data that
+  /// no longer exists — and until an un-mute control lands (deferred to the
+  /// next cycle; a mute is currently an action with no undo) the erase is the
+  /// only way back.
+  static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(dismissedKey);
     await prefs.remove(mutedMerchantsKey);
     await prefs.remove(mutedCategoriesKey);
   }
+
+  static Future<void> resetForDebug() => clearAll();
 }

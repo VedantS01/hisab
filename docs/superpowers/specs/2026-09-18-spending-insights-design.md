@@ -44,8 +44,18 @@ Three independent, pure detectors emit typed `Insight` values with
 internal scores; an `InsightRanker` merges, applies suppressions and
 collision rules, and returns at most `maxCards` for the dashboard.
 No persistence of derived data — insights are recomputed from scratch
-each boot/import (largest real dataset ≈ 1,300 txns; a pass is
-microseconds). The only state is user intent (suppressions),
+each boot/import. **Corrected after the 1.2 whole-branch review:** a pass
+is not "microseconds". Measured at 1,200 records it was ~900 ms (Dart)
+and ~660 ms (Swift, debug) before the merchant-key hoists, because the
+outlier loop re-normalized the whole history once per recent row. After
+those hoists the same pass is ~17 ms (Dart) and ~53 ms (Swift, debug);
+it is linear in the record count, and at 5,000 records it is ~30 ms
+(Dart) / ~110 ms (Swift, release). That is cheap enough to stay on the
+main thread and recompute per render, which is the property this
+paragraph was claiming — but the original number was wrong by three
+orders of magnitude and `InsightsPerformanceTests` /
+`insights_performance_test.dart` now pin it. The only state is user
+intent (suppressions),
 platform-local (UserDefaults / SharedPreferences).
 
 ### Complete-month rule

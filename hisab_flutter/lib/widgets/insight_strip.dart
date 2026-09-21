@@ -34,7 +34,9 @@ class InsightStrip extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
         ),
         SizedBox(
-          height: 132,
+          // 132 before the dismiss button grew to Material's 48 dp minimum;
+          // the extra 32 keeps the detail sentence's three lines intact.
+          height: 164,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: insights.length,
@@ -95,13 +97,24 @@ class _InsightCard extends StatelessWidget {
                             color: _accent)),
                     const Spacer(),
                     if (insight.kind != InsightKind.committedSpend)
-                      GestureDetector(
-                        onTap: onDismiss,
-                        behavior: HitTestBehavior.opaque,
-                        child: const Padding(
-                          padding: EdgeInsets.only(left: 8),
-                          child: Icon(Icons.close,
-                              size: 14, color: Colors.black45),
+                      // TalkBack announced a bare icon before; iOS has said
+                      // "Dismiss" since the strip shipped. The glyph stays
+                      // 14 px and the target around it is 48 × 48, Material's
+                      // minimum — the card's fixed height above carries the
+                      // extra row height so the sentence below keeps its
+                      // three lines.
+                      Semantics(
+                        label: 'Dismiss',
+                        button: true,
+                        child: InkResponse(
+                          onTap: onDismiss,
+                          radius: 24,
+                          child: const SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Icon(Icons.close,
+                                size: 14, color: Colors.black45),
+                          ),
                         ),
                       ),
                   ],

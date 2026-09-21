@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:hisab_core/hisab_core.dart' show Suppressions;
 
 import '../services/demo_data.dart';
+import '../services/insight_store.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
@@ -31,7 +33,7 @@ class SettingsScreen extends StatelessWidget {
                           color: HisabTheme.sona),
                       title: const Text('Load demo data'),
                       subtitle: const Text(
-                          'Three months of synthetic statements to explore every screen'),
+                          'Seven months of synthetic GPay, HDFC and IDFC statements to explore every screen. Tapping again replaces the demo with a fresh copy.'),
                       onTap: () async {
                         final messenger = ScaffoldMessenger.of(context);
                         await DemoData.load(state.importService);
@@ -66,6 +68,11 @@ class SettingsScreen extends StatelessWidget {
                         );
                         if (confirmed == true) {
                           await DemoData.eraseAll(state.db);
+                          // Suppressions are keyed by insight id and merchant
+                          // key; surviving an erase would silently hide cards
+                          // about data the user no longer has.
+                          await InsightStore.clearAll();
+                          state.suppressions = const Suppressions();
                           await Queries.categoryRules(state.db, state.ruleset);
                         }
                       },

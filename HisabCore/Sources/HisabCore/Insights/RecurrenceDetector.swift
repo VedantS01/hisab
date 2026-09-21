@@ -7,6 +7,17 @@ import Foundation
 public enum RecurrenceDetector {
     public static func series(records: [InsightRecord], now: Date,
                               config: InsightsConfig) -> [RecurringSeries] {
+        seriesAndGroups(records: records, now: now, config: config).series
+    }
+
+    /// The series, plus the debit-by-merchant-key map `series` builds anyway.
+    /// `groups` holds every debit with a non-empty key, in `records` order —
+    /// exactly what `detect`'s "latest debit to this merchant" lookup used to
+    /// re-derive by filtering (and re-normalizing) the whole history once per
+    /// detected series.
+    static func seriesAndGroups(records: [InsightRecord], now: Date,
+                                config: InsightsConfig)
+        -> (series: [RecurringSeries], groups: [String: [InsightRecord]]) {
         let settings = config.recurrence
         var groups: [String: [InsightRecord]] = [:]
         for row in records where row.direction == .debit {
@@ -70,7 +81,7 @@ public enum RecurrenceDetector {
                 count: members.count,
                 transactionIDs: members.map(\.id)))
         }
-        return result
+        return (result, groups)
     }
 
     public static func detect(records: [InsightRecord], now: Date,
@@ -79,7 +90,7 @@ public enum RecurrenceDetector {
                                                           claimedIDs: Set<String>) {
         let settings = config.recurrence
         let weights = config.ranker.weights
-        let found = series(records: records, now: now, config: config)
+        let (found, groups) = seriesAndGroups(records: records, now: now, config: config)
         guard !found.isEmpty else { return ([], []) }
 
         var insights: [Insight] = []
@@ -107,9 +118,8 @@ public enum RecurrenceDetector {
             // Debits only: the median is a debit-only figure, so the payment
             // measured against it must be one too — a refund sharing the
             // merchant key would otherwise drive the "usually" sentence.
-            guard let latest = records
-                .filter({ $0.direction == .debit
-                          && SuggestionEngine.normalize($0.merchant) == entry.merchantKey })
+            // `groups` is that same debit-only list, in `records` order.
+            guard let latest = (groups[entry.merchantKey] ?? [])
                 .max(by: { $0.date < $1.date }) else { continue }
             let drift = abs(latest.amountPaise - entry.medianPaise)
             if drift * 100 >= entry.medianPaise * Int64(settings.changedPct) {

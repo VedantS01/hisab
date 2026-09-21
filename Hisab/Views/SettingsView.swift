@@ -75,7 +75,7 @@ struct SettingsView: View {
                         DemoData.load(into: context)
                     }
                 } footer: {
-                    Text("Fills three months of synthetic GPay + HDFC statements so you can explore Hisab. Erase any time.")
+                    Text("Fills seven months of synthetic GPay, HDFC and IDFC statements so you can explore Hisab. Tapping again replaces the demo with a fresh copy. Erase any time.")
                 }
 
                 Section {
@@ -121,6 +121,9 @@ struct SettingsView: View {
         try? context.delete(model: PinnedMonth.self)
         try? context.delete(model: StoredCategoryRule.self)
         try? context.save()
+        // Suppressions are keyed by insight id and merchant key; surviving an
+        // erase would silently hide cards about data the user no longer has.
+        InsightStore.clearAll()
         let imports = URL.documentsDirectory.appending(path: "imports")
         try? FileManager.default.removeItem(at: imports)
     }

@@ -63,9 +63,10 @@ user, and does no tracking.
 
 Hisab analyses statement files the user already possesses; it has no
 login and makes no network requests. To evaluate every screen without
-Indian bank statements: Settings → "Load demo data" fills three months
+Indian bank statements: Settings → "Load demo data" fills seven months
 of synthetic statements (dashboard, buckets grid, transactions, and the
-reconciliation screen all populate). "Erase all data" resets. Bank and
+reconciliation screen all populate); tapping it again replaces the demo
+with a fresh copy. "Erase all data" resets. Bank and
 payment-app names in the UI identify statement formats the app can
 read; no affiliation is claimed and no brand logos are used.
 

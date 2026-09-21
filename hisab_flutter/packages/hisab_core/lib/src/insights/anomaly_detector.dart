@@ -30,6 +30,19 @@ class AnomalyDetector {
     ];
     if (recent.isEmpty) return const [];
 
+    // Normalize each debit's merchant exactly once. The outlier loop below
+    // needs "every earlier debit to this merchant"; filtering the whole
+    // history per recent row made that O(recent × history) *normalize* calls,
+    // which is seconds once a user has a year of statements. The grouped
+    // lists keep `debits` order, so `priors` below is the same list in the
+    // same order the filter produced.
+    final debitsByKey = <String, List<InsightRecord>>{};
+    for (final row in debits) {
+      final key = SuggestionEngine.normalize(row.merchant);
+      if (key.isEmpty) continue;
+      debitsByKey.putIfAbsent(key, () => []).add(row);
+    }
+
     final insights = <Insight>[];
     final denominator = monthDebitTotalPaise > 1 ? monthDebitTotalPaise : 1;
 
@@ -78,10 +91,8 @@ class AnomalyDetector {
       final key = SuggestionEngine.normalize(row.merchant);
       if (key.isEmpty) continue;
       final priors = [
-        for (final d in debits)
-          if (SuggestionEngine.normalize(d.merchant) == key &&
-              d.date.isBefore(row.date))
-            d
+        for (final d in (debitsByKey[key] ?? const <InsightRecord>[]))
+          if (d.date.isBefore(row.date)) d
       ];
       if (priors.length < settings.minPriors) continue;
       final typical =

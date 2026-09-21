@@ -14,6 +14,20 @@ class RecurrenceDetector {
     required List<InsightRecord> records,
     required DateTime now,
     required InsightsConfig config,
+  }) =>
+      seriesAndGroups(records: records, now: now, config: config).$1;
+
+  /// The series, plus the debit-by-merchant-key map [series] builds anyway.
+  /// `groups` holds every debit with a non-empty key, in `records` order —
+  /// exactly what [detect]'s "latest debit to this merchant" lookup used to
+  /// re-derive by filtering (and re-normalizing) the whole history once per
+  /// detected series. The per-key list is copied before sorting so the map
+  /// keeps `records` order for that lookup.
+  static (List<RecurringSeries>, Map<String, List<InsightRecord>>)
+      seriesAndGroups({
+    required List<InsightRecord> records,
+    required DateTime now,
+    required InsightsConfig config,
   }) {
     final settings = config.recurrence;
     final groups = <String, List<InsightRecord>>{};
@@ -29,7 +43,7 @@ class RecurrenceDetector {
       // Date, then id: neither platform's sort is stable, so same-day
       // payments to one merchant need an explicit total order for both
       // cores to emit transactionIDs in the same sequence.
-      final members = groups[key]!
+      final members = List.of(groups[key]!)
         ..sort((a, b) {
           final d = a.date.compareTo(b.date);
           return d != 0 ? d : a.id.compareTo(b.id);
@@ -99,7 +113,7 @@ class RecurrenceDetector {
         transactionIDs: [for (final m in members) m.id],
       ));
     }
-    return result;
+    return (result, groups);
   }
 
   static (List<Insight>, Set<String>) detect({
@@ -110,7 +124,8 @@ class RecurrenceDetector {
   }) {
     final settings = config.recurrence;
     final weights = config.ranker.weights;
-    final found = series(records: records, now: now, config: config);
+    final (found, groups) =
+        seriesAndGroups(records: records, now: now, config: config);
     if (found.isEmpty) return (<Insight>[], <String>{});
 
     final insights = <Insight>[];
@@ -144,12 +159,9 @@ class RecurrenceDetector {
       // Debits only: the median is a debit-only figure, so the payment
       // measured against it must be one too — a refund sharing the
       // merchant key would otherwise drive the "usually" sentence.
-      final sameMerchant = [
-        for (final r in records)
-          if (r.direction == Direction.debit &&
-              SuggestionEngine.normalize(r.merchant) == entry.merchantKey)
-            r
-      ];
+      // `groups` is that same debit-only list, in `records` order.
+      final sameMerchant =
+          groups[entry.merchantKey] ?? const <InsightRecord>[];
       if (sameMerchant.isEmpty) continue;
       final latest =
           sameMerchant.reduce((a, b) => a.date.isAfter(b.date) ? a : b);

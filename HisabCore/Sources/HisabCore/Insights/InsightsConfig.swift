@@ -57,6 +57,13 @@ public struct InsightsConfig: Codable, Sendable, Equatable {
         return fallback
     }
 
+    /// `bundled()` does a resource lookup, a file read and a JSON decode every
+    /// time it is called, and the dashboard re-evaluates its body far too often
+    /// for that. The resource is inside the app bundle and cannot change while
+    /// the process lives, so one read is enough — this is what app code should
+    /// use. Flutter already loads the asset once in `main()`.
+    public static let cached = bundled()
+
     /// Mirrors the bundled JSON exactly; used only if the resource is missing.
     public static let fallback = InsightsConfig(
         version: 1,

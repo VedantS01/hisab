@@ -15,6 +15,19 @@ public enum AnomalyDetector {
         }
         guard !recent.isEmpty else { return [] }
 
+        // Normalize each debit's merchant exactly once. The outlier loop below
+        // needs "every earlier debit to this merchant"; filtering the whole
+        // history per recent row made that O(recent × history) *normalize*
+        // calls, which is seconds once a user has a year of statements. The
+        // grouped lists keep `debits` order, so `priors` below is the same
+        // list in the same order the filter produced.
+        var debitsByKey: [String: [InsightRecord]] = [:]
+        for row in debits {
+            let key = SuggestionEngine.normalize(row.merchant)
+            guard !key.isEmpty else { continue }
+            debitsByKey[key, default: []].append(row)
+        }
+
         var insights: [Insight] = []
         let denominator = max(monthDebitTotalPaise, 1)
 
@@ -58,9 +71,7 @@ public enum AnomalyDetector {
         for row in recent.sorted(by: { $0.id < $1.id }) {
             let key = SuggestionEngine.normalize(row.merchant)
             guard !key.isEmpty else { continue }
-            let priors = debits.filter {
-                SuggestionEngine.normalize($0.merchant) == key && $0.date < row.date
-            }
+            let priors = (debitsByKey[key] ?? []).filter { $0.date < row.date }
             guard priors.count >= settings.minPriors else { continue }
             let typical = RecurrenceDetector.median(priors.map(\.amountPaise))
             guard typical > 0,

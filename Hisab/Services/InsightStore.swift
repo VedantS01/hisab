@@ -45,9 +45,19 @@ enum InsightStore {
         UserDefaults.standard.set(Array(kept).sorted(), forKey: dismissedKey)
     }
 
-    static func resetForDebug() {
+    /// Drops every dismissal and mute.
+    ///
+    /// "Erase all data" has to reach these. Dismissals are keyed by insight id
+    /// and mutes by merchant key, so leaving them behind means a user who
+    /// wipes the app and re-imports gets cards silently suppressed against
+    /// data that no longer exists — and until an un-mute control lands
+    /// (deferred to the next cycle; a mute is currently an action with no
+    /// undo) the erase is the only way back.
+    static func clearAll() {
         UserDefaults.standard.removeObject(forKey: dismissedKey)
         UserDefaults.standard.removeObject(forKey: mutedMerchantsKey)
         UserDefaults.standard.removeObject(forKey: mutedCategoriesKey)
     }
+
+    static func resetForDebug() { clearAll() }
 }

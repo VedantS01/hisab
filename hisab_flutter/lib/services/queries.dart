@@ -85,17 +85,22 @@ class Queries {
     return auto;
   }
 
+  /// `selfTransfers` is O(bank debits × bank credits) to derive, and a
+  /// dashboard build needs it for both this projection and [insightRecords].
+  /// Pass it in to compute it once per build; null recomputes it, which is
+  /// what one-shot callers want.
   static List<AnalyticsTxn> analytics(List<StoredTransaction> txns,
-      List<StoredMatche> matches, CategoryMatcher matcher) {
-    final selfTransfers = selfTransferUuids(txns);
+      List<StoredMatche> matches, CategoryMatcher matcher,
+      {Set<String>? selfTransfers}) {
+    final self = selfTransfers ?? selfTransferUuids(txns);
     return [
       for (final txn in visible(txns, matches))
-        if (!selfTransfers.contains(txn.uuid))
+        if (!self.contains(txn.uuid))
           AnalyticsTxn(
             month: YearMonth.fromDate(dateOf(txn)),
             amountPaise: txn.amountPaise,
             direction: directionOf(txn),
-            category: effectiveCategory(txn, matcher, selfTransfers),
+            category: effectiveCategory(txn, matcher, self),
             merchant: txn.counterparty,
             sourceKind: sourceOf(txn).kind,
           )
@@ -103,19 +108,21 @@ class Queries {
   }
 
   /// Insight input: the same counted rows analytics uses, carrying the row
-  /// id so a card can point back at its evidence.
+  /// id so a card can point back at its evidence. See [analytics] for why
+  /// `selfTransfers` is injectable.
   static List<InsightRecord> insightRecords(List<StoredTransaction> txns,
-      List<StoredMatche> matches, CategoryMatcher matcher) {
-    final selfTransfers = selfTransferUuids(txns);
+      List<StoredMatche> matches, CategoryMatcher matcher,
+      {Set<String>? selfTransfers}) {
+    final self = selfTransfers ?? selfTransferUuids(txns);
     return [
       for (final txn in visible(txns, matches))
-        if (!selfTransfers.contains(txn.uuid))
+        if (!self.contains(txn.uuid))
           InsightRecord(
             id: txn.uuid,
             date: dateOf(txn),
             amountPaise: txn.amountPaise,
             direction: directionOf(txn),
-            category: effectiveCategory(txn, matcher, selfTransfers),
+            category: effectiveCategory(txn, matcher, self),
             merchant:
                 txn.counterparty.isEmpty ? txn.narration : txn.counterparty,
           )

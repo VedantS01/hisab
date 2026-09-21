@@ -47,6 +47,15 @@ struct DashboardView: View {
             .navigationDestination(isPresented: $pushRecon) {
                 ReconciliationView(initialMonth: selectedMonth)
             }
+            .onAppear {
+                // Settings' "Erase all data" clears the suppression keys, and
+                // UserDefaults writes aren't Observable — without this re-read
+                // the dashboard would keep suppressing against the wiped set
+                // until the app restarted. Guarded so an unchanged value
+                // doesn't invalidate the body on every tab switch.
+                let current = InsightStore.suppressions
+                if current != suppressions { suppressions = current }
+            }
             .task {
                 let args = ProcessInfo.processInfo.arguments
                 if let index = args.firstIndex(of: "--month"), args.indices.contains(index + 1) {
@@ -68,18 +77,23 @@ struct DashboardView: View {
     @ViewBuilder
     private var content: some View {
         let matcher = Queries.matcher(from: ruleRows)
+        // Derived once and handed to both projections: detecting self
+        // transfers compares every bank debit against every bank credit, and
+        // `content` runs on every body pass.
+        let selfTransfers = Queries.selfTransferUUIDs(in: storedTxns)
         let txns = Queries.analytics(txns: storedTxns, matches: matchRows,
-                                     matcher: matcher)
+                                     matcher: matcher, selfTransfers: selfTransfers)
         let grid = Queries.grid(documents: storedDocs, pinned: pins)
         // Recomputed every time `content` runs, including after `suppressions`
         // is re-read — see its declaration.
         let insightResult = InsightsEngine.generate(
             input: InsightsInput(
                 records: Queries.insightRecords(storedTxns, matches: matchRows,
-                                                matcher: matcher),
+                                                matcher: matcher,
+                                                selfTransfers: selfTransfers),
                 documentPeriods: Queries.insightPeriods(storedDocs),
                 now: Date()),
-            config: InsightsConfig.bundled(),
+            config: InsightsConfig.cached,
             suppressions: suppressions)
 
         if txns.isEmpty {

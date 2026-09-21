@@ -56,8 +56,9 @@ make build      # build for the iPhone simulator
 make run        # boot simulator, install, launch
 ```
 
-Then in the app: **Settings → Load demo data** fills three months of
-synthetic GPay + HDFC statements so every screen is explorable.
+Then in the app: **Settings → Load demo data** fills seven months of
+synthetic GPay, HDFC and IDFC statements so every screen is explorable.
+Tapping it again replaces the demo with a fresh copy anchored on today.
 
 ## Status
 

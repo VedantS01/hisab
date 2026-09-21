@@ -26,7 +26,19 @@ enum DemoData {
             // Whatever months the outgoing demo occupied have to be reconciled
             // again once its rows are gone: a user row that was matched against
             // a demo row is now unmatched, and would otherwise stay hidden.
-            for month in eraseExisting(from: context) {
+            //
+            // The save in the middle is load-bearing. `eraseExisting` only
+            // *marks* the demo documents deleted; the transaction rows go at
+            // save time, through the cascade. `recomputeMatches` fetches all
+            // transactions and re-pairs them — so if that fetch ever returned
+            // the pending-deleted demo rows, it would match a live user bank
+            // row against a dying demo app row, and `Queries.visible` would
+            // hide the user's row for good. Committing first removes the
+            // dependency on SwiftData's pending-change semantics, and matches
+            // what DocumentListSheet already does on the manual delete path.
+            let affected = eraseExisting(from: context)
+            try context.save()
+            for month in affected {
                 Queries.recomputeMatches(context, month: month)
             }
             try context.save()
