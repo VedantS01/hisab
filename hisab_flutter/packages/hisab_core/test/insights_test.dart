@@ -230,4 +230,168 @@ void main() {
       expect(insights, isEmpty);
     });
   });
+
+  group('RecurrenceDetector', () {
+    const config = InsightsConfig.fallback;
+
+    DateTime day(String yyyyMmDd) {
+      final p = yyyyMmDd.split('-').map(int.parse).toList();
+      return DateTime.utc(p[0], p[1], p[2]).subtract(istOffset);
+    }
+
+    InsightRecord rec(String id, String iso, int paise, String merchant) =>
+        InsightRecord(
+            id: id,
+            date: day(iso),
+            amountPaise: paise,
+            direction: Direction.debit,
+            category: 'Subscriptions',
+            merchant: merchant);
+
+    final now = day('2026-09-15');
+
+    test('monthly series is discovered', () {
+      final series = RecurrenceDetector.series(
+        records: [
+          rec('a', '2026-06-05', 64900, 'NETFLIX INDIA'),
+          rec('b', '2026-07-05', 64900, 'Netflix India'),
+          rec('c', '2026-08-05', 64900, 'NETFLIX INDIA'),
+          rec('d', '2026-09-05', 64900, 'NETFLIX INDIA'),
+        ],
+        now: now,
+        config: config,
+      );
+      expect(series.length, 1);
+      expect(series[0].merchantKey, 'netflix india');
+      expect(series[0].displayMerchant, 'NETFLIX INDIA');
+      expect(series[0].cadence, Cadence.monthly);
+      expect(series[0].medianPaise, 64900);
+      expect(series[0].monthlyEquivalentPaise, 64900);
+      expect(series[0].count, 4);
+    });
+
+    test('weekly series scales to a monthly equivalent', () {
+      final series = RecurrenceDetector.series(
+        records: [
+          rec('a', '2026-08-25', 30000, 'Milk Wala'),
+          rec('b', '2026-09-01', 30000, 'Milk Wala'),
+          rec('c', '2026-09-08', 30000, 'Milk Wala'),
+          rec('d', '2026-09-15', 30000, 'Milk Wala'),
+        ],
+        now: now,
+        config: config,
+      );
+      expect(series.length, 1);
+      expect(series[0].cadence, Cadence.weekly);
+      expect(series[0].monthlyEquivalentPaise, 30000 * 52 ~/ 12);
+    });
+
+    test('irregular gaps are not a series', () {
+      expect(
+          RecurrenceDetector.series(
+            records: [
+              rec('a', '2026-06-01', 50000, 'Random Shop'),
+              rec('b', '2026-06-19', 50000, 'Random Shop'),
+              rec('c', '2026-08-02', 50000, 'Random Shop'),
+            ],
+            now: now,
+            config: config,
+          ),
+          isEmpty);
+    });
+
+    test('too few occurrences is not a series', () {
+      expect(
+          RecurrenceDetector.series(
+            records: [
+              rec('a', '2026-07-05', 64900, 'Netflix'),
+              rec('b', '2026-08-05', 64900, 'Netflix'),
+            ],
+            now: now,
+            config: config,
+          ),
+          isEmpty);
+    });
+
+    test('a stale series is not active and produces no cards', () {
+      // Last paid in March; monthly cadence goes inactive after 2 cadences.
+      final (insights, _) = RecurrenceDetector.detect(
+        records: [
+          rec('a', '2025-12-05', 64900, 'Netflix'),
+          rec('b', '2026-01-05', 64900, 'Netflix'),
+          rec('c', '2026-02-05', 64900, 'Netflix'),
+          rec('d', '2026-03-05', 64900, 'Netflix'),
+        ],
+        now: now,
+        monthDebitTotalPaise: 100000,
+        config: config,
+      );
+      expect(insights, isEmpty);
+    });
+
+    test('a new series is reported', () {
+      final (insights, claimed) = RecurrenceDetector.detect(
+        records: [
+          rec('a', '2026-07-05', 64900, 'Netflix'),
+          rec('b', '2026-08-05', 64900, 'Netflix'),
+          rec('c', '2026-09-05', 64900, 'Netflix'),
+        ],
+        now: now,
+        monthDebitTotalPaise: 200000,
+        config: config,
+      );
+      expect(insights.length, 1);
+      expect(insights[0].kind, InsightKind.recurringNew);
+      expect(insights[0].headline, 'New recurring: Netflix');
+      expect(insights[0].detail, '₹649.00 per month since Jul 2026');
+      expect(insights[0].mute, const MuteMerchant('netflix'));
+      expect(claimed, {'a', 'b', 'c'});
+    });
+
+    test('a changed amount is reported', () {
+      // Established since February, so not "new"; September jumps 23%.
+      final (insights, _) = RecurrenceDetector.detect(
+        records: [
+          rec('a', '2026-02-05', 64900, 'Netflix'),
+          rec('b', '2026-03-05', 64900, 'Netflix'),
+          rec('c', '2026-04-05', 64900, 'Netflix'),
+          rec('d', '2026-05-05', 64900, 'Netflix'),
+          rec('e', '2026-06-05', 64900, 'Netflix'),
+          rec('f', '2026-07-05', 64900, 'Netflix'),
+          rec('g', '2026-08-05', 64900, 'Netflix'),
+          rec('h', '2026-09-05', 79900, 'Netflix'),
+        ],
+        now: now,
+        monthDebitTotalPaise: 200000,
+        config: config,
+      );
+      expect(insights.length, 1);
+      expect(insights[0].kind, InsightKind.recurringChanged);
+      expect(insights[0].headline, 'Netflix: ₹799.00');
+      expect(insights[0].detail, 'usually ₹649.00 per month');
+    });
+
+    test('two active series produce a committed spend summary', () {
+      final (insights, _) = RecurrenceDetector.detect(
+        records: [
+          rec('a', '2026-07-05', 64900, 'Netflix'),
+          rec('b', '2026-08-05', 64900, 'Netflix'),
+          rec('c', '2026-09-05', 64900, 'Netflix'),
+          rec('d', '2026-07-10', 1500000, 'Landlord'),
+          rec('e', '2026-08-10', 1500000, 'Landlord'),
+          rec('f', '2026-09-10', 1500000, 'Landlord'),
+        ],
+        now: now,
+        monthDebitTotalPaise: 2000000,
+        config: config,
+      );
+      final committed =
+          insights.where((i) => i.kind == InsightKind.committedSpend).toList();
+      expect(committed.length, 1);
+      expect(committed[0].headline, '₹15,649.00 per month committed');
+      expect(committed[0].detail, 'across 2 recurring payments');
+      expect(committed[0].series.length, 2);
+      expect(committed[0].mute, isNull);
+    });
+  });
 }
