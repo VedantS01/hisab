@@ -26,7 +26,14 @@ class RecurrenceDetector {
 
     final result = <RecurringSeries>[];
     for (final key in groups.keys.toList()..sort()) {
-      final members = groups[key]!..sort((a, b) => a.date.compareTo(b.date));
+      // Date, then id: neither platform's sort is stable, so same-day
+      // payments to one merchant need an explicit total order for both
+      // cores to emit transactionIDs in the same sequence.
+      final members = groups[key]!
+        ..sort((a, b) {
+          final d = a.date.compareTo(b.date);
+          return d != 0 ? d : a.id.compareTo(b.id);
+        });
       if (members.length < settings.minOccurrences) continue;
 
       final gaps = <int>[];
@@ -134,9 +141,14 @@ class RecurrenceDetector {
         continue; // a brand-new series can't also be "changed"
       }
 
+      // Debits only: the median is a debit-only figure, so the payment
+      // measured against it must be one too — a refund sharing the
+      // merchant key would otherwise drive the "usually" sentence.
       final sameMerchant = [
         for (final r in records)
-          if (SuggestionEngine.normalize(r.merchant) == entry.merchantKey) r
+          if (r.direction == Direction.debit &&
+              SuggestionEngine.normalize(r.merchant) == entry.merchantKey)
+            r
       ];
       if (sameMerchant.isEmpty) continue;
       final latest =

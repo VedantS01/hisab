@@ -17,7 +17,12 @@ public enum RecurrenceDetector {
 
         var result: [RecurringSeries] = []
         for key in groups.keys.sorted() {
-            let members = (groups[key] ?? []).sorted { $0.date < $1.date }
+            // Date, then id: neither platform's sort is stable, so same-day
+            // payments to one merchant need an explicit total order for both
+            // cores to emit transactionIDs in the same sequence.
+            let members = (groups[key] ?? []).sorted {
+                $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date
+            }
             guard members.count >= settings.minOccurrences else { continue }
 
             var gaps: [Int] = []
@@ -99,8 +104,12 @@ public enum RecurrenceDetector {
                 continue  // a brand-new series can't also be "changed"
             }
 
+            // Debits only: the median is a debit-only figure, so the payment
+            // measured against it must be one too — a refund sharing the
+            // merchant key would otherwise drive the "usually" sentence.
             guard let latest = records
-                .filter({ SuggestionEngine.normalize($0.merchant) == entry.merchantKey })
+                .filter({ $0.direction == .debit
+                          && SuggestionEngine.normalize($0.merchant) == entry.merchantKey })
                 .max(by: { $0.date < $1.date }) else { continue }
             let drift = abs(latest.amountPaise - entry.medianPaise)
             if drift * 100 >= entry.medianPaise * Int64(settings.changedPct) {
