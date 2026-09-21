@@ -167,42 +167,103 @@ void main() {
     expect(Queries.insightPeriods(docs).length, 1);
   });
 
-  // "Load demo data" is a button a user can press twice. The statements are
-  // rewritten to the current month on every load, so identifying them by the
-  // bytes actually imported would make the same demo look like a new file in
-  // every new month — and a second load would then land a second copy. Two
-  // kinds of row make that visible: rows carrying a reference dedup on it and
-  // survive, but reference-less rows hash on their *date* and would duplicate
-  // outright, silently double-counting that spend.
-  test('loading the demo twice is a no-op, even months apart', () async {
-    final texts = {
-      for (final name in ['demo-gpay.csv', 'demo-hdfc.csv', 'demo-idfc.csv'])
-        'assets/demo/$name': File('assets/demo/$name').readAsStringSync(),
-    };
+  Map<String, String> demoTexts() => {
+        for (final name in ['demo-gpay.csv', 'demo-hdfc.csv', 'demo-idfc.csv'])
+          'assets/demo/$name': File('assets/demo/$name').readAsStringSync(),
+      };
+
+  // "Load demo data" is a button a user can press twice, and the statements are
+  // rewritten to the current month on every load. Pressing it again must leave
+  // exactly one demo set — not two — and that set must be anchored to *now*,
+  // not frozen at whenever it was first loaded.
+  test('loading the demo again replaces it and re-anchors to today', () async {
     Future<(int, int)> counts() async => (
           (await db.select(db.storedDocuments).get()).length,
           (await db.select(db.storedTransactions).get()).length,
         );
+    Future<int> newestMonth() async {
+      final txns = await db.select(db.storedTransactions).get();
+      return txns
+          .map((t) => t.dateMs)
+          .reduce((a, b) => a > b ? a : b);
+    }
 
-    await DemoData.loadTexts(service, texts, now: DateTime.utc(2026, 9, 21));
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2026, 9, 21));
     final afterFirst = await counts();
     expect(afterFirst.$1, 3, reason: 'one document per demo statement');
     expect(afterFirst.$2, greaterThan(200));
+    final firstNewest = await newestMonth();
 
-    await DemoData.loadTexts(service, texts, now: DateTime.utc(2026, 9, 21));
-    expect(await counts(), afterFirst, reason: 'same-month reload must be a no-op');
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2026, 9, 21));
+    expect(await counts(), afterFirst, reason: 'same-month reload: same totals');
+    expect(await newestMonth(), firstNewest, reason: 'and the same dates');
 
-    await DemoData.loadTexts(service, texts, now: DateTime.utc(2026, 12, 15));
-    expect(await counts(), afterFirst,
-        reason: 'reload three months later must be a no-op too');
+    for (final later in [
+      DateTime.utc(2026, 12, 15),
+      DateTime.utc(2027, 6, 2), // crosses a year boundary
+    ]) {
+      await DemoData.loadTexts(service, demoTexts(), now: later);
+      expect(await counts(), afterFirst,
+          reason: 'reload on ${istDayString(later)} must replace, not add');
+      expect(YearMonth.fromDate(
+              DateTime.fromMillisecondsSinceEpoch(await newestMonth(), isUtc: true)),
+          YearMonth.fromDate(later),
+          reason: 'reload must re-anchor the demo to the day it was loaded');
+    }
 
-    await DemoData.loadTexts(service, texts, now: DateTime.utc(2027, 6, 2));
-    expect(await counts(), afterFirst,
-        reason: 'and one that crosses a year boundary');
-
-    // The shift also has to have left the first load's dates alone.
     final txns = await db.select(db.storedTransactions).get();
     expect(txns.map((t) => t.contentHash).toSet(), hasLength(txns.length),
         reason: 'no two stored rows may share a content hash');
+  });
+
+  // Nothing cascades in this schema — documentId is a plain column — so the
+  // refresh deletes rows by hand, and a missed one would be invisible until it
+  // corrupted a total.
+  test('a demo refresh leaves no orphaned transactions or matches', () async {
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2026, 9, 21));
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2027, 1, 20));
+
+    final docIds =
+        (await db.select(db.storedDocuments).get()).map((d) => d.id).toSet();
+    final txns = await db.select(db.storedTransactions).get();
+    final uuids = txns.map((t) => t.uuid).toSet();
+
+    expect(txns.where((t) => !docIds.contains(t.documentId)), isEmpty,
+        reason: 'every transaction must still belong to a live document');
+    final matches = await db.select(db.storedMatches).get();
+    expect(
+        matches.where(
+            (m) => !uuids.contains(m.appUuid) || !uuids.contains(m.bankUuid)),
+        isEmpty,
+        reason: 'every match must still point at two live transactions');
+    expect(matches, isNotEmpty, reason: 'the demo reconciles, so some survive');
+  });
+
+  test('a demo refresh leaves the user\'s own import untouched', () async {
+    // A real statement of the user's, imported before they ever tap the demo.
+    final mine = await service.importBytes(
+        data: utf8.encode(demoCsv), filename: 'my-statement.csv');
+    expect(mine.newCount, 2);
+    final mineDoc = (await db.select(db.storedDocuments).get())
+        .firstWhere((d) => d.filename == 'my-statement.csv');
+    final mineTxns = (await db.select(db.storedTransactions).get())
+        .where((t) => t.documentId == mineDoc.id)
+        .map((t) => t.uuid)
+        .toSet();
+    expect(mineTxns, hasLength(2));
+
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2026, 9, 21));
+    await DemoData.loadTexts(service, demoTexts(), now: DateTime.utc(2026, 12, 15));
+
+    final docs = await db.select(db.storedDocuments).get();
+    expect(docs.where((d) => d.id == mineDoc.id), hasLength(1),
+        reason: "the user's document must survive a demo refresh");
+    expect(docs, hasLength(4), reason: 'their one plus the three demo slots');
+    final survivors = (await db.select(db.storedTransactions).get())
+        .where((t) => t.documentId == mineDoc.id)
+        .map((t) => t.uuid)
+        .toSet();
+    expect(survivors, mineTxns,
+        reason: "the user's rows must survive, same rows, same ids");
   });
 }

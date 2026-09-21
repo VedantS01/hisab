@@ -1,4 +1,5 @@
 import XCTest
+import HisabCore
 
 /// The five things the insight strip has to do on a device, driven through the
 /// real UI with the bundled demo statements. Nothing here reaches into the
@@ -23,10 +24,15 @@ final class InsightStripUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// `seedDemo: false` is reopening the app. `--seed-demo` is the harness
+    /// standing in for a tap on "Load demo data", which now refreshes the demo
+    /// — so anything checking that state survives a relaunch has to leave it
+    /// out, or it is testing a reload rather than a relaunch.
     @discardableResult
-    private func launch(reset: Bool, demoNow: String? = nil) -> XCUIApplication {
+    private func launch(reset: Bool, seedDemo: Bool = true,
+                        demoNow: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["--seed-demo"]
+        app.launchArguments = (seedDemo ? ["--seed-demo"] : [])
             + (reset ? ["--reset-insights"] : [])
             + (demoNow.map { ["--demo-now", $0] } ?? [])
         app.launch()
@@ -140,7 +146,7 @@ final class InsightStripUITests: XCTestCase {
         }
 
         app.terminate()
-        let relaunched = launch(reset: false)
+        let relaunched = launch(reset: false, seedDemo: false)
         waitForStrip(relaunched, "dismissal did not survive relaunch") { shown in
             shown.count == 5 && !shown.contains { $0.hasPrefix("UNUSUAL. Blue Tokai") }
         }
@@ -153,24 +159,34 @@ final class InsightStripUITests: XCTestCase {
     /// it does not: seed as-of a date months back, relaunch with today's
     /// anchor, and the strip must still be reporting the *older* months —
     /// unchanged, because the second load did nothing at all.
-    func testLoadingTheDemoAgainInALaterMonthChangesNothing() {
-        // Deliberately asserts the invariant rather than a fixed month: this
-        // suite shares one simulator, so by the time it runs the demo may
-        // already be loaded under some other anchor — which is exactly the
-        // state a returning user is in, and the state this must hold in.
+    /// A returning user: they loaded the demo months ago and tap it again.
+    /// The second tap must hand them a demo anchored to *today*, and hand them
+    /// exactly one — the old one dropped, not left alongside.
+    func testLoadingTheDemoAgainRefreshesItToToday() {
         let app = launch(reset: true, demoNow: "2026-06-15")
-        let before = waitForStrip(app, "strip never settled on the first anchor") {
-            $0.count == self.baseline.count
+        let stale = waitForStrip(app, "strip never settled on the old anchor") {
+            !$0.isEmpty
         }
-        XCTAssertTrue(before.last?.hasPrefix("COMMITTED. ") == true)
+        // Demo data three months old has aged out of the anomaly and recurrence
+        // windows — which is the whole reason this must refresh rather than
+        // no-op. If this ever stops being true the test below proves less.
+        XCTAssertLessThan(stale.count, baseline.count,
+                          "a stale demo was expected to be a thin strip: \(stale)")
 
         app.terminate()
-        let again = launch(reset: false, demoNow: "2027-01-20")
-        let after = waitForStrip(again, "strip never settled after the second load") {
-            $0.count == self.baseline.count
-        }
-        XCTAssertEqual(after, before,
-                       "a demo load anchored seven months on changed the data")
+        let refreshed = launch(reset: false)
+        let after = waitForBaseline(refreshed)
+
+        // Exact copy, so any row left behind by the old anchor shows up here:
+        // the stale Netflix payments would extend that series backwards, its
+        // first-seen month would fall outside the "new recurring" window, and
+        // this card would be gone.
+        XCTAssertTrue(after.contains { $0.hasPrefix("RECURRING. New recurring: Netflix") },
+                      "orphaned rows from the previous anchor: \(after)")
+        // And it is anchored to today: the duplicate lands in last month.
+        let lastMonth = YearMonth(date: Date()).advanced(by: -1).displayName
+        XCTAssertTrue(after.contains { $0.hasSuffix("identical payments on 28 \(lastMonth)") },
+                      "demo was not re-anchored to today: \(after)")
     }
 
     func testLongPressOffersMuteAndMutingSilencesThatMerchant() {

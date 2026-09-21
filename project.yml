@@ -37,6 +37,7 @@ targets:
       - HisabUITests
     dependencies:
       - target: Hisab
+      - package: HisabCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vedants.hisab.uitests

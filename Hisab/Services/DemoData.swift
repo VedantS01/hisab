@@ -7,6 +7,13 @@ import HisabCore
 /// statement is uploaded.
 @MainActor
 enum DemoData {
+    /// "Load demo data" produces loaded demo data *now*: any demo already
+    /// present is dropped and re-imported at today's anchor. A no-op instead
+    /// would leave a returning user with last month's demo, which ages out of
+    /// the very windows the month shift exists to keep it inside — two cards a
+    /// month on, one after that. Idempotent either way (tap it twice, get the
+    /// same thing), and it only ever touches the three demo slots, never a file
+    /// the user imported themselves.
     @discardableResult
     static func load(into context: ModelContext, now: Date = Date()) -> Bool {
         guard let gpayURL = Bundle.main.url(forResource: "demo-gpay", withExtension: "csv"),
@@ -16,6 +23,13 @@ enum DemoData {
         }
         let service = ImportService(context: context)
         do {
+            // Whatever months the outgoing demo occupied have to be reconciled
+            // again once its rows are gone: a user row that was matched against
+            // a demo row is now unmatched, and would otherwise stay hidden.
+            for month in eraseExisting(from: context) {
+                Queries.recomputeMatches(context, month: month)
+            }
+            try context.save()
             for (url, source) in [(gpayURL, Source.gpay), (hdfcURL, .hdfc), (idfcURL, .idfc)] {
                 let bundled = try Data(contentsOf: url)
                 let shifted = try shiftedCopy(of: url, data: bundled, now: now)
@@ -39,6 +53,42 @@ enum DemoData {
     /// nothing. Same string Flutter uses, so the two platforms agree by
     /// construction rather than by coincidence.
     static func fileHash(for source: Source) -> String { "demo-\(source.rawValue)" }
+
+    static let slotKeys = Set(
+        [Source.gpay, .hdfc, .idfc].map { fileHash(for: $0) })
+
+    /// Removes the demo documents and everything hanging off them, returning
+    /// the months they covered.
+    ///
+    /// `StoredDocument.transactions` cascades, so the rows go with the
+    /// document — but `StoredMatch` holds bare UUIDs with no relationship to
+    /// either, so nothing deletes those for us. A match left pointing at a
+    /// deleted row is not inert: `Queries.visible` hides any transaction whose
+    /// uuid appears as a match's bank side, so a stale match would go on hiding
+    /// a *user's* row (reconciliation pairs rows by month, not by document, so
+    /// a user payment may well have been matched against a demo bank row).
+    /// They are deleted by uuid, which is exact and independent of months.
+    @discardableResult
+    static func eraseExisting(from context: ModelContext) -> [YearMonth] {
+        let documents = ((try? context.fetch(FetchDescriptor<StoredDocument>())) ?? [])
+            .filter { slotKeys.contains($0.fileSHA256) }
+        guard !documents.isEmpty else { return [] }
+
+        let rows = documents.flatMap { $0.transactions ?? [] }
+        let uuids = Set(rows.map(\.uuid))
+        for match in (try? context.fetch(FetchDescriptor<StoredMatch>())) ?? []
+        where uuids.contains(match.appUUID) || uuids.contains(match.bankUUID) {
+            context.delete(match)
+        }
+
+        var months: Set<YearMonth> = []
+        for document in documents {
+            months.formUnion(document.period.months)
+            for row in document.transactions ?? [] { months.insert(row.month) }
+            context.delete(document)
+        }
+        return months.sorted()
+    }
 
     /// Slides a bundled statement's dates into the present and writes the result
     /// to a temp file under the same name, so the import pipeline — which works
