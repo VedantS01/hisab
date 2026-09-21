@@ -2,10 +2,13 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../services/insight_store.dart';
 import '../services/queries.dart';
 import '../state.dart';
 import '../theme.dart';
 import '../widgets/import_flow.dart';
+import '../widgets/insight_evidence_sheet.dart';
+import '../widgets/insight_strip.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -16,6 +19,17 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   YearMonth _selected = YearMonth.fromDate(DateTime.now());
+
+  /// Pruning drops every dismissal not in the live id set, so it must never
+  /// run against an empty set (that would wipe the user's whole dismissal
+  /// history) and must not re-run on every rebuild (each dismiss/mute
+  /// triggers a setState, which would otherwise fire another SharedPreferences
+  /// round trip). A one-shot flag guarded by "the set is non-empty" gives
+  /// both properties for free: the call site only exists inside the
+  /// isNotEmpty branch, so it is unreachable with an empty set on any path,
+  /// and flipping the flag before the (fire-and-forget) call means at most
+  /// one prune ever runs for this screen's lifetime.
+  bool _pruned = false;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +108,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
         s.kind == SourceKind.bank &&
         grid.state(_selected, s) is CellPresent);
 
+    final state = AppScope.of(context);
+    final insights = InsightsEngine.generate(
+      input: InsightsInput(
+        records: Queries.insightRecords(data.txns, data.matches, ruleList),
+        documentPeriods: Queries.insightPeriods(data.documents),
+        now: DateTime.now(),
+      ),
+      config: state.insightsConfig,
+      suppressions: state.suppressions,
+    );
+    // See `_pruned`'s doc comment for why this guard and this one-shot flag
+    // are both load-bearing, not just tidiness.
+    if (!_pruned && insights.allIDs.isNotEmpty) {
+      _pruned = true;
+      InsightStore.prune(insights.allIDs);
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -116,6 +147,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 8),
+        InsightStrip(
+          insights: insights.cards,
+          onOpen: (insight) =>
+              showInsightEvidence(context, insight, data.txns),
+          onDismiss: (insight) async {
+            await InsightStore.dismiss(insight.id);
+            final refreshed = await InsightStore.load();
+            if (mounted) setState(() => state.suppressions = refreshed);
+          },
+          onMute: (insight) async {
+            final target = insight.mute;
+            if (target == null) return;
+            await InsightStore.mute(target);
+            final refreshed = await InsightStore.load();
+            if (mounted) setState(() => state.suppressions = refreshed);
+          },
+        ),
+        if (insights.cards.isNotEmpty) const SizedBox(height: 8),
         _heroCard(stats, bankVerified),
         _trendCard(trend),
         _breakdownCard(breakdown),
