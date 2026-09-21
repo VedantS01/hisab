@@ -114,6 +114,13 @@ void main() {
         expect(generated.map((i) => i.kind), contains(kind),
             reason: 'no $kind card from the demo statements');
       }
+      // Exactly one per kind, nothing else: a spurious card (a category whose
+      // month-on-month swing happens to clear both trend gates) would push a
+      // real one off the five-card strip, and every category but Food Delivery
+      // is deliberately held flat to stop that happening.
+      expect(generated, hasLength(InsightKind.values.length),
+          reason: 'unexpected extra card(s): '
+              '${generated.map((i) => "${i.kind.name}|${i.headline}").toList()}');
 
       expect(strip.cards.length, 5);
       expect(strip.cards.last.kind, InsightKind.committedSpend,

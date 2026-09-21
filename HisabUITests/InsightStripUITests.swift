@@ -33,10 +33,13 @@ final class InsightStripUITests: XCTestCase {
         return app
     }
 
-    /// The rule-suggestion sheet can cover the dashboard on a fresh install.
+    /// Belt and braces. The demo statements no longer raise the rule-suggestion
+    /// sheet (every merchant in the last 90 days categorises), but a stray
+    /// uncategorised cluster would cover the dashboard and fail everything here
+    /// for a reason that has nothing to do with the strip.
     private func dismissSuggestionPrompt(_ app: XCUIApplication) {
         let button = app.buttons["Don't ask about this"]
-        if button.waitForExistence(timeout: 5) { button.tap() }
+        if button.waitForExistence(timeout: 2) { button.tap() }
     }
 
     /// Cards carry a combined label: "<CAPTION>. <headline>. <detail>".
