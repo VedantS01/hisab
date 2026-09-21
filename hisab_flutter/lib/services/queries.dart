@@ -97,6 +97,34 @@ class Queries {
     ];
   }
 
+  /// Insight input: the same counted rows analytics uses, carrying the row
+  /// id so a card can point back at its evidence.
+  static List<InsightRecord> insightRecords(List<StoredTransaction> txns,
+      List<StoredMatche> matches, List<CategoryRule> ruleList) {
+    final selfTransfers = selfTransferUuids(txns);
+    return [
+      for (final txn in visible(txns, matches))
+        if (!selfTransfers.contains(txn.uuid))
+          InsightRecord(
+            id: txn.uuid,
+            date: dateOf(txn),
+            amountPaise: txn.amountPaise,
+            direction: directionOf(txn),
+            category: effectiveCategory(txn, ruleList, selfTransfers),
+            merchant:
+                txn.counterparty.isEmpty ? txn.narration : txn.counterparty,
+          )
+    ];
+  }
+
+  static List<DatePeriod> insightPeriods(List<StoredDocument> documents) => [
+        for (final doc in documents)
+          DatePeriod(
+              DateTime.fromMillisecondsSinceEpoch(doc.periodStartMs,
+                  isUtc: true),
+              DateTime.fromMillisecondsSinceEpoch(doc.periodEndMs, isUtc: true))
+      ];
+
   static CoverageGrid grid(
       List<StoredDocument> documents, List<PinnedMonth> pins) {
     return CoverageGrid.derive(

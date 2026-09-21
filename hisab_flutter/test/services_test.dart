@@ -105,4 +105,40 @@ void main() {
         service.importBytes(data: [0, 1, 2], filename: 'x.xlsx'),
         throwsA(isA<UnsupportedFormatException>()));
   });
+
+  test('insightRecords carries row ids and excludes matched bank rows',
+      () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.into(db.storedDocuments).insert(StoredDocumentsCompanion.insert(
+          id: 'doc-1',
+          sourceRaw: 'gpay',
+          filename: 'demo.csv',
+          fileSha256: 'hash-1',
+          periodStartMs: DateTime.utc(2026, 8, 1).millisecondsSinceEpoch,
+          periodEndMs: DateTime.utc(2026, 8, 31).millisecondsSinceEpoch,
+        ));
+    await db.into(db.storedTransactions).insert(
+        StoredTransactionsCompanion.insert(
+          uuid: 'uuid-1',
+          documentId: 'doc-1',
+          sourceRaw: 'gpay',
+          dateMs: DateTime.utc(2026, 8, 12).millisecondsSinceEpoch,
+          amountPaise: 45000,
+          direction: 'debit',
+          counterparty: 'Swiggy',
+          narration: 'UPI payment',
+          contentHash: 'ch-1',
+        ));
+
+    final txns = await db.select(db.storedTransactions).get();
+    final records = Queries.insightRecords(txns, const [], const []);
+    expect(records.length, 1);
+    expect(records.first.id, 'uuid-1');
+    expect(records.first.merchant, 'Swiggy');
+    expect(records.first.amountPaise, 45000);
+
+    final docs = await db.select(db.storedDocuments).get();
+    expect(Queries.insightPeriods(docs).length, 1);
+  });
 }

@@ -12,6 +12,7 @@ import 'screens/settings_screen.dart';
 import 'screens/transactions_screen.dart';
 import 'services/demo_data.dart';
 import 'services/import_service.dart';
+import 'services/insight_store.dart';
 import 'services/queries.dart';
 import 'state.dart';
 import 'storage/database.dart';
@@ -34,10 +35,15 @@ Future<void> main() async {
       await rootBundle.loadString('assets/rulesets/india-default.json'));
   final resolver = ImportResolver(
       registry: fullRegistry(), specs: SpecStore.parseAll(specJsons));
+  final insightsConfig = InsightsConfig.fromJsonString(
+      await rootBundle.loadString('assets/insights/insights-config.json'));
+  final suppressions = await InsightStore.load();
   final state = AppState(
     db: db,
     importService: ImportService(db: db, resolver: resolver),
     ruleset: ruleset,
+    insightsConfig: insightsConfig,
+    suppressions: suppressions,
   );
   await Queries.categoryRules(db, ruleset); // additive seeding on launch
 

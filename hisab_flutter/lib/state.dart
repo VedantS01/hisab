@@ -25,13 +25,23 @@ class AppState {
   final AppDatabase db;
   final ImportService importService;
   final Ruleset ruleset;
+  final InsightsConfig insightsConfig;
+
+  /// Refreshed from InsightStore whenever the user dismisses or mutes.
+  Suppressions suppressions;
   late final Stream<Snapshot> snapshots;
 
   /// Latest emission, replayed to late subscribers via StreamBuilder
   /// initialData — a broadcast stream alone starves tabs opened later.
   Snapshot? latest;
 
-  AppState({required this.db, required this.importService, required this.ruleset}) {
+  AppState({
+    required this.db,
+    required this.importService,
+    required this.ruleset,
+    required this.insightsConfig,
+    this.suppressions = const Suppressions(),
+  }) {
     snapshots = _combine();
   }
 
