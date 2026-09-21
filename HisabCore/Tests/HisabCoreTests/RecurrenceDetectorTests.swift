@@ -19,6 +19,12 @@ final class RecurrenceDetectorTests: XCTestCase {
                       category: "Subscriptions", merchant: merchant)
     }
 
+    private func credit(_ id: String, _ iso: String, _ paise: Int64,
+                        _ merchant: String) -> InsightRecord {
+        InsightRecord(id: id, date: day(iso), amountPaise: paise, direction: .credit,
+                      category: "Subscriptions", merchant: merchant)
+    }
+
     private let now = "2026-09-15"
 
     func testMonthlySeriesIsDiscovered() {
@@ -120,5 +126,37 @@ final class RecurrenceDetectorTests: XCTestCase {
         XCTAssertEqual(committed[0].detail, "across 2 recurring payments")
         XCTAssertEqual(committed[0].series.count, 2)
         XCTAssertNil(committed[0].mute)
+    }
+
+    func testARefundDoesNotDriveTheChangedAmountCard() {
+        // Every debit is ₹649, so the series has zero drift. The later credit
+        // shares the merchant key but must not be measured against a
+        // debit-only median.
+        var records = [record("a", "2026-02-05", 64_900, "Netflix"),
+                       record("b", "2026-03-05", 64_900, "Netflix"),
+                       record("c", "2026-04-05", 64_900, "Netflix"),
+                       record("d", "2026-05-05", 64_900, "Netflix"),
+                       record("e", "2026-06-05", 64_900, "Netflix"),
+                       record("f", "2026-07-05", 64_900, "Netflix"),
+                       record("g", "2026-08-05", 64_900, "Netflix"),
+                       record("h", "2026-09-05", 64_900, "Netflix")]
+        records.append(credit("refund", "2026-09-20", 200_000, "Netflix"))
+        let (insights, _) = RecurrenceDetector.detect(
+            records: records, now: day(now), monthDebitTotalPaise: 200_000, config: config)
+        XCTAssertTrue(insights.filter { $0.kind == .recurringChanged }.isEmpty)
+        XCTAssertTrue(insights.isEmpty)
+    }
+
+    func testSameDayPaymentsOrderDeterministicallyByID() {
+        // The two August rows land on one IST day and arrive reverse-sorted;
+        // the date-then-id total order must still place "a1" before "z2".
+        let records = [record("a", "2026-06-05", 64_900, "Netflix"),
+                       record("b", "2026-07-05", 64_900, "Netflix"),
+                       record("z2", "2026-08-05", 64_900, "Netflix"),
+                       record("a1", "2026-08-05", 64_900, "Netflix"),
+                       record("c", "2026-09-05", 64_900, "Netflix")]
+        let series = RecurrenceDetector.series(records: records, now: day(now), config: config)
+        XCTAssertEqual(series.count, 1)
+        XCTAssertEqual(series[0].transactionIDs, ["a", "b", "a1", "z2", "c"])
     }
 }

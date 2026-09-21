@@ -248,6 +248,15 @@ void main() {
             category: 'Subscriptions',
             merchant: merchant);
 
+    InsightRecord credit(String id, String iso, int paise, String merchant) =>
+        InsightRecord(
+            id: id,
+            date: day(iso),
+            amountPaise: paise,
+            direction: Direction.credit,
+            category: 'Subscriptions',
+            merchant: merchant);
+
     final now = day('2026-09-15');
 
     test('monthly series is discovered', () {
@@ -392,6 +401,49 @@ void main() {
       expect(committed[0].detail, 'across 2 recurring payments');
       expect(committed[0].series.length, 2);
       expect(committed[0].mute, isNull);
+    });
+
+    test('a refund does not drive the changed amount card', () {
+      // Every debit is ₹649, so the series has zero drift. The later credit
+      // shares the merchant key but must not be measured against a
+      // debit-only median.
+      final (insights, _) = RecurrenceDetector.detect(
+        records: [
+          rec('a', '2026-02-05', 64900, 'Netflix'),
+          rec('b', '2026-03-05', 64900, 'Netflix'),
+          rec('c', '2026-04-05', 64900, 'Netflix'),
+          rec('d', '2026-05-05', 64900, 'Netflix'),
+          rec('e', '2026-06-05', 64900, 'Netflix'),
+          rec('f', '2026-07-05', 64900, 'Netflix'),
+          rec('g', '2026-08-05', 64900, 'Netflix'),
+          rec('h', '2026-09-05', 64900, 'Netflix'),
+          credit('refund', '2026-09-20', 200000, 'Netflix'),
+        ],
+        now: now,
+        monthDebitTotalPaise: 200000,
+        config: config,
+      );
+      expect(
+          insights.where((i) => i.kind == InsightKind.recurringChanged), isEmpty);
+      expect(insights, isEmpty);
+    });
+
+    test('same-day payments order deterministically by id', () {
+      // The two August rows land on one IST day and arrive reverse-sorted;
+      // the date-then-id total order must still place "a1" before "z2".
+      final series = RecurrenceDetector.series(
+        records: [
+          rec('a', '2026-06-05', 64900, 'Netflix'),
+          rec('b', '2026-07-05', 64900, 'Netflix'),
+          rec('z2', '2026-08-05', 64900, 'Netflix'),
+          rec('a1', '2026-08-05', 64900, 'Netflix'),
+          rec('c', '2026-09-05', 64900, 'Netflix'),
+        ],
+        now: now,
+        config: config,
+      );
+      expect(series.length, 1);
+      expect(series[0].transactionIDs, ['a', 'b', 'a1', 'z2', 'c']);
     });
   });
 }
