@@ -18,18 +18,29 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vedants.hisab
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "6.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "1.2.0"
         CURRENT_PROJECT_VERSION: 3
-        INFOPLIST_KEY_CFBundleDisplayName: Hisab
         DEVELOPMENT_TEAM: AQQHT55AT9
         CODE_SIGN_STYLE: Automatic
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+    info:
+      path: Hisab/Info.plist
+      properties:
+        CFBundleDisplayName: Hisab
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        CFBundleURLTypes:
+          - CFBundleURLName: com.vedants.hisab.deeplink
+            CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - hisab
   HisabUITests:
     type: bundle.ui-testing
     platform: iOS
