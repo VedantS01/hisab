@@ -860,13 +860,13 @@ One JSON file, an array of cases. Each case pins the *whole* parse outcome so no
       "expected": {
         "amountPaise": 200000,
         "direction": "credit",
-        "payee": "your account XX1234 from RAHUL",
-        "payeeNormalized": "your account xx",
+        "payee": "RAHUL",
+        "payeeNormalized": "rahul",
         "vpa": null,
         "accountTail": "1234",
         "dateISO": "2026-09-22",
         "captureHash": "<fill from the Swift run>",
-        "rulePattern": "your account xx",
+        "rulePattern": "rahul",
         "ruleKind": "merchant"
       }
     },
@@ -912,12 +912,16 @@ One JSON file, an array of cases. Each case pins the *whole* parse outcome so no
 }
 ```
 
-**On the `credit-not-debit` case:** the expected `payee` there is ugly because
-the lead-in is `" to "` and the stop list does not cut at `from`. Do not
-"fix" it by special-casing in the parser. Record what the parser actually
-does, and if the ugliness matters, raise it as a finding — a fixture that
-lies about behaviour is worse than one that pins something imperfect. The
-`credited`-direction assertion is what this case exists to protect.
+**On the `credit-not-debit` case:** this case exists to protect two things at
+once — that `credited` is read as a credit, and that the payee is the *sender*
+(`RAHUL`), not the template boilerplate around the user's own account number.
+An earlier draft of this plan expected `"your account XX1234 from RAHUL"` here
+and told implementers to record it as-is. That was wrong: it produced the rule
+key `"your account xx"`, identical for every P2P credit whoever sent it,
+because `SuggestionEngine.normalize` strips the digits. Task 2's fix round 2
+added a `" from "` lead-in for credits specifically to fix this. If your run
+produces the old value, the credit lead-in is missing — fix the parser, do not
+re-record the fixture.
 
 - [ ] **Step 2: Write the Swift parity test**
 

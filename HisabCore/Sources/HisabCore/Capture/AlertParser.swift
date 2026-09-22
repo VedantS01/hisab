@@ -14,10 +14,12 @@ public enum AlertParser {
         let collapsed = text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
         let lower = collapsed.lowercased()
 
-        guard let direction = direction(in: lower) else { return nil }
+        guard let (direction, directionAt) = directionMatch(in: lower) else { return nil }
         guard let amountPaise = amount(in: lower), amountPaise > 0 else { return nil }
         let vpa = self.vpa(in: lower)
-        guard let payee = payee(in: collapsed) ?? vpa.map({ String($0.split(separator: "@")[0]) }),
+        let extracted = payee(in: collapsed, lower: lower, direction: direction,
+                              from: directionAt)
+        guard let payee = extracted ?? vpa.map({ String($0.split(separator: "@")[0]) }),
               !payee.isEmpty else { return nil }
 
         return PendingMemo(amountPaise: amountPaise,
@@ -29,13 +31,23 @@ public enum AlertParser {
                            capturedAt: receivedAt)
     }
 
-    /// Exactly one direction must be present. Both means a summary or an ad;
-    /// neither means a balance notice.
-    private static func direction(in lower: String) -> Direction? {
-        let debit = debitWords.contains { lower.contains($0) }
-        let credit = creditWords.contains { lower.contains($0) }
-        if debit && !credit { return .debit }
-        if credit && !debit { return .credit }
+    /// Exactly one direction must be present, and we need its position so payee
+    /// extraction can start at the transaction clause rather than at the top of
+    /// the message. Both directions means a summary or an ad; neither means a
+    /// balance notice.
+    private static func directionMatch(in lower: String) -> (Direction, String.Index)? {
+        func earliest(_ words: [String]) -> String.Index? {
+            var best: String.Index?
+            for word in words {
+                guard let found = lower.range(of: word) else { continue }
+                if best == nil || found.lowerBound < best! { best = found.lowerBound }
+            }
+            return best
+        }
+        let debit = earliest(debitWords)
+        let credit = earliest(creditWords)
+        if let debit, credit == nil { return (.debit, debit) }
+        if let credit, debit == nil { return (.credit, credit) }
         return nil
     }
 
@@ -72,29 +84,64 @@ public enum AlertParser {
         return String(lower[whole])
     }
 
-    private static let payeeLeadIns = [" to vpa ", " to ", " at ", " towards ", " vpa "]
-    private static let payeeStops = [" on ", " ref", " upi", " a/c", " ac ", " avl", " bal",
-                                     " not you", ".", ",", "-", "|", ";"]
+    private static let debitLeadIns = [" to vpa ", " vpa ", " to ", " at ", " towards "]
+    private static let creditLeadIns = [" from ", " by "]
 
-    /// Takes the segment after a lead-in, cut at the first stop word. Preserves
-    /// original case: the payee is shown to the user.
-    private static func payee(in text: String) -> String? {
-        let lower = text.lowercased()
-        for leadIn in payeeLeadIns {
-            guard let found = lower.range(of: leadIn) else { continue }
-            var segment = String(text[found.upperBound...])
-            let segmentLower = segment.lowercased()
-            var cut = segment.endIndex
-            for stop in payeeStops {
-                if let stopRange = segmentLower.range(of: stop), stopRange.lowerBound < cut {
-                    cut = stopRange.lowerBound
-                }
+    /// Words that end a payee. Compared as whole TOKENS, never as substrings —
+    /// that is what stops "SRI BALAJI STORES" being cut at "bal".
+    private static let payeeStopTokens: Set<String> = [
+        "on", "ref", "refno", "upi", "a/c", "ac", "acct", "account",
+        "avl", "bal", "not", "info", "txn", "id", "utr", "dated", "date", "via",
+    ]
+
+    /// Characters that end a payee outright.
+    private static let payeeTerminators: Set<Character> = [
+        ".", ",", "|", ";", "(", ")", "!", "?", "*", "#",
+    ]
+
+    /// Extracts the payee from the clause that follows the direction keyword.
+    ///
+    /// Anchoring at `start` (the direction keyword's position) is deliberate: a
+    /// leading disclaimer such as "write to us at ..." would otherwise hijack the
+    /// " to " lead-in. There is intentionally NO whole-message fallback — an alert
+    /// that phrases the payee before the direction word is declined instead.
+    /// Declining costs one uncaptured alert; guessing costs a wrong rule.
+    private static func payee(in text: String, lower: String, direction: Direction,
+                              from start: String.Index) -> String? {
+        let leadIns = direction == .credit ? creditLeadIns : debitLeadIns
+        for leadIn in leadIns {
+            guard let found = lower.range(of: leadIn, range: start..<lower.endIndex) else {
+                continue
             }
-            segment = String(segment[..<cut])
-            let trimmed = segment.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
+            if let cleaned = trimToPayee(String(text[found.upperBound...])) {
+                return cleaned
+            }
         }
         return nil
+    }
+
+    /// Cuts the tail at the first terminator character, then at the first stop
+    /// token. Tokenising before comparing is the whole point: a stop token only
+    /// ends a payee when it stands alone as a word.
+    private static func trimToPayee(_ tail: String) -> String? {
+        var words: [String] = []
+        var current = ""
+        for ch in tail {
+            if payeeTerminators.contains(ch) { break }
+            if ch.isWhitespace {
+                if !current.isEmpty { words.append(current); current = "" }
+                continue
+            }
+            current.append(ch)
+        }
+        if !current.isEmpty { words.append(current) }
+
+        var kept: [String] = []
+        for word in words {
+            if payeeStopTokens.contains(word.lowercased()) { break }
+            kept.append(word)
+        }
+        return kept.isEmpty ? nil : kept.joined(separator: " ")
     }
 
     private static func accountTail(in lower: String) -> String? {

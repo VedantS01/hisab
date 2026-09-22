@@ -18,6 +18,7 @@ final class AlertParserTests: XCTestCase {
         XCTAssertEqual(memo?.amountPaise, 45_000)
         XCTAssertEqual(memo?.direction, .debit)
         XCTAssertEqual(memo?.vpa, "vedant@okaxis")
+        XCTAssertEqual(memo?.payee, "vedant@okaxis")
         XCTAssertEqual(memo?.accountTail, "1234")
         XCTAssertEqual(PendingMemo.istDayString(memo!.date), "2026-09-22")
     }
@@ -36,11 +37,14 @@ final class AlertParserTests: XCTestCase {
         let memo = AlertParser.parse(text: text, receivedAt: at(now))
         XCTAssertEqual(memo?.direction, .credit)
         XCTAssertEqual(memo?.amountPaise, 200_000)
+        // C2: the payee must be the sender, never the masked-account boilerplate.
+        XCTAssertEqual(memo?.payee, "RAHUL")
     }
 
     func testFallsBackToReceivedAtWhenAlertHasNoDate() {
         let text = "Rs 99.00 debited from a/c XX1234 to ZEPTO"
         let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "ZEPTO")
         XCTAssertEqual(PendingMemo.istDayString(memo!.date), "2026-09-22")
     }
 
@@ -87,8 +91,9 @@ final class AlertParserTests: XCTestCase {
     func testStillReadsAGenuineTwoDecimalAmountWithoutACurrencyMarker() {
         // The dotted-date guard must not swallow this.
         let text = "Debited 450.00 from a/c XX1234 to ZEPTO on 22-09-26"
-        XCTAssertEqual(AlertParser.parse(text: text, receivedAt: at(now))?.amountPaise,
-                       45_000)
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.amountPaise, 45_000)
+        XCTAssertEqual(memo?.payee, "ZEPTO")
     }
 
     func testReadsVPAWhenTheAlertEndsTheSentenceWithAPeriod() {
@@ -97,6 +102,7 @@ final class AlertParserTests: XCTestCase {
         let text = "Rs.100.00 debited from a/c XX1234 to VPA vedant@okaxis. Thank you for using UPI."
         let memo = AlertParser.parse(text: text, receivedAt: at(now))
         XCTAssertEqual(memo?.vpa, "vedant@okaxis")
+        XCTAssertEqual(memo?.payee, "vedant@okaxis")
     }
 
     func testDoesNotReadAnEmailAsAVPAEvenAtTheEndOfASentence() {
@@ -105,5 +111,38 @@ final class AlertParserTests: XCTestCase {
         let text = "Rs.450.00 debited from a/c XX1234 to SWIGGY. Queries: help@swiggy.in."
         let memo = AlertParser.parse(text: text, receivedAt: at(now))
         XCTAssertNil(memo?.vpa)
+        XCTAssertEqual(memo?.payee, "SWIGGY")
+    }
+
+    func testDoesNotTruncateAMerchantNameContainingAStopWord() {
+        // C1: " bal" (intended for "Avl Bal" boilerplate) must not fire as a
+        // substring inside "BALAJI" — stop words are tokens, not substrings.
+        let text = "Rs.200.00 debited from a/c XX1234 to SRI BALAJI STORES on 22-09-26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "SRI BALAJI STORES")
+    }
+
+    func testIgnoresALeadingDisclaimerWhenFindingThePayee() {
+        // C3: the lead-in search must anchor after the direction keyword, or
+        // a leading disclaimer's " to " hijacks the match.
+        let text = "For queries write to us at 1800123456. Rs.500.00 debited from a/c XX1234 to SWIGGY on 22-09-26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "SWIGGY")
+    }
+
+    func testReadsANumericVPA() {
+        let text = "Rs.150.00 debited from a/c XX1234 to VPA 9876543210@ybl on 22-09-26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.vpa, "9876543210@ybl")
+        XCTAssertEqual(memo?.payee, "9876543210@ybl")
+    }
+
+    func testDeclinesWhenThePayeeClausePrecedesTheDirectionWord() {
+        // Deliberate recall cost: anchoring extraction after the direction
+        // keyword means a payee phrased BEFORE it is missed, not guessed.
+        // There is intentionally no whole-message fallback — that fallback is
+        // exactly what let C3's leading disclaimer hijack the payee before.
+        let text = "Rs.450.00 to SWIGGY has been debited from a/c XX1234"
+        XCTAssertNil(AlertParser.parse(text: text, receivedAt: at(now)))
     }
 }
