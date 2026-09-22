@@ -21,7 +21,48 @@ enum CaptureNotifier {
 
     /// Notifies only when Hisab could NOT categorize the payee — precisely the
     /// memory-decay case this feature exists for.
-    static func considerNotifying(memo: PendingMemo, in ctx: ModelContext) {
+    ///
+    /// `async` because of the authorization check below, which is the only
+    /// reliable way to know whether a banner can be delivered at all.
+    static func considerNotifying(memo: PendingMemo, in ctx: ModelContext) async {
+        // P1: capture off means capture off, notifications included.
+        guard CapturePrefs.isEnabled else { return }
+
+        // P10: `add` does NOT report an error when authorization is denied —
+        // observed directly in task 10's fix round, against the opposite
+        // assumption. At `.denied` the request silently vanishes; at
+        // `.notDetermined` it can even turn up in `deliveredNotifications()`.
+        // So the completion-handler guard further down, though correct, closes
+        // nothing on its own: without this check a user who declined the
+        // prompt burns one of the day's ten slots and has the memo stamped
+        // `notifiedAt` for a banner that never existed.
+        //
+        // Deliberately `.authorized` only, not `.provisional`: nothing here
+        // ever requests provisional authorization (`requestAuthorization` asks
+        // for `[.alert, .sound, .badge]`), so treating it as a send would be
+        // untested speculation. If provisional is ever adopted, this is the
+        // line to revisit.
+        let status = await UNUserNotificationCenter.current()
+            .notificationSettings().authorizationStatus
+        guard status == .authorized else {
+            #if DEBUG
+            print("debug-notify: suppressed, authorizationStatus=\(status.rawValue)")
+            fflush(stdout)
+            #endif
+            return
+        }
+
+        // P7: `notifiedAt` is read here, which is what makes writing it
+        // legitimate. Today `MemoStore.insert`'s dedup means a memo reaching
+        // this function is always fresh, so the guard cannot fire — it is a
+        // standing guarantee for any future capture path that does not dedup,
+        // not a live check. A field written and never read is exactly how the
+        // 1.2 dismiss/mute bug survived a review.
+        if let stored = MemoStore.find(hash: memo.captureHash, in: ctx),
+           stored.notifiedAt != nil {
+            return
+        }
+
         let rules = Queries.categoryRules(ctx)
         let matcher = CategoryMatcher(rules: rules)
         let auto = matcher.category(for: memo.payee)
@@ -60,10 +101,20 @@ enum CaptureNotifier {
                                             content: content, trigger: trigger)
         let captureHash = memo.captureHash
         // Only a request the system actually ACCEPTED may spend the daily
-        // budget or stamp the memo. A user who declined the permission prompt
-        // fails here, and recording regardless would burn one of the day's ten
-        // slots and mark the memo notified for a banner that never existed —
-        // the app lying to itself about work it did not do.
+        // budget or stamp the memo — recording regardless would be the app
+        // lying to itself about work it did not do. CORRECTED (task 11a): the
+        // declined-permission case does NOT arrive here. Task 10's fix round
+        // observed `add` returning no error at `.denied`, which is why the
+        // authorization check at the top of this function exists. This guard
+        // covers a genuine scheduling refusal only, and no way has been found
+        // to provoke one on a simulator, so the branch stays unexercised.
+        //
+        // Kept in completion-handler form on purpose: `try await center.add`
+        // would fold the two writes below into straight-line code and make
+        // `--capture-notify-report`'s 750 ms wait unnecessary, which is a
+        // bigger change than this task was scoped for. The compiler's
+        // "consider using asynchronous alternative function" warning at this
+        // line is that suggestion, and is knowingly left standing.
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
                 // A1 exists because this failure is otherwise invisible: no

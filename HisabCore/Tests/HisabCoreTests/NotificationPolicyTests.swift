@@ -110,8 +110,12 @@ final class CategoryRankerTests: XCTestCase {
             record("Transport", "2026-09-20", .credit),
             record("Shopping", "2026-09-20"),
         ]
+        // AMENDED (task 11a): one real category plus the P2 seed top-up. What
+        // this test pins is unchanged — Shopping is the ONLY history-derived
+        // entry, and it leads. Without the window and credit filters the
+        // history part would read ["Food Delivery", "Shopping", "Transport"].
         XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
-                       ["Shopping"])
+                       ["Shopping", "Food Delivery", "Groceries"])
     }
 
     // AMENDED (controller): the two tests above cannot distinguish a correct
@@ -148,13 +152,65 @@ final class CategoryRankerTests: XCTestCase {
             SpendRecord(merchant: "m", amountPaise: 100, date: outside,
                         direction: .debit, effectiveCategory: "Shopping"),
         ]
+        // AMENDED (task 11a): trailing two entries are the P2 seed top-up. A
+        // window wide enough to admit the 91-day row would put Shopping first
+        // (count tie, alphabetical), so this still discriminates.
         XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
-                       ["Transport"],
+                       ["Transport", "Food Delivery", "Groceries"],
                        "89 days old is inside the window, 91 days old is outside")
     }
 
-    func testReturnsFewerThanLimitWhenNotEnoughHistory() {
+    // MARK: - P2: the buttons must never be empty for a capture-only user
+
+    // AMENDED (task 11a): this used to be `testReturnsFewerThanLimitWhenNotEnoughHistory`,
+    // asserting that empty history returns []. That behaviour was the P2 defect:
+    // `suggestionRecords` draws only from imported statements, so a user who
+    // relies on capture and has never imported got a Later-only notification
+    // forever. The expectation changed deliberately; the test was not bent to
+    // fit new code.
+
+    func testEmptyHistoryFallsBackToSeedCategories() {
         XCTAssertEqual(CategoryRanker.topCategories(records: [], now: day("2026-09-22"), limit: 3),
+                       ["Food Delivery", "Groceries", "Transport"],
+                       "a user who has never imported must still get three buttons")
+    }
+
+    func testPartialHistoryIsToppedUpWithoutBeingDisplacedOrDuplicated() {
+        // "Shopping" is both the only real history AND a seed category, so this
+        // pins two things at once: history keeps first place, and the top-up
+        // does not offer the same category twice.
+        let now = day("2026-09-22")
+        let records = [record("Shopping", "2026-09-20")]
+        XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
+                       ["Shopping", "Food Delivery", "Groceries"])
+    }
+
+    func testFullHistoryIsUntouchedByTheFallback() {
+        // Three real categories fill the limit, so no seed category may appear
+        // — the fallback must not reorder or dilute a user who has history.
+        let now = day("2026-09-22")
+        let records = [
+            record("Rent", "2026-09-20"), record("Rent", "2026-09-19"),
+            record("Tuition", "2026-09-20"), record("Tuition", "2026-09-19"),
+            record("Gifts", "2026-09-20"),
+        ]
+        XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
+                       ["Rent", "Tuition", "Gifts"])
+    }
+
+    func testFallbackNeverOffersTheThreeNonAnswers() {
+        let all = CategoryRanker.topCategories(records: [], now: day("2026-09-22"), limit: 50)
+        XCTAssertFalse(all.contains(Categorizer.uncategorized))
+        XCTAssertFalse(all.contains(Categorizer.miscellaneous))
+        XCTAssertFalse(all.contains(Categorizer.selfTransfer))
+        XCTAssertEqual(Set(all).count, all.count, "no duplicates")
+        XCTAssertFalse(all.isEmpty)
+    }
+
+    func testAZeroLimitAsksForNothingAndGetsNothing() {
+        // `prefix(limit)` traps on a negative length and the top-up loop would
+        // otherwise be the only guard.
+        XCTAssertEqual(CategoryRanker.topCategories(records: [], now: day("2026-09-22"), limit: 0),
                        [])
     }
 }

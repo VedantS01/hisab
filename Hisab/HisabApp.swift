@@ -135,6 +135,11 @@ struct RootView: View {
             // Settings with task 11, so there is otherwise no way to reach the
             // launch-time authorization request below.
             if args.contains("--capture-enable") { CapturePrefs.isEnabled = true }
+            // The other half of the pair, and the only way to observe P1: the
+            // flag lives in UserDefaults and survives a reinstall-free relaunch,
+            // so a run that wants capture OFF has to say so rather than assume
+            // the default still holds.
+            if args.contains("--capture-disable") { CapturePrefs.isEnabled = false }
             #endif
             // Authorization is requested when the user turns capture ON (task
             // 11's Settings toggle) and again here whenever capture is already
@@ -190,8 +195,7 @@ struct RootView: View {
                 let intent = AddTransactionAlertIntent()
                 intent.text = args[index + 1]
                 _ = try? await intent.perform()
-                let memos = MemoStore.all(context).sorted { $0.captureHash < $1.captureHash }
-                print("debug-capture: memos=\(memos.count) hashes=\(memos.map(\.captureHash)) categories=\(memos.map { $0.assignedCategory ?? "nil" })")
+                printCaptureState()
                 // simctl's --console-pipe attaches to the app's real stdout, which is
                 // fully-buffered (not line-buffered) once it's a pipe rather than a
                 // tty; without an explicit flush the line above sits in libc's buffer
@@ -209,8 +213,7 @@ struct RootView: View {
                 if let target = MemoStore.pending(context).first {
                     MemoStore.assign(category: args[index + 1], to: target, in: context)
                 }
-                let memos = MemoStore.all(context).sorted { $0.captureHash < $1.captureHash }
-                print("debug-capture: memos=\(memos.count) hashes=\(memos.map(\.captureHash)) categories=\(memos.map { $0.assignedCategory ?? "nil" })")
+                printCaptureState()
                 fflush(stdout)
             }
             // Simulator-only: reports what the notification system actually did.
@@ -244,6 +247,25 @@ struct RootView: View {
     }
 
     #if DEBUG
+    /// The store and the two health timestamps in one line.
+    ///
+    /// `enabled` and `lastAttemptAt` are what prove P1: with capture off the
+    /// memo count must NOT move while `lastAttemptAt` must, because an alert
+    /// that arrived and was refused is still an arrival. Printing them together
+    /// with the memo list makes the two observations one reading rather than
+    /// two that could have come from different launches.
+    private func printCaptureState() {
+        let memos = MemoStore.all(context).sorted { $0.captureHash < $1.captureHash }
+        func stamp(_ date: Date?) -> String {
+            date.map { String(format: "%.2f", $0.timeIntervalSince1970) } ?? "nil"
+        }
+        print("debug-capture: enabled=\(CapturePrefs.isEnabled) "
+            + "memos=\(memos.count) hashes=\(memos.map(\.captureHash)) "
+            + "categories=\(memos.map { $0.assignedCategory ?? "nil" }) "
+            + "lastAttemptAt=\(stamp(CapturePrefs.lastAttemptAt)) "
+            + "lastCaptureAt=\(stamp(CapturePrefs.lastCaptureAt))")
+    }
+
     private func printNotificationReport() async {
         // The cap and `notifiedAt` are now written from `add`'s completion
         // handler, which lands asynchronously. Without this wait the report can

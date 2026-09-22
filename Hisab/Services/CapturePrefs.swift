@@ -5,6 +5,7 @@ import HisabCore
 enum CapturePrefs {
     private static let enabledKey = "capture.enabled"
     private static let lastCaptureKey = "capture.lastCaptureAt"
+    private static let lastAttemptKey = "capture.lastAttemptAt"
     private static let notifyCountKey = "capture.notifyCount"
     private static let notifyDayKey = "capture.notifyDay"
 
@@ -14,9 +15,25 @@ enum CapturePrefs {
         set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
     }
 
+    /// The last time an alert was PARSED successfully.
     static var lastCaptureAt: Date? {
         get { UserDefaults.standard.object(forKey: lastCaptureKey) as? Date }
         set { UserDefaults.standard.set(newValue, forKey: lastCaptureKey) }
+    }
+
+    /// The last time an alert ARRIVED, whatever became of it — including one
+    /// that arrived while capture was switched off, and one the parser could
+    /// make nothing of.
+    ///
+    /// Health needs both timestamps because one cannot tell "the automation
+    /// never fired" from "the automation fires but every parse fails", and
+    /// those need opposite remediations: re-check your Shortcuts automation,
+    /// versus nothing you can do, wait for an update. A warning that
+    /// confidently sends the user to fix a working automation is worse than no
+    /// warning.
+    static var lastAttemptAt: Date? {
+        get { UserDefaults.standard.object(forKey: lastAttemptKey) as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: lastAttemptKey) }
     }
 
     /// Notifications sent today, so a heavy UPI day cannot spam. Resets when
