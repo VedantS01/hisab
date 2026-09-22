@@ -211,6 +211,55 @@ struct RuleEditorSheet: View {
     @State private var pattern = ""
     @State private var category = ""
 
+    /// Names Hisab assigns on its own, which a rule may therefore not hand
+    /// out. Two of them mean "nothing claimed this row" and the third is
+    /// decided by reconciliation before any rule is consulted, so a rule
+    /// pointing at one either says nothing or cannot take effect.
+    ///
+    /// Blocking them here is also what keeps `RuleImpact.affectedCount`
+    /// honest. That count compares matcher verdicts before and after the
+    /// proposed rule, which is exact by construction — except when the
+    /// proposed category is literally `Miscellaneous`: a bank row that
+    /// matches nothing goes from the verdict `Uncategorized` to the verdict
+    /// `Miscellaneous` and is counted, while `Queries.effectiveCategory`
+    /// already DISPLAYS a bank row's `Uncategorized` as `Miscellaneous`, so
+    /// nothing the user can see changes. The promise "this will also update N
+    /// past transactions" is then one too high. The core is right to compare
+    /// verdicts; this free-text field was the only way to reach the case, and
+    /// removing the input is cheaper and safer than reopening a core that is
+    /// pinned to its Dart twin by shared fixtures.
+    ///
+    /// `NeedsReview`'s and the notification's category lists never contained
+    /// these three (`CategoryRanker` excludes them), so this is the last door.
+    private static let reservedCategories = [
+        Categorizer.uncategorized, Categorizer.miscellaneous, Categorizer.selfTransfer,
+    ]
+
+    private var trimmedPattern: String {
+        pattern.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedCategory: String {
+        category.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Why Save is disabled, or nil when it is not.
+    private var validationMessage: String? {
+        if trimmedPattern.isEmpty {
+            // `pattern.isEmpty` alone let a single space through, and
+            // `CategoryMatcher` finds " " inside very nearly every narration:
+            // one rule, every transaction.
+            return "Enter some text to match. A blank pattern would match every transaction."
+        }
+        if trimmedCategory.isEmpty { return "Enter a category name." }
+        if let reserved = Self.reservedCategories.first(where: {
+            $0.caseInsensitiveCompare(trimmedCategory) == .orderedSame
+        }) {
+            return "“\(reserved)” is a name Hisab assigns on its own — choose a category of your own."
+        }
+        return nil
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -230,23 +279,39 @@ struct RuleEditorSheet: View {
                         .font(.subheadline)
                     }
                 }
+                // Held back until the user has typed something: a "New rule"
+                // sheet that opens already complaining is scolding them for
+                // not having started.
+                if let validationMessage, !pattern.isEmpty || !category.isEmpty {
+                    Section {
+                        Text(validationMessage)
+                            .font(.footnote)
+                            .foregroundStyle(HisabTheme.khataRed)
+                            .accessibilityIdentifier("rule-editor-validation")
+                    }
+                }
             }
             .navigationTitle(rule == nil ? "New rule" : "Edit rule")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        // The trimmed values are what was validated, so they
+                        // are what is stored: saving the raw text would let a
+                        // rule match on leading or trailing whitespace the
+                        // user cannot see in the rule list.
                         if let rule {
-                            rule.pattern = pattern
-                            rule.category = category
+                            rule.pattern = trimmedPattern
+                            rule.category = trimmedCategory
                         } else {
-                            context.insert(StoredCategoryRule(pattern: pattern, category: category,
+                            context.insert(StoredCategoryRule(pattern: trimmedPattern,
+                                                              category: trimmedCategory,
                                                               sortOrder: nextOrder))
                         }
                         try? context.save()
                         dismiss()
                     }
-                    .disabled(pattern.isEmpty || category.isEmpty)
+                    .disabled(validationMessage != nil)
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
