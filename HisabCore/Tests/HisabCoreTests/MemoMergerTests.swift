@@ -191,4 +191,11 @@ final class MemoMergerTests: XCTestCase {
                                            narration: "ZEPTO MARKETPLACE")
         XCTAssertTrue(MemoMerger.merge(memos: [m], candidates: [candidate]).isEmpty)
     }
+
+    func testTokensKeepsCombiningMarksAttached() {
+        // राम = र + ा (combining vowel sign, U+093E) + म: two extended
+        // grapheme clusters ("रा", "म"), both letters, so they concatenate
+        // into one token rather than splitting at the combining mark.
+        XCTAssertEqual(MemoMerger.tokens(of: "राम KIRANA"), ["राम", "kirana"])
+    }
 }

@@ -198,6 +198,48 @@ void main() {
       expect(withoutVPA.ruleKey,
           RuleKey(pattern: 'blue tokai', kind: RuleKeyKind.merchant));
     });
+
+    test('PendingMemo value equality over stored fields', () {
+      // P3 fix: Swift's PendingMemo is Equatable (synthesized over stored
+      // properties only); the Dart twin had no ==/hashCode and fell back to
+      // reference identity. Two memos with identical stored fields must be
+      // ==; changing `note` alone (a stored field excluded from every
+      // computed property) must make them unequal.
+      final a = PendingMemo(
+        amountPaise: 45000,
+        direction: Direction.debit,
+        payee: 'SWIGGY',
+        vpa: 'swiggy@icici',
+        accountTail: '1234',
+        date: _at('2026-09-22 09:15'),
+        capturedAt: _at('2026-09-22 09:15'),
+        note: 'lunch',
+      );
+      final b = PendingMemo(
+        amountPaise: 45000,
+        direction: Direction.debit,
+        payee: 'SWIGGY',
+        vpa: 'swiggy@icici',
+        accountTail: '1234',
+        date: _at('2026-09-22 09:15'),
+        capturedAt: _at('2026-09-22 09:15'),
+        note: 'lunch',
+      );
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+
+      final differentNote = PendingMemo(
+        amountPaise: 45000,
+        direction: Direction.debit,
+        payee: 'SWIGGY',
+        vpa: 'swiggy@icici',
+        accountTail: '1234',
+        date: _at('2026-09-22 09:15'),
+        capturedAt: _at('2026-09-22 09:15'),
+        note: 'dinner',
+      );
+      expect(a, isNot(differentNote));
+    });
   });
 
   group('AlertParser', () {
@@ -641,6 +683,14 @@ void main() {
         narration: 'ZEPTO MARKETPLACE',
       );
       expect(MemoMerger.merge(memos: [m], candidates: [candidate]), isEmpty);
+    });
+
+    test('testTokensKeepsCombiningMarksAttached', () {
+      // Swift twin: MemoMergerTests.testTokensKeepsCombiningMarksAttached.
+      // राम = र + ा (combining vowel sign, U+093E) + म: two extended
+      // grapheme clusters ("रा", "म") in Swift, both letters, so they
+      // concatenate into one token instead of splitting at the mark.
+      expect(MemoMerger.tokens('राम KIRANA'), {'राम', 'kirana'});
     });
   });
 }

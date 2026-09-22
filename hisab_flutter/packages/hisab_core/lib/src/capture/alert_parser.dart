@@ -145,15 +145,25 @@ class AlertParser {
   }
 
   static bool _isWhitespaceChar(String ch) => RegExp(r'\s').hasMatch(ch);
-  static bool _isDigitChar(String ch) => RegExp(r'[0-9]').hasMatch(ch);
+  // Unicode-aware to match Swift's `Character.isNumber`, which accepts
+  // Devanagari digits and other non-ASCII numerals, not just 0-9.
+  static bool _isDigitChar(String ch) => RegExp(r'\p{N}', unicode: true).hasMatch(ch);
 
   /// Cuts the tail at the first terminator character, then at the first stop
   /// token. Tokenising before comparing is the whole point: a stop token only
   /// ends a payee when it stands alone as a word.
+  ///
+  /// Iterates `tail.runes` (Unicode code points), not `tail.split('')` (UTF-16
+  /// code units): the latter tears a surrogate pair in half. Swift iterates
+  /// `Character` (grapheme clusters); code points are not full parity with
+  /// that for combining marks, but they fix the surrogate-pair defect and
+  /// keep marks attached to their base letter, matching Swift for every
+  /// realistic bank/UPI narration.
   static String? _trimToPayee(String tail) {
     final words = <String>[];
     final current = StringBuffer();
-    for (final ch in tail.split('')) {
+    for (final rune in tail.runes) {
+      final ch = String.fromCharCode(rune);
       if (_payeeTerminators.contains(ch)) break;
       if (_isWhitespaceChar(ch)) {
         if (current.isNotEmpty) {
@@ -173,7 +183,10 @@ class AlertParser {
       if (_payeeStopTokens.contains(token)) break;
       if (_contextualStopTokens.contains(token)) {
         final next = index + 1 < words.length ? words[index + 1] : '';
-        if (next.isNotEmpty && _isDigitChar(next[0])) break;
+        if (next.isNotEmpty &&
+            _isDigitChar(String.fromCharCode(next.runes.first))) {
+          break;
+        }
       }
       kept.add(word);
     }

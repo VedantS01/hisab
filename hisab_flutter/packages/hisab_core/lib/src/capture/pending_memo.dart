@@ -66,6 +66,25 @@ class PendingMemo {
     this.note,
   }) : vpa = vpa?.toLowerCase();
 
+  /// Value equality over stored fields only, matching Swift's synthesized
+  /// `Equatable` conformance — the computed properties (`payeeNormalized`,
+  /// `captureHash`, `ruleKey`) are derived and deliberately excluded.
+  @override
+  bool operator ==(Object other) =>
+      other is PendingMemo &&
+      other.amountPaise == amountPaise &&
+      other.direction == direction &&
+      other.payee == payee &&
+      other.vpa == vpa &&
+      other.accountTail == accountTail &&
+      other.date == date &&
+      other.capturedAt == capturedAt &&
+      other.note == note;
+
+  @override
+  int get hashCode => Object.hash(
+      amountPaise, direction, payee, vpa, accountTail, date, capturedAt, note);
+
   /// Cluster key shared with the suggestion engine so a rule written here
   /// matches patterns the rule store already contains.
   String get payeeNormalized => SuggestionEngine.normalize(payee);

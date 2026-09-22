@@ -112,8 +112,19 @@ class MemoMerger {
   /// VPA like `9876543210@ybl` would otherwise reduce to `{ybl}`, a subset of
   /// nearly every UPI narration, making the VPA gate a match on the bank
   /// handle alone.
+  ///
+  /// Combining marks (`\p{M}`) are kept alongside letters and numbers
+  /// deliberately: Swift iterates extended grapheme clusters, so a
+  /// Devanagari vowel sign or a decomposed Latin accent stays attached to
+  /// its base letter and the cluster survives as one token. Dart has no
+  /// grapheme-cluster iteration without a `characters` dependency, but a
+  /// combining mark's own code point is category Mn/Mc — neither letter nor
+  /// number — so without `\p{M}` it would become a separator and split the
+  /// cluster in two. Keeping the mark reproduces Swift's behaviour: it never
+  /// starts a token by itself in practice because bank/UPI narrations never
+  /// open with a bare combining mark.
   static Set<String> tokens(String text) {
-    final alnum = RegExp(r'[\p{L}\p{N}]', unicode: true);
+    final alnum = RegExp(r'[\p{L}\p{N}\p{M}]', unicode: true);
     final buffer = StringBuffer();
     for (final rune in text.toLowerCase().runes) {
       final ch = String.fromCharCode(rune);
