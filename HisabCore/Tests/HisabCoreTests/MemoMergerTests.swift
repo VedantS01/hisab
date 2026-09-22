@@ -212,6 +212,24 @@ final class MemoMergerTests: XCTestCase {
         XCTAssertEqual(merged[m.captureHash], candidate.id)
     }
 
+    func testAMalformedVPAWithNoHandleStillMergesViaTheVPAGate() {
+        // Fix round 2: this does NOT test the handle-comparison guard --
+        // it was originally written to (and named for) that, but the VPA
+        // gate above the guard already returns true here: for a trailing
+        // "@" VPA, `tokens(of:)` strips "@" as a separator, so `vpaTokens`
+        // reduces to exactly {"someperson"}, which is trivially a subset of
+        // a narration containing "someperson". The guard is provably
+        // unreachable on this input (see the comment at the guard itself).
+        // What this test actually pins is that a malformed, handle-less VPA
+        // still merges normally through the ordinary VPA-subset path.
+        let m = memo(45_000, "SOMEPERSON SHOP", "someperson@", "2026-09-20")
+        let candidate = MemoMergeCandidate(id: UUID(), date: day("2026-09-21"),
+                                           amountPaise: 45_000, direction: .debit,
+                                           narration: "SOMEPERSON SHOP PAYMENT")
+        let merged = MemoMerger.merge(memos: [m], candidates: [candidate])
+        XCTAssertEqual(merged[m.captureHash], candidate.id)
+    }
+
     func testDoesNotMergeOnDirectionMismatch() {
         let m = memo(45_000, "ZEPTO", nil, "2026-09-22")
         let candidate = MemoMergeCandidate(id: UUID(), date: day("2026-09-22"),

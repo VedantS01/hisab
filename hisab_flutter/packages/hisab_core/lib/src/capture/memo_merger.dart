@@ -172,11 +172,32 @@ class MemoMerger {
     // same UPI provider, which is the common case in India, not the edge
     // case. Bank narrations that name the payee and omit the VPA entirely
     // (no handle to collide with) are unaffected.
+    //
+    // The handle is deliberately the substring after the LAST "@", or ""
+    // when there is none, computed the same way as the Swift twin -- an
+    // empty handle can never equal a non-empty payee token (`first` is
+    // always non-empty here), so this keeps the guard's behaviour
+    // otherwise unchanged; it exists only so this function computes
+    // exactly what the Swift core computes.
+    //
+    // Deliberately untested: this line is unreachable through `_matches`
+    // today. `tokens()` strips "@" as a separator, so for a trailing-"@"
+    // VPA, `vpaTokens` above reduces to exactly `{localPart}`. Reaching
+    // this guard requires the VPA-subset check to have failed, i.e.
+    // `localPart` absent from `narrationTokens` -- but that is the same
+    // condition under which `narrationTokens.contains(first)` below is
+    // also false (since `first == localPart` is required to hit this guard
+    // at all). The two predicates collapse into one, so no observable
+    // outcome depends on how `handle` is computed here, and no test can be
+    // written that would fail without this fix. It is still made
+    // bit-for-bit identical to the Swift port on principle: the collapse
+    // depends on the VPA-subset check sitting before this guard and on
+    // `tokens()` stripping "@", and if either ever changes this line would
+    // go live with nothing to catch a divergence.
     if (vpa != null) {
       final atIndex = vpa.lastIndexOf('@');
-      if (atIndex != -1 && first == vpa.substring(atIndex + 1)) {
-        return false;
-      }
+      final handle = atIndex == -1 ? '' : vpa.substring(atIndex + 1);
+      if (first == handle) return false;
     }
 
     return narrationTokens.contains(first);

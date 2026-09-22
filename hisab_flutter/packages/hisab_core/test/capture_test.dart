@@ -714,6 +714,28 @@ void main() {
       expect(merged[m.captureHash], candidate.id);
     });
 
+    test('testAMalformedVPAWithNoHandleStillMergesViaTheVPAGate', () {
+      // Fix round 2: this does NOT test the handle-comparison guard -- it
+      // was originally written to (and named for) that, but the VPA gate
+      // above the guard already returns true here: for a trailing "@" VPA,
+      // tokens() strips "@" as a separator, so vpaTokens reduces to exactly
+      // {"someperson"}, which is trivially a subset of a narration
+      // containing "someperson". The guard is provably unreachable on this
+      // input (see the comment at the guard itself, in memo_merger.dart).
+      // What this test actually pins is that a malformed, handle-less VPA
+      // still merges normally through the ordinary VPA-subset path.
+      final m = memo(45000, 'SOMEPERSON SHOP', 'someperson@', '2026-09-20');
+      final candidate = MemoMergeCandidate(
+        id: _newId(),
+        date: _day('2026-09-21'),
+        amountPaise: 45000,
+        direction: Direction.debit,
+        narration: 'SOMEPERSON SHOP PAYMENT',
+      );
+      final merged = MemoMerger.merge(memos: [m], candidates: [candidate]);
+      expect(merged[m.captureHash], candidate.id);
+    });
+
     test('testDoesNotMergeOnDirectionMismatch', () {
       final m = memo(45000, 'ZEPTO', null, '2026-09-22');
       final candidate = MemoMergeCandidate(
