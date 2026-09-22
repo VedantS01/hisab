@@ -2,6 +2,9 @@ import Foundation
 import SwiftData
 import UserNotifications
 import HisabCore
+#if DEBUG
+import Darwin
+#endif
 
 @MainActor
 enum CaptureNotifier {
@@ -55,23 +58,52 @@ enum CaptureNotifier {
 
         let request = UNNotificationRequest(identifier: memo.captureHash,
                                             content: content, trigger: trigger)
-        UNUserNotificationCenter.current().add(request)
-        // KNOWN LIMITATION, recorded deliberately and NOT fixed here: the send
-        // is recorded against `now` — the day the notification was *scheduled* —
-        // even when the quiet-hours branch held it until tomorrow morning. Ten
-        // memos held after 22:00 therefore spend Monday's budget, are delivered
-        // Tuesday at 08:00, and Tuesday's fresh budget allows ten more: twenty
-        // banners in one morning, the outcome the cap exists to prevent. The
-        // clean fix is to check and record against the DELIVERY day, but the cap
-        // is checked inside NotificationPolicy.decide before a delivery date
-        // exists, so the fix is circular and would reopen the core closed in
-        // task 9. Reaching it needs ten uncategorizable payments between 22:00
-        // and 08:00; dogfooding will show whether that happens in practice.
-        CapturePrefs.recordNotification(now: now)
+        let captureHash = memo.captureHash
+        // Only a request the system actually ACCEPTED may spend the daily
+        // budget or stamp the memo. A user who declined the permission prompt
+        // fails here, and recording regardless would burn one of the day's ten
+        // slots and mark the memo notified for a banner that never existed —
+        // the app lying to itself about work it did not do.
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                // A1 exists because this failure is otherwise invisible: no
+                // error at the call site, no banner, and no clue which.
+                #if DEBUG
+                print("debug-notify: add FAILED for \(captureHash): "
+                    + "\(error.localizedDescription)")
+                fflush(stdout)
+                #endif
+                return
+            }
+            // The completion arrives on an arbitrary queue; the prefs write and
+            // the SwiftData write both belong to the main actor.
+            Task { @MainActor in
+                // KNOWN LIMITATION, recorded deliberately and NOT fixed here: the send
+                // is recorded against `now` — the day the notification was *scheduled* —
+                // even when the quiet-hours branch held it until tomorrow morning. Ten
+                // memos held after 22:00 therefore spend Monday's budget, are delivered
+                // Tuesday at 08:00, and Tuesday's fresh budget allows ten more: twenty
+                // banners in one morning, the outcome the cap exists to prevent. The
+                // clean fix is to check and record against the DELIVERY day, but the cap
+                // is checked inside NotificationPolicy.decide before a delivery date
+                // exists, so the fix is circular and would reopen the core closed in
+                // task 9. Reaching it needs ten uncategorizable payments between 22:00
+                // and 08:00; dogfooding will show whether that happens in practice.
+                CapturePrefs.recordNotification(now: now)
 
-        if let stored = MemoStore.find(hash: memo.captureHash, in: ctx) {
-            stored.notifiedAt = now
-            try? ctx.save()
+                // NOT the `ctx` parameter: it is a non-Sendable ModelContext,
+                // and capturing it in this '@Sendable' completion handler is an
+                // error under Swift 6 ("sending 'ctx' risks causing data
+                // races"). `HisabContainer.shared` is the process's only
+                // container and `mainContext` is the very context every
+                // @MainActor caller passes in, so re-reading it here is the
+                // same object without the capture.
+                let ctx = HisabContainer.shared.mainContext
+                if let stored = MemoStore.find(hash: captureHash, in: ctx) {
+                    stored.notifiedAt = now
+                    try? ctx.save()
+                }
+            }
         }
     }
 

@@ -69,6 +69,11 @@ final class CaptureNotificationDelegate: NSObject, UNUserNotificationCenterDeleg
         let actionID = response.actionIdentifier
         let hash = response.notification.request.content.userInfo["captureHash"] as? String
         let router = self.router
+        // `nonisolated(unsafe)` is sound here specifically because UN delegate
+        // callbacks arrive on the main thread and the `Task { @MainActor }`
+        // below resumes there too: the closure is created and invoked on the
+        // same thread, so nothing non-Sendable actually crosses a boundary.
+        // Do not copy this opt-out anywhere that is not true.
         nonisolated(unsafe) let finish = completionHandler
         Task { @MainActor in
             CaptureNotifier.respond(actionID: actionID, captureHash: hash,
@@ -98,6 +103,15 @@ struct RootView: View {
     }
 
     var body: some View {
+        // Read in `body` itself, not inside the sheet's `Binding` getter. The
+        // getter is a closure SwiftUI happens to evaluate inside its
+        // observation scope, so presentation would rest on that; reading here
+        // puts the router's properties in this view's dependency set directly,
+        // leaving no mechanism by which a change could fail to re-render.
+        // (The neighbouring suggestion sheet uses the same `Binding` shape but
+        // is backed by `@State`, where any mutation invalidates the view
+        // regardless of what `body` read. It is not precedent for this case.)
+        let routed = isRouted
         TabView(selection: $selectedTab) {
             Tab("Dashboard", systemImage: "chart.bar.doc.horizontal", value: "dashboard") {
                 DashboardView()
@@ -221,7 +235,7 @@ struct RootView: View {
             SuggestionPrompt(suggestion: item.suggestion)
         }
         .sheet(isPresented: Binding(
-            get: { isRouted },
+            get: { routed },
             set: { if !$0 { router.clear() } }
         )) {
             CaptureRouteSheet(memoHash: router.pendingMemoHash,
@@ -231,6 +245,12 @@ struct RootView: View {
 
     #if DEBUG
     private func printNotificationReport() async {
+        // The cap and `notifiedAt` are now written from `add`'s completion
+        // handler, which lands asynchronously. Without this wait the report can
+        // read the store before a SUCCESSFUL send has been recorded and make a
+        // working send look like a suppressed one — the exact confusion this
+        // harness exists to remove.
+        try? await Task.sleep(for: .milliseconds(750))
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         let pending = await center.pendingNotificationRequests()
@@ -239,8 +259,18 @@ struct RootView: View {
         func describe(_ content: UNNotificationContent, id: String) -> String {
             "\(id)|\(content.title)|\(content.body)|\(content.categoryIdentifier)"
         }
+        // `sentToday` and `notifiedAt` are what prove the negative case: when
+        // the add fails (permission declined), neither the daily cap nor the
+        // memo may record a banner that was never shown.
+        let memos = MemoStore.all(context).sorted { $0.captureHash < $1.captureHash }
+        let notifiedAt = memos.map { memo in
+            memo.notifiedAt.map { "\(memo.captureHash.prefix(8))=\($0.timeIntervalSince1970)" }
+                ?? "\(memo.captureHash.prefix(8))=nil"
+        }
         print("debug-notify: auth=\(settings.authorizationStatus.rawValue) "
             + "alert=\(settings.alertSetting.rawValue) "
+            + "sentToday=\(CapturePrefs.notificationsSentToday(now: Date())) "
+            + "notifiedAt=\(notifiedAt) "
             + "pending=\(pending.map { describe($0.content, id: $0.identifier) }) "
             + "delivered=\(delivered.map { describe($0.request.content, id: $0.request.identifier) }) "
             + "registered=\(categories.map { cat in "\(cat.identifier)->\(cat.actions.map(\.identifier))" })")
@@ -255,6 +285,13 @@ struct RootView: View {
 /// exists now because router state that nothing renders is precisely the
 /// write-only bug this task is meant to avoid, and because this task's own
 /// verification has nothing to observe without a reader.
+///
+/// Deliberately NOT wrapped in `#if DEBUG`: until task 11 lands, a release
+/// build still needs *something* to render the route, and a router nothing
+/// renders is the worse failure. The deprecation is a compile-time tripwire
+/// instead — every use site warns until this type is deleted.
+@available(*, deprecated,
+            message: "Interim scaffold — Task 11 must delete this and route to MemoReviewSheet")
 struct CaptureRouteSheet: View {
     let memoHash: String?
     let txnUUID: UUID?

@@ -18,11 +18,17 @@ final class DeepLinkRouter {
         guard url.scheme == "hisab" else { return }
         let value = url.lastPathComponent
         switch url.host {
+        // Each branch clears the sibling field: this type's whole job is to say
+        // where the UI should go, and a second link arriving with no
+        // intervening dismiss (which would have run `clear()`) must not leave
+        // it saying two things at once.
         case "memo":
             pendingMemoHash = value.isEmpty ? nil : value
+            pendingTxnUUID = nil
             showNeedsReview = value.isEmpty
         case "transaction":
             pendingTxnUUID = UUID(uuidString: value)
+            pendingMemoHash = nil
             showNeedsReview = pendingTxnUUID == nil
         default:
             showNeedsReview = true
