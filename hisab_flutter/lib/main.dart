@@ -1,4 +1,5 @@
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:hisab_core/hisab_core.dart';
@@ -10,9 +11,11 @@ import 'screens/dashboard_screen.dart';
 import 'screens/reconciliation_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/transactions_screen.dart';
+import 'services/capture_prefs.dart';
 import 'services/demo_data.dart';
 import 'services/import_service.dart';
 import 'services/insight_store.dart';
+import 'services/notification_capture.dart';
 import 'services/queries.dart';
 import 'state.dart';
 import 'storage/database.dart';
@@ -53,6 +56,23 @@ Future<void> main() async {
   if (seedDemo) {
     final docs = await db.select(db.storedDocuments).get();
     if (docs.isEmpty) await DemoData.load(state.importService);
+  }
+
+  // Dev harness, the twin of iOS's `--capture-enable` launch argument:
+  // flutter run --dart-define=CAPTURE_ENABLE=true switches capture on without
+  // the settings toggle, which is Task 16's.
+  if (const bool.fromEnvironment('CAPTURE_ENABLE')) {
+    await CapturePrefs.setEnabled(true);
+  }
+
+  // Android capture. Gated on the enable flag here as well as inside the
+  // handler, so an off toggle means an unsubscribed stream rather than a
+  // handler that silently drops everything. `start` is a no-op elsewhere
+  // because the plugin is Android-only.
+  if (!kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android &&
+      await CapturePrefs.isEnabled()) {
+    await NotificationCapture.start(db: db);
   }
 
   runApp(AppScope(state: state, child: const HisabApp()));

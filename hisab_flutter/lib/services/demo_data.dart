@@ -168,11 +168,24 @@ class DemoData {
         .subtract(istOffset);
   }
 
+  /// Every table, not just the five this app shipped with.
+  ///
+  /// `stored_pending_memos` was missed when capture added it, and a pending
+  /// memo is exactly the kind of row an erase is for: it carries the payee,
+  /// the amount and the date of a payment, and it is the only copy of them
+  /// until a statement is imported. Anyone adding a table must add it here
+  /// too; there is no cascade and no reflection over the schema doing it for
+  /// them.
+  ///
+  /// The capture-related *preferences* are cleared separately by the caller
+  /// (`CapturePrefs.clearCapturedData`), because they live in
+  /// SharedPreferences rather than in this database.
   static Future<void> eraseAll(AppDatabase db) async {
     await db.delete(db.storedMatches).go();
     await db.delete(db.storedTransactions).go();
     await db.delete(db.storedDocuments).go();
     await db.delete(db.storedCategoryRules).go();
     await db.delete(db.pinnedMonths).go();
+    await db.delete(db.storedPendingMemos).go();
   }
 }

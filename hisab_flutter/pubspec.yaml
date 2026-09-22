@@ -26,6 +26,10 @@ dependencies:
   # Files & intents (no network involved)
   file_picker: ^8.1.6
   url_launcher: ^6.3.1
+  # Capture (Android only). Declares no Android permissions of its own — not
+  # INTERNET, and never READ_SMS, which Play would make the app unpublishable
+  # for. The app declares the listener service itself.
+  notification_listener_service: ^1.0.0
 
 dev_dependencies:
   flutter_test:
@@ -47,3 +51,4 @@ flutter:
     - assets/rulesets/
     - assets/insights/
     - assets/demo/
+    - assets/capture/

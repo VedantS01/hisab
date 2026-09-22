@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart' show Suppressions;
 
+import '../services/capture_prefs.dart';
 import '../services/demo_data.dart';
 import '../services/insight_store.dart';
 import '../services/queries.dart';
@@ -51,7 +52,7 @@ class SettingsScreen extends StatelessWidget {
                           builder: (context) => AlertDialog(
                             title: const Text('Erase everything?'),
                             content: const Text(
-                                'All imported statements, transactions, and rules will be removed from this device.'),
+                                'All imported statements, transactions, captured memos, and rules will be removed from this device.'),
                             actions: [
                               TextButton(
                                   onPressed: () =>
@@ -72,6 +73,13 @@ class SettingsScreen extends StatelessWidget {
                           // key; surviving an erase would silently hide cards
                           // about data the user no longer has.
                           await InsightStore.clearAll();
+                          // Same reason, one layer over: the capture health
+                          // timestamps — and, once Task 16 lands, a pending
+                          // rule offer naming a payee — are things Hisab
+                          // learned from the user's alerts, and they live in
+                          // SharedPreferences where eraseAll cannot reach
+                          // them.
+                          await CapturePrefs.clearCapturedData();
                           state.suppressions = const Suppressions();
                           await Queries.categoryRules(state.db, state.ruleset);
                         }

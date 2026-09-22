@@ -72,6 +72,34 @@ class CapturePrefs {
     await prefs.setInt(notifyCountKey, count);
   }
 
+  /// Everything capture has learned about the user, for "Erase all data".
+  ///
+  /// Written as a PREFIX sweep rather than a list of the keys that exist
+  /// today, deliberately. The same bug has already been shipped twice in this
+  /// area — insight suppressions survived an erase and went on hiding cards
+  /// about data the user no longer had, and `stored_pending_memos` was missed
+  /// when the table was added — and both had the same cause: an erase path
+  /// enumerating what existed when it was written. The one key still to come
+  /// here is `capture.pendingRuleOffer` (Task 16, the iOS twin is in
+  /// `CaptureNotifier`), which carries a capture hash and a category the user
+  /// chose for a named payee. A sweep collects it the day it lands.
+  ///
+  /// [enabledKey] is deliberately kept: it is a device setting the user chose,
+  /// not something Hisab learned about their spending, and silently switching
+  /// a feature off is not what "erase my data" asks for. Everything else under
+  /// `capture.` — both health timestamps, the notification counters — is
+  /// derived from captured alerts and goes.
+  static Future<void> clearCapturedData() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final key in prefs.getKeys()) {
+      if (key.startsWith(keyPrefix) && key != enabledKey) {
+        await prefs.remove(key);
+      }
+    }
+  }
+
+  static const keyPrefix = 'capture.';
+
   static Future<DateTime?> _readDate(String key) async {
     final prefs = await SharedPreferences.getInstance();
     final ms = prefs.getInt(key);
