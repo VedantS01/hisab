@@ -104,17 +104,21 @@ class _RootTabsState extends State<RootTabs> {
   /// still writing to.
   bool _presenting = false;
 
+  /// Set when a response arrives while [_pumpCaptureQueue] is already running,
+  /// so the loop goes round once more instead of leaving it sitting there.
+  bool _requeue = false;
+
   @override
   void initState() {
     super.initState();
-    CaptureRouter.reviewRequest.addListener(_onReviewRequest);
-    CaptureRouter.offerGeneration.addListener(_onOfferQueued);
+    CaptureRouter.reviewRequest.addListener(_onCaptureResponse);
+    CaptureRouter.offerGeneration.addListener(_onCaptureResponse);
   }
 
   @override
   void dispose() {
-    CaptureRouter.reviewRequest.removeListener(_onReviewRequest);
-    CaptureRouter.offerGeneration.removeListener(_onOfferQueued);
+    CaptureRouter.reviewRequest.removeListener(_onCaptureResponse);
+    CaptureRouter.offerGeneration.removeListener(_onCaptureResponse);
     super.dispose();
   }
 
@@ -124,58 +128,100 @@ class _RootTabsState extends State<RootTabs> {
     if (!_suggestionChecked) {
       _suggestionChecked = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        // Offers first: a category chosen from a notification button while
-        // Hisab was closed has already been applied, and the question it left
-        // behind is the durable value the whole feature exists to produce.
-        await _drainOffers();
+        // The FIRST pump is not optional, and not merely an optimisation over
+        // the listeners: `CaptureNotifier.init` replays a response that
+        // LAUNCHED the app, from `main`, before `runApp` — so on a cold launch
+        // `reviewRequest` already holds its hash by the time this widget
+        // exists, and `addListener` does not fire for a value a notifier
+        // already holds. On Android that is the COMMON case, because the
+        // capture listener has no background isolate and the app is usually
+        // not running when the user taps. Relying on the listener alone was
+        // exactly the bug: the value was written in `main` and read nowhere.
+        //
+        // Offers are drained in the same pass, and first among equals: a
+        // category chosen from a notification button while Hisab was closed
+        // has already been applied, and the question it left behind is the
+        // durable value the whole feature exists to produce.
+        await _pumpCaptureQueue();
         await _maybeSuggest();
       });
     }
   }
 
+  /// A notification response — a body tap, "Later", or a category button —
+  /// reached one of the two router notifiers.
+  void _onCaptureResponse() {
+    if (!mounted) return;
+    // Deferred to the end of the frame, because a notifier callback can land
+    // in the middle of one and a sheet may not be pushed during a build. The
+    // explicit `scheduleFrame` is what makes that safe: a response arriving
+    // while the app sits idle — which is every response, since nothing else
+    // is happening when a notification is tapped — would otherwise leave the
+    // callback waiting for a frame nothing has asked for.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _pumpCaptureQueue());
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  /// Presents everything a notification response has queued up, one sheet at
+  /// a time: memos to review first, then every pending rule offer. Each offer
+  /// sheet clears its own offer whichever button the user presses, and a
+  /// review request is taken out of the notifier as it is read, so this
+  /// terminates.
+  Future<void> _pumpCaptureQueue() async {
+    // Already running: it will pick up whatever has just arrived, because
+    // both queues are re-read at the top of every iteration. [_requeue]
+    // covers the one gap — an arrival after the last read and before the
+    // loop ends.
+    if (_presenting) {
+      _requeue = true;
+      return;
+    }
+    _presenting = true;
+    try {
+      do {
+        _requeue = false;
+        for (var guard = 0; guard < 20 && mounted; guard++) {
+          final hash = _takeReviewRequest();
+          if (hash != null) {
+            await _presentReview(hash);
+            continue;
+          }
+          final offers = await CaptureNotifier.pendingRuleOffers();
+          if (offers.isEmpty || !mounted) break;
+          await showQueuedRuleOffer(context, offers.first);
+          // Defensive: a sheet dismissed by a back gesture never runs its
+          // buttons, so clear the offer here too rather than looping forever.
+          await CaptureNotifier.clearOffer(offers.first.captureHash);
+        }
+      } while (_requeue && mounted);
+    } finally {
+      _presenting = false;
+    }
+  }
+
+  /// The hash of a memo waiting to be reviewed, or null.
+  ///
+  /// The notifier is cleared AS THE VALUE IS TAKEN, never left behind for a
+  /// sheet that is already up to find later: `ValueNotifier` does not notify
+  /// for a value equal to the one it holds, so a hash stranded here would
+  /// silently drop every subsequent tap on that same memo's notification —
+  /// permanently, for the life of the process.
+  String? _takeReviewRequest() {
+    final hash = CaptureRouter.reviewRequest.value;
+    if (hash != null) CaptureRouter.reviewRequest.value = null;
+    return hash;
+  }
+
   /// A notification body tap, or "Later": open the memo. An empty hash means
   /// the notification carried no payload — land on the inbox rather than on
   /// whatever tab was last open.
-  void _onReviewRequest() {
-    final hash = CaptureRouter.reviewRequest.value;
-    if (hash == null || _presenting || !mounted) return;
-    CaptureRouter.reviewRequest.value = null;
-    _presenting = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (mounted) {
-        if (hash.isEmpty) {
-          await Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => const NeedsReviewInbox()));
-        } else {
-          await showMemoReviewSheet(context, hash);
-        }
-      }
-      _presenting = false;
-      await _drainOffers();
-    });
-  }
-
-  void _onOfferQueued() {
+  Future<void> _presentReview(String hash) async {
     if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _drainOffers());
-  }
-
-  /// Presents every queued rule offer in turn. Each sheet clears its own offer
-  /// whichever button the user presses, so this terminates.
-  Future<void> _drainOffers() async {
-    if (_presenting) return;
-    _presenting = true;
-    try {
-      for (var guard = 0; guard < 20; guard++) {
-        final offers = await CaptureNotifier.pendingRuleOffers();
-        if (offers.isEmpty || !mounted) break;
-        await showQueuedRuleOffer(context, offers.first);
-        // Defensive: a sheet dismissed by a back gesture never runs its
-        // buttons, so clear the offer here too rather than looping forever.
-        await CaptureNotifier.clearOffer(offers.first.captureHash);
-      }
-    } finally {
-      _presenting = false;
+    if (hash.isEmpty) {
+      await Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const NeedsReviewInbox()));
+    } else {
+      await showMemoReviewSheet(context, hash);
     }
   }
 

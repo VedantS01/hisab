@@ -275,6 +275,44 @@ class CaptureNotifier {
     );
   }
 
+  /// Everything capture has learned about the user's money, withdrawn from
+  /// this device. Called from the Settings "Erase all data" flow, alongside
+  /// the database wipe and [CapturePrefs.clearCapturedData]. Twin of
+  /// `CaptureNotifier.eraseUserData()` in the Swift file.
+  ///
+  /// The NOTIFICATION QUEUES are the half that is easy to miss. A banner's
+  /// body is `"₹450.00 to Chaiwala Junction"` — the amount and the payee, in
+  /// plain text, sitting in the notification shade long after the memo behind
+  /// it is gone. A quiet-hours hold is worse still: an alert captured at 23:10
+  /// schedules a banner for 08:00, so an erase at 23:30 would otherwise be
+  /// followed next morning by Hisab naming a payee whose memo no longer
+  /// exists, with buttons that can assign nothing.
+  ///
+  /// [setEnabled] deliberately does NOT withdraw delivered banners, because
+  /// switching a feature off is not a reason to erase what the user has
+  /// already been shown. An explicit "erase everything" is exactly that
+  /// reason, so the call that is wrong there is right here: `cancelAll`
+  /// covers the delivered and the scheduled queue in one.
+  ///
+  /// Deliberately NOT touched: `isEnabled`. It is not data about the user's
+  /// money — it describes this device's automation, which the erase did not
+  /// break, and switching capture off behind the user's back would undo a
+  /// setting they never asked to change.
+  static Future<void> eraseUserData() async {
+    // A queued offer carries a capture hash and a category the user chose for
+    // a named payee. `CapturePrefs.clearCapturedData` sweeps it too, since
+    // [ruleOfferKey] carries the `capture.` prefix; cleared here as well so
+    // this method is whole on its own.
+    await _writeOffers(const []);
+    if (!_supported) return;
+    try {
+      await plugin.cancelAll();
+    } catch (error) {
+      // Never log the alert. Only that the withdrawal failed.
+      debugPrint('capture: could not withdraw notifications: $error');
+    }
+  }
+
   /// POST_NOTIFICATIONS, from Android 13 onwards. Declared by the
   /// flutter_local_notifications plugin's own manifest, not by Hisab's.
   static Future<bool> requestNotificationPermission() async {

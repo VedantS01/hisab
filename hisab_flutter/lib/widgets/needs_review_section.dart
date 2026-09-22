@@ -116,10 +116,34 @@ class CaptureHealth {
   bool get offersSetup =>
       state == CaptureHealthState.neverArrived ||
       state == CaptureHealthState.noAlerts;
+
+  /// Value equality, like the Swift twin's `Equatable` — [days] is part of
+  /// what the user is shown, so it is part of what "unchanged" means.
+  @override
+  bool operator ==(Object other) =>
+      other is CaptureHealth && other.state == state && other.days == days;
+
+  @override
+  int get hashCode => Object.hash(state, days);
+
+  @override
+  String toString() => 'CaptureHealth(${state.name}, days: $days)';
 }
 
-/// The dashboard's capture-health line. Re-read on every build of the
-/// dashboard, because SharedPreferences is not a stream.
+/// The dashboard's capture-health line.
+///
+/// SharedPreferences is not a stream, so the health is re-read rather than
+/// watched — the twin of the iOS banner's `onAppear`. The two moments it is
+/// read are when this widget is created and when the user comes back from the
+/// setup screen. The first covers more than it looks: `RootTabs` builds one
+/// tab's screen at a time, so every return to the dashboard creates a fresh
+/// banner. The second is the one that matters most — a user who has just
+/// granted notification access must not land back on the warning that sent
+/// them there.
+///
+/// What it deliberately does NOT do is re-read on every rebuild of the
+/// dashboard: the dashboard rebuilds on every database change, and each read
+/// is three asynchronous preference lookups.
 class CaptureHealthBanner extends StatefulWidget {
   const CaptureHealthBanner({super.key});
 
@@ -138,7 +162,11 @@ class _CaptureHealthBannerState extends State<CaptureHealthBanner> {
 
   Future<void> _refresh() async {
     final current = await CaptureHealth.current();
-    if (mounted && current.state != _health.state) {
+    // The WHOLE value, as the iOS twin compares it. Comparing only `state`
+    // froze the day count: a banner reading "No alerts received in 4 days"
+    // stayed at 4 for as long as the dashboard was mounted, because every
+    // later reading was still `noAlerts` and so was discarded.
+    if (mounted && current != _health) {
       setState(() => _health = current);
     }
   }

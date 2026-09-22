@@ -246,8 +246,23 @@ void main() {
       // fourth action ("Later", as iOS has it) simply was not there. The cap
       // is applied in Dart so it is visible and assertable rather than a
       // silent platform truncation.
-      expect(planFor()!.actionIds.length,
-          lessThanOrEqualTo(CaptureNotifier.maxActions));
+      //
+      // Built by hand rather than from `plan`, which asks `CategoryRanker`
+      // for three: measuring the cap against a list that already obeys it
+      // proves nothing, and the assertion would still pass with the cap
+      // deleted.
+      const plan = CaptureNotificationPlan(
+        captureHash: 'abc123',
+        title: 'What was this?',
+        body: '₹450.00 to QWERTYSHOP',
+        categories: ['Food', 'Travel', 'Shopping', 'Bills', 'Rent'],
+      );
+      expect(plan.actionIds, hasLength(CaptureNotifier.maxActions));
+      expect(plan.actionIds, [
+        '${CaptureNotifier.categoryActionPrefix}Food',
+        '${CaptureNotifier.categoryActionPrefix}Travel',
+        '${CaptureNotifier.categoryActionPrefix}Shopping',
+      ], reason: 'the first three, in order — not an arbitrary three');
     });
 
     test('the daily cap suppresses rather than queues', () {
@@ -275,10 +290,28 @@ void main() {
       expect(CaptureNotifier.categoryFromActionId('CAT|'), isNull);
     });
 
-    test('the notification id is stable and positive', () {
-      final id = CaptureNotifier.notificationId(memoFor().captureHash);
-      expect(id, CaptureNotifier.notificationId(memoFor().captureHash));
-      expect(id, greaterThanOrEqualTo(0));
+    test('two memos get two notification ids', () {
+      // The property the feature rests on. Android replaces a notification
+      // that reuses an id, so a shared id would mean the second unknown payee
+      // of the afternoon silently wiping the banner asking about the first.
+      final ids = {
+        for (final payee in const ['QWERTYSHOP', 'CHAIWALA JUNCTION', 'ZOMATO'])
+          CaptureNotifier.notificationId(memoFor(payee: payee).captureHash)
+      };
+      expect(ids, hasLength(3),
+          reason: 'a shared id means one banner replaces another');
+      for (final id in ids) {
+        // Android notification ids are ints; a negative one is legal but the
+        // hash is masked to 31 bits, so this also pins the mask.
+        expect(id, greaterThanOrEqualTo(0));
+      }
+    });
+
+    test('the same memo keeps its notification id', () {
+      // The other half: a re-posted alert must replace its OWN banner rather
+      // than stack a second copy.
+      expect(CaptureNotifier.notificationId(memoFor().captureHash),
+          CaptureNotifier.notificationId(memoFor().captureHash));
     });
   });
 
@@ -412,6 +445,21 @@ void main() {
       expect(
           evaluate(attempt: ist(2026, 9, 18), capture: ist(2026, 9, 18)).state,
           CaptureHealthState.noAlerts);
+    });
+
+    test('a longer silence is a DIFFERENT value, not the same one', () {
+      // The banner keeps the health it last read and replaces it only when
+      // the new reading differs, so what "differs" means is what decides
+      // whether "No alerts received in 4 days" ever becomes 9. Comparing the
+      // state alone froze the count at whatever it was when the dashboard
+      // was first shown.
+      final four =
+          evaluate(attempt: ist(2026, 9, 18), capture: ist(2026, 9, 18));
+      final nine =
+          evaluate(attempt: ist(2026, 9, 13), capture: ist(2026, 9, 13));
+      expect(four.state, nine.state);
+      expect(four, isNot(nine));
+      expect(nine.message, contains('9 days'));
     });
 
     test('it reads the prefs the capture pipeline writes', () async {

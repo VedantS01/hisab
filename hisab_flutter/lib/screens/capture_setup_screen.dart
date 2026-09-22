@@ -101,8 +101,11 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
             Text(
                 'A captured alert is a memo, not a ledger entry — your '
                 'statements stay the single source of truth, and a memo’s '
-                'real output is a categorization rule. Memos are deleted '
-                'after ${PendingMemo.expiryDays} days.',
+                'real output is a categorization rule. A memo is deleted '
+                'after ${PendingMemo.expiryDays} days, unless it has been '
+                'matched to a row in an imported statement: that one is kept '
+                'so the same alert is never captured a second time. Erasing '
+                'all data in Settings removes every memo either way.',
                 style: const TextStyle(fontSize: 13, color: Colors.black54)),
           ]),
           _section('Switch it on', [

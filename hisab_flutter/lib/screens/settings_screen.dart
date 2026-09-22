@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
-import 'package:hisab_core/hisab_core.dart' show Suppressions, istDayLabel;
+import 'package:hisab_core/hisab_core.dart'
+    show Categorizer, Suppressions, istDayLabel;
 
 import '../services/capture_notifier.dart';
 import '../services/capture_prefs.dart';
@@ -82,6 +83,13 @@ class SettingsScreen extends StatelessWidget {
                           // SharedPreferences where eraseAll cannot reach
                           // them.
                           await CapturePrefs.clearCapturedData();
+                          // The same reasoning, one layer further out: a
+                          // banner already in the notification shade reads
+                          // "₹450.00 to Chaiwala Junction", and a quiet-hours
+                          // hold is a banner scheduled for tomorrow morning
+                          // naming a payee whose memo this erase just
+                          // removed. Both queues go with everything else.
+                          await CaptureNotifier.eraseUserData();
                           state.suppressions = const Suppressions();
                           await Queries.categoryRules(state.db, state.ruleset);
                         }
@@ -137,6 +145,50 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  /// Names Hisab assigns on its own, which a rule may therefore not hand out.
+  /// Twin of `RuleEditorSheet.reservedCategories` in `SettingsView.swift`.
+  ///
+  /// Two of them mean "nothing claimed this row" and the third is decided by
+  /// reconciliation before any rule is consulted, so a rule pointing at one
+  /// either says nothing or cannot take effect. `Self Transfer` is the one
+  /// that actively misleads here: [Queries.analytics] excludes self transfers
+  /// by membership in the reconciliation-derived set, never by the label, so a
+  /// rule handing out that NAME would make matching rows DISPLAY "Self
+  /// Transfer" while every spending total stayed exactly as it was — the user
+  /// believing they had taken those payments out of their spending.
+  ///
+  /// `NeedsReview`'s and the notification's category lists never contained
+  /// these three ([CategoryRanker] excludes them), so this field is the last
+  /// door.
+  static const reservedCategories = [
+    Categorizer.uncategorized,
+    Categorizer.miscellaneous,
+    Categorizer.selfTransfer,
+  ];
+
+  /// Why Save is disabled, or null when it is not. Pure, so the same sentence
+  /// the dialog shows is the one a test can assert.
+  @visibleForTesting
+  static String? ruleValidationMessage(String pattern, String category) {
+    final trimmedPattern = pattern.trim();
+    final trimmedCategory = category.trim();
+    if (trimmedPattern.isEmpty) {
+      // Trimmed, not just `isEmpty`: a single space passes `isEmpty` and
+      // `CategoryMatcher` finds " " inside very nearly every narration — one
+      // rule, every transaction.
+      return 'Enter some text to match. A blank pattern would match every '
+          'transaction.';
+    }
+    if (trimmedCategory.isEmpty) return 'Enter a category name.';
+    for (final reserved in reservedCategories) {
+      if (reserved.toLowerCase() == trimmedCategory.toLowerCase()) {
+        return '“$reserved” is a name Hisab assigns on its own — choose a '
+            'category of your own.';
+      }
+    }
+    return null;
+  }
+
   Future<void> _editRule(
       BuildContext context, StoredCategoryRule? rule) async {
     final state = AppScope.of(context);
@@ -145,45 +197,75 @@ class SettingsScreen extends StatelessWidget {
         TextEditingController(text: rule?.category ?? '');
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(rule == null ? 'Add rule' : 'Edit rule'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-                controller: patternController,
-                decoration:
-                    const InputDecoration(labelText: 'Pattern (contains)')),
-            TextField(
-                controller: categoryController,
-                decoration: const InputDecoration(labelText: 'Category')),
-          ],
-        ),
-        actions: [
-          if (rule != null)
-            TextButton(
-              onPressed: () async {
-                await (state.db.delete(state.db.storedCategoryRules)
-                      ..where((r) => r.id.equals(rule.id)))
-                    .go();
-                if (context.mounted) Navigator.pop(context, false);
-              },
-              child: const Text('Delete',
-                  style: TextStyle(color: HisabTheme.khataRed)),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final message = ruleValidationMessage(
+              patternController.text, categoryController.text);
+          return AlertDialog(
+            title: Text(rule == null ? 'Add rule' : 'Edit rule'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                    controller: patternController,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                        labelText: 'Pattern (contains)')),
+                TextField(
+                    controller: categoryController,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration:
+                        const InputDecoration(labelText: 'Category')),
+                // Held back until the user has typed something: an editor
+                // that opens already complaining is scolding them for not
+                // having started.
+                if (message != null &&
+                    (patternController.text.isNotEmpty ||
+                        categoryController.text.isNotEmpty))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(message,
+                        key: const Key('rule-editor-validation'),
+                        style: const TextStyle(
+                            fontSize: 12, color: HisabTheme.khataRed)),
+                  ),
+              ],
             ),
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save')),
-        ],
+            actions: [
+              if (rule != null)
+                TextButton(
+                  onPressed: () async {
+                    await (state.db.delete(state.db.storedCategoryRules)
+                          ..where((r) => r.id.equals(rule.id)))
+                        .go();
+                    if (context.mounted) Navigator.pop(context, false);
+                  },
+                  child: const Text('Delete',
+                      style: TextStyle(color: HisabTheme.khataRed)),
+                ),
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel')),
+              TextButton(
+                  // Disabled, not silently ignored: a Save button that
+                  // dismisses the editor and stores nothing is the worst of
+                  // both.
+                  onPressed: message == null
+                      ? () => Navigator.pop(context, true)
+                      : null,
+                  child: const Text('Save')),
+            ],
+          );
+        },
       ),
     );
     if (saved != true) return;
     final pattern = patternController.text.trim();
     final category = categoryController.text.trim();
-    if (pattern.isEmpty || category.isEmpty) return;
+    // The dialog disables Save while this is non-null; re-checked here
+    // because the dialog is not the only thing that decides what is stored.
+    if (ruleValidationMessage(pattern, category) != null) return;
     if (rule == null) {
       final rows = await state.db.select(state.db.storedCategoryRules).get();
       final order = rows.isEmpty
