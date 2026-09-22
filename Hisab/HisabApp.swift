@@ -105,6 +105,7 @@ struct RootView: View {
     /// tapped. One `.sheet(item:)` over an enum makes that unrepresentable: the
     /// destinations are now ordered rather than racing.
     enum Destination: Identifiable {
+        case importFile(URL)
         case memo(String)
         case transaction(UUID)
         case needsReview
@@ -113,6 +114,7 @@ struct RootView: View {
 
         var id: String {
             switch self {
+            case .importFile(let url): "import|\(url.path)"
             case .memo(let hash): "memo|\(hash)"
             case .transaction(let uuid): "txn|\(uuid.uuidString)"
             case .needsReview: "needs-review"
@@ -131,6 +133,11 @@ struct RootView: View {
     /// nobody asked for. Whatever loses is not discarded — it is still in the
     /// state this reads, so it presents as soon as the winner is dismissed.
     private var destination: Destination? {
+        // First, above even a notification tap: sending a statement to Hisab
+        // from Mail or Files is the user handing over a document and waiting
+        // to be told what came of it. Anything shown instead reads as the app
+        // having dropped the file.
+        if let url = router.pendingImportURL { return .importFile(url) }
         if let hash = router.pendingMemoHash { return .memo(hash) }
         if let uuid = router.pendingTxnUUID { return .transaction(uuid) }
         if router.showNeedsReview { return .needsReview }
@@ -357,6 +364,11 @@ struct RootView: View {
                 // swept away with it.
                 guard newValue == nil else { return }
                 switch destination {
+                // Not folded into `clear()`: that is what a `hisab://` link's
+                // sheet dismissal calls, and an import waiting behind one must
+                // not be swept away with it.
+                case .importFile:
+                    router.pendingImportURL = nil
                 case .memo, .transaction, .needsReview:
                     router.clear()
                 case .ruleOffer(let offer):
@@ -371,6 +383,8 @@ struct RootView: View {
             }
         )) { destination in
             switch destination {
+            case .importFile(let url):
+                ImportSheet(incomingURL: url)
             case .memo(let hash):
                 MemoReviewSheet(captureHash: hash)
             case .transaction(let uuid):

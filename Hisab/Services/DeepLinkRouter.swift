@@ -11,6 +11,12 @@ final class DeepLinkRouter {
     var pendingTxnUUID: UUID?
     var showNeedsReview = false
 
+    /// A statement handed to Hisab from the share sheet, Files or Mail,
+    /// already staged into the app's own container by
+    /// `ImportService.stageIncomingFile`. Nothing in this type reads the file;
+    /// it only says that one is waiting.
+    var pendingImportURL: URL?
+
     /// Bumped by `CaptureNotifier.respond` whenever a category button queues a
     /// rule offer. The offers themselves live in UserDefaults, which is not
     /// observable; this is the observable edge that tells a running app to look
@@ -22,6 +28,19 @@ final class DeepLinkRouter {
     /// An unrecognised or unresolvable link opens the needs-review inbox
     /// rather than failing silently.
     func handle(_ url: URL) {
+        // A document, not a link. The copy happens HERE, synchronously inside
+        // the `onOpenURL` callback, because that is where the system's
+        // security-scoped grant is certainly still live — see
+        // `ImportService.stageIncomingFile`. Deferring it to the sheet would
+        // be a read against a URL that has gone stale.
+        //
+        // The siblings are deliberately NOT cleared: this branch is not
+        // saying "go somewhere else", it is adding a file to be dealt with,
+        // and `RootView` presents whichever destination outranks the other.
+        if url.isFileURL {
+            pendingImportURL = ImportService.stageIncomingFile(at: url)
+            return
+        }
         guard url.scheme == "hisab" else { return }
         let value = url.lastPathComponent
         switch url.host {

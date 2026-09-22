@@ -7,13 +7,27 @@ struct ImportSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
+    /// A statement Hisab was handed from the share sheet, Files or Mail,
+    /// already staged by `ImportService.stageIncomingFile`. When it is set
+    /// there is nothing to pick: the user has chosen the file already, and
+    /// putting a picker in front of them would ask the question twice.
+    private let incomingURL: URL?
     @State private var pickedURL: URL?
     @State private var password = ""
     @State private var needsPassword = false
     @State private var report: ImportReport?
     @State private var errorMessage: String?
-    @State private var showPicker = true
+    @State private var showPicker: Bool
     @State private var requestTarget: RequestTarget?
+    /// The handed-over file is imported once, on appear. Without this a
+    /// re-render (a password typed, the keyboard opening) would re-run it.
+    @State private var didImportIncoming = false
+
+    init(incomingURL: URL? = nil) {
+        self.incomingURL = incomingURL
+        _pickedURL = State(initialValue: incomingURL)
+        _showPicker = State(initialValue: incomingURL == nil)
+    }
 
     private struct RequestTarget: Identifiable {
         let fingerprint: FormatFingerprint
@@ -41,6 +55,11 @@ struct ImportSheet: View {
         .sheet(item: $requestTarget) { target in
             FormatRequestSheet(fingerprint: target.fingerprint,
                                verificationDetail: target.verificationDetail)
+        }
+        .task {
+            guard incomingURL != nil, !didImportIncoming else { return }
+            didImportIncoming = true
+            attemptImport()
         }
         .fileImporter(isPresented: $showPicker,
                       allowedContentTypes: [.pdf, .commaSeparatedText, .plainText, .data],

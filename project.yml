@@ -41,6 +41,27 @@ targets:
             CFBundleTypeRole: Editor
             CFBundleURLSchemes:
               - hisab
+        # Opening IN PLACE, not by copy: the file stays where the user keeps
+        # it and Hisab reads it once. A copy would land in the app's Inbox/
+        # and quietly become a second home for the user's statements, which
+        # a zero-network app that already keeps its own copy under
+        # Documents/imports has no business creating.
+        LSSupportsOpeningDocumentsInPlace: true
+        UIFileSharingEnabled: true
+        CFBundleDocumentTypes:
+          # `Alternate`, deliberately: Hisab is offering itself as a
+          # destination for a statement, not claiming to be the system's PDF
+          # or CSV handler. Owner rank would put it ahead of Files and
+          # Preview for every PDF on the phone.
+          - CFBundleTypeName: Statement
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.adobe.pdf
+              - public.comma-separated-values-text
+              - org.openxmlformats.spreadsheetml.sheet
+              - com.microsoft.excel.xls
+              - public.plain-text
   HisabUITests:
     type: bundle.ui-testing
     platform: iOS

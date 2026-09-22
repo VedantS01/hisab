@@ -30,6 +30,50 @@ final class ImportService {
     private let context: ModelContext
     private let resolver: ImportResolver
 
+    /// Takes a copy of a document handed to Hisab from the share sheet, Files
+    /// or Mail, and returns the copy to import.
+    ///
+    /// The URL `onOpenURL` delivers is security-scoped and open IN PLACE: it
+    /// is readable inside `startAccessingSecurityScopedResource()` and for as
+    /// long as the system chooses to keep the grant alive, which is not long
+    /// enough. Presenting a sheet is at least one run-loop turn away, the user
+    /// may then sit on a password prompt for a minute, and a `Data(contentsOf:)`
+    /// at the far end of that fails with a permission error that looks exactly
+    /// like an unreadable file. Copying here, while the grant is certainly
+    /// live, is what makes the rest of the flow ordinary file reading.
+    ///
+    /// The copy goes to `tmp`, not `Documents`: `copyIntoSandbox` already
+    /// keeps the durable copy under `Documents/imports`, and a second one in a
+    /// directory `UIFileSharingEnabled` now exposes would be both redundant
+    /// and a statement sitting somewhere the user did not put it.
+    ///
+    /// Returns the ORIGINAL url when the copy fails, rather than nil. Every
+    /// failure this can hit is one `importFile` can hit too, and it reports
+    /// them through the sheet's error UI; returning nil would mean deciding
+    /// here to show the user nothing at all.
+    nonisolated static func stageIncomingFile(at url: URL) -> URL {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let directory = FileManager.default.temporaryDirectory.appending(path: "incoming")
+        // The staged copy keeps the sender's filename, extension included.
+        // That is not cosmetic: `ImportResolver` gates its locked-PDF check on
+        // `filename.hasSuffix(".pdf")`, so a copy renamed to something neutral
+        // would turn a password-protected statement into "Hisab can't read
+        // this format yet" — a dead end instead of a password prompt.
+        let destination = directory.appending(path: url.lastPathComponent)
+        do {
+            try FileManager.default.createDirectory(at: directory,
+                                                    withIntermediateDirectories: true)
+            // The same statement can be sent twice; the second send must not
+            // fail on "file exists" and silently import the first one's bytes.
+            try? FileManager.default.removeItem(at: destination)
+            try FileManager.default.copyItem(at: url, to: destination)
+            return destination
+        } catch {
+            return url
+        }
+    }
+
     init(context: ModelContext, resolver: ImportResolver = .live()) {
         self.context = context
         self.resolver = resolver
