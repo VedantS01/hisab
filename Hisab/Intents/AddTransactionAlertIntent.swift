@@ -14,11 +14,24 @@ struct AddTransactionAlertIntent: AppIntent {
     /// Never open the app: an automation must be able to run silently.
     static let openAppWhenRun: Bool = false
 
-    @Parameter(title: "Alert Text", inputOptions: String.IntentInputOptions(multiline: true))
+    /// Connects to the previous result so an automation's Shortcut Input (the
+    /// message) can wire in without the user hunting for the field.
+    @Parameter(title: "Alert Text",
+               inputOptions: String.IntentInputOptions(multiline: true),
+               inputConnectionBehavior: .connectToPreviousIntentResult)
     var text: String
 
     @Parameter(title: "Note")
     var note: String?
+
+    /// Puts Alert Text inline in the action as a tappable token. Without a
+    /// summary Shortcuts tucks it into a collapsed list, and an automation
+    /// left with it empty cannot run silently.
+    static var parameterSummary: some ParameterSummary {
+        Summary("Add \(\.$text) to Hisab") {
+            \.$note
+        }
+    }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
