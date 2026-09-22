@@ -47,7 +47,6 @@ targets:
         # a zero-network app that already keeps its own copy under
         # Documents/imports has no business creating.
         LSSupportsOpeningDocumentsInPlace: true
-        UIFileSharingEnabled: true
         CFBundleDocumentTypes:
           # `Alternate`, deliberately: Hisab is offering itself as a
           # destination for a statement, not claiming to be the system's PDF

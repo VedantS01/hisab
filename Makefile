@@ -7,8 +7,11 @@ SIM := platform=iOS Simulator,name=iPhone 17 Pro
 gen:
 	xcodegen generate
 
+# CODE_SIGNING_ALLOWED=NO for the same reason `uitest` carries it: HisabCore's
+# SwiftPM resource bundle can't be re-signed for the simulator. This target
+# hardcodes a Simulator destination, so it can never be a signed device build.
 build: gen
-	xcodebuild -project Hisab.xcodeproj -scheme Hisab -destination '$(SIM)' -quiet build
+	xcodebuild -project Hisab.xcodeproj -scheme Hisab -destination '$(SIM)' -quiet CODE_SIGNING_ALLOWED=NO build
 
 test:
 	cd HisabCore && swift test
