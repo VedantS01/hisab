@@ -175,6 +175,14 @@ void main() {
       expect(memo.payeeNormalized, 'blue tokai coffee');
     });
 
+    test('testExpiryBoundaryIsInclusiveAt45Days', () {
+      final captured = _at('2026-08-01 10:00');
+      final day45 = captured.add(const Duration(days: 45));
+      final day46 = captured.add(const Duration(days: 46));
+      expect(PendingMemo.isExpired(capturedAt: captured, now: day45), isFalse);
+      expect(PendingMemo.isExpired(capturedAt: captured, now: day46), isTrue);
+    });
+
     test('testRuleKeyPrefersVPAOverUnstableDisplayName', () {
       // The whole point: "VEDANT SABOO" varies per statement, the VPA does not.
       final withVPA = PendingMemo(

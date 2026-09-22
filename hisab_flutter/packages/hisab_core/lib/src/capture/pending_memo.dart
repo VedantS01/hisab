@@ -109,4 +109,18 @@ class PendingMemo {
     }
     return RuleKey(pattern: payeeNormalized, kind: RuleKeyKind.merchant);
   }
+
+  /// Memos are a labelling channel, not storage. Statements arrive monthly;
+  /// 45 days leaves buffer for a late import without unbounded growth.
+  static const int expiryDays = 45;
+
+  /// Elapsed whole days, not IST calendar days — the Swift twin asks
+  /// `istCalendar.dateComponents([.day], from:to:)`, which counts complete
+  /// 24-hour spans between two instants rather than differencing their day
+  /// labels. IST has no DST, so plain elapsed-time division reproduces it
+  /// exactly; `istDaysBetween` would not, because it truncates both
+  /// instants to midnight and so would expire a late-evening capture up to
+  /// a day early.
+  static bool isExpired({required DateTime capturedAt, required DateTime now}) =>
+      now.difference(capturedAt).inDays > expiryDays;
 }

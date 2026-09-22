@@ -1669,6 +1669,671 @@ class PinnedMonthsCompanion extends UpdateCompanion<PinnedMonth> {
   }
 }
 
+class $StoredPendingMemosTable extends StoredPendingMemos
+    with TableInfo<$StoredPendingMemosTable, StoredPendingMemo> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $StoredPendingMemosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _captureHashMeta =
+      const VerificationMeta('captureHash');
+  @override
+  late final GeneratedColumn<String> captureHash = GeneratedColumn<String>(
+      'capture_hash', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _amountPaiseMeta =
+      const VerificationMeta('amountPaise');
+  @override
+  late final GeneratedColumn<int> amountPaise = GeneratedColumn<int>(
+      'amount_paise', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _directionMeta =
+      const VerificationMeta('direction');
+  @override
+  late final GeneratedColumn<String> direction = GeneratedColumn<String>(
+      'direction', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _payeeMeta = const VerificationMeta('payee');
+  @override
+  late final GeneratedColumn<String> payee = GeneratedColumn<String>(
+      'payee', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _payeeNormalizedMeta =
+      const VerificationMeta('payeeNormalized');
+  @override
+  late final GeneratedColumn<String> payeeNormalized = GeneratedColumn<String>(
+      'payee_normalized', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _vpaMeta = const VerificationMeta('vpa');
+  @override
+  late final GeneratedColumn<String> vpa = GeneratedColumn<String>(
+      'vpa', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _accountTailMeta =
+      const VerificationMeta('accountTail');
+  @override
+  late final GeneratedColumn<String> accountTail = GeneratedColumn<String>(
+      'account_tail', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _dateMsMeta = const VerificationMeta('dateMs');
+  @override
+  late final GeneratedColumn<int> dateMs = GeneratedColumn<int>(
+      'date_ms', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _capturedAtMsMeta =
+      const VerificationMeta('capturedAtMs');
+  @override
+  late final GeneratedColumn<int> capturedAtMs = GeneratedColumn<int>(
+      'captured_at_ms', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+      'note', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _assignedCategoryMeta =
+      const VerificationMeta('assignedCategory');
+  @override
+  late final GeneratedColumn<String> assignedCategory = GeneratedColumn<String>(
+      'assigned_category', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _mergedTxnUuidMeta =
+      const VerificationMeta('mergedTxnUuid');
+  @override
+  late final GeneratedColumn<String> mergedTxnUuid = GeneratedColumn<String>(
+      'merged_txn_uuid', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _notifiedAtMsMeta =
+      const VerificationMeta('notifiedAtMs');
+  @override
+  late final GeneratedColumn<int> notifiedAtMs = GeneratedColumn<int>(
+      'notified_at_ms', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        captureHash,
+        amountPaise,
+        direction,
+        payee,
+        payeeNormalized,
+        vpa,
+        accountTail,
+        dateMs,
+        capturedAtMs,
+        note,
+        assignedCategory,
+        mergedTxnUuid,
+        notifiedAtMs
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'stored_pending_memos';
+  @override
+  VerificationContext validateIntegrity(Insertable<StoredPendingMemo> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('capture_hash')) {
+      context.handle(
+          _captureHashMeta,
+          captureHash.isAcceptableOrUnknown(
+              data['capture_hash']!, _captureHashMeta));
+    } else if (isInserting) {
+      context.missing(_captureHashMeta);
+    }
+    if (data.containsKey('amount_paise')) {
+      context.handle(
+          _amountPaiseMeta,
+          amountPaise.isAcceptableOrUnknown(
+              data['amount_paise']!, _amountPaiseMeta));
+    } else if (isInserting) {
+      context.missing(_amountPaiseMeta);
+    }
+    if (data.containsKey('direction')) {
+      context.handle(_directionMeta,
+          direction.isAcceptableOrUnknown(data['direction']!, _directionMeta));
+    } else if (isInserting) {
+      context.missing(_directionMeta);
+    }
+    if (data.containsKey('payee')) {
+      context.handle(
+          _payeeMeta, payee.isAcceptableOrUnknown(data['payee']!, _payeeMeta));
+    } else if (isInserting) {
+      context.missing(_payeeMeta);
+    }
+    if (data.containsKey('payee_normalized')) {
+      context.handle(
+          _payeeNormalizedMeta,
+          payeeNormalized.isAcceptableOrUnknown(
+              data['payee_normalized']!, _payeeNormalizedMeta));
+    } else if (isInserting) {
+      context.missing(_payeeNormalizedMeta);
+    }
+    if (data.containsKey('vpa')) {
+      context.handle(
+          _vpaMeta, vpa.isAcceptableOrUnknown(data['vpa']!, _vpaMeta));
+    }
+    if (data.containsKey('account_tail')) {
+      context.handle(
+          _accountTailMeta,
+          accountTail.isAcceptableOrUnknown(
+              data['account_tail']!, _accountTailMeta));
+    }
+    if (data.containsKey('date_ms')) {
+      context.handle(_dateMsMeta,
+          dateMs.isAcceptableOrUnknown(data['date_ms']!, _dateMsMeta));
+    } else if (isInserting) {
+      context.missing(_dateMsMeta);
+    }
+    if (data.containsKey('captured_at_ms')) {
+      context.handle(
+          _capturedAtMsMeta,
+          capturedAtMs.isAcceptableOrUnknown(
+              data['captured_at_ms']!, _capturedAtMsMeta));
+    } else if (isInserting) {
+      context.missing(_capturedAtMsMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+          _noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
+    }
+    if (data.containsKey('assigned_category')) {
+      context.handle(
+          _assignedCategoryMeta,
+          assignedCategory.isAcceptableOrUnknown(
+              data['assigned_category']!, _assignedCategoryMeta));
+    }
+    if (data.containsKey('merged_txn_uuid')) {
+      context.handle(
+          _mergedTxnUuidMeta,
+          mergedTxnUuid.isAcceptableOrUnknown(
+              data['merged_txn_uuid']!, _mergedTxnUuidMeta));
+    }
+    if (data.containsKey('notified_at_ms')) {
+      context.handle(
+          _notifiedAtMsMeta,
+          notifiedAtMs.isAcceptableOrUnknown(
+              data['notified_at_ms']!, _notifiedAtMsMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {captureHash};
+  @override
+  StoredPendingMemo map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return StoredPendingMemo(
+      captureHash: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}capture_hash'])!,
+      amountPaise: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}amount_paise'])!,
+      direction: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}direction'])!,
+      payee: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}payee'])!,
+      payeeNormalized: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}payee_normalized'])!,
+      vpa: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}vpa']),
+      accountTail: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}account_tail']),
+      dateMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}date_ms'])!,
+      capturedAtMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}captured_at_ms'])!,
+      note: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}note']),
+      assignedCategory: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}assigned_category']),
+      mergedTxnUuid: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}merged_txn_uuid']),
+      notifiedAtMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}notified_at_ms']),
+    );
+  }
+
+  @override
+  $StoredPendingMemosTable createAlias(String alias) {
+    return $StoredPendingMemosTable(attachedDatabase, alias);
+  }
+}
+
+class StoredPendingMemo extends DataClass
+    implements Insertable<StoredPendingMemo> {
+  final String captureHash;
+  final int amountPaise;
+  final String direction;
+  final String payee;
+  final String payeeNormalized;
+  final String? vpa;
+  final String? accountTail;
+  final int dateMs;
+  final int capturedAtMs;
+  final String? note;
+  final String? assignedCategory;
+  final String? mergedTxnUuid;
+  final int? notifiedAtMs;
+  const StoredPendingMemo(
+      {required this.captureHash,
+      required this.amountPaise,
+      required this.direction,
+      required this.payee,
+      required this.payeeNormalized,
+      this.vpa,
+      this.accountTail,
+      required this.dateMs,
+      required this.capturedAtMs,
+      this.note,
+      this.assignedCategory,
+      this.mergedTxnUuid,
+      this.notifiedAtMs});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['capture_hash'] = Variable<String>(captureHash);
+    map['amount_paise'] = Variable<int>(amountPaise);
+    map['direction'] = Variable<String>(direction);
+    map['payee'] = Variable<String>(payee);
+    map['payee_normalized'] = Variable<String>(payeeNormalized);
+    if (!nullToAbsent || vpa != null) {
+      map['vpa'] = Variable<String>(vpa);
+    }
+    if (!nullToAbsent || accountTail != null) {
+      map['account_tail'] = Variable<String>(accountTail);
+    }
+    map['date_ms'] = Variable<int>(dateMs);
+    map['captured_at_ms'] = Variable<int>(capturedAtMs);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    if (!nullToAbsent || assignedCategory != null) {
+      map['assigned_category'] = Variable<String>(assignedCategory);
+    }
+    if (!nullToAbsent || mergedTxnUuid != null) {
+      map['merged_txn_uuid'] = Variable<String>(mergedTxnUuid);
+    }
+    if (!nullToAbsent || notifiedAtMs != null) {
+      map['notified_at_ms'] = Variable<int>(notifiedAtMs);
+    }
+    return map;
+  }
+
+  StoredPendingMemosCompanion toCompanion(bool nullToAbsent) {
+    return StoredPendingMemosCompanion(
+      captureHash: Value(captureHash),
+      amountPaise: Value(amountPaise),
+      direction: Value(direction),
+      payee: Value(payee),
+      payeeNormalized: Value(payeeNormalized),
+      vpa: vpa == null && nullToAbsent ? const Value.absent() : Value(vpa),
+      accountTail: accountTail == null && nullToAbsent
+          ? const Value.absent()
+          : Value(accountTail),
+      dateMs: Value(dateMs),
+      capturedAtMs: Value(capturedAtMs),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      assignedCategory: assignedCategory == null && nullToAbsent
+          ? const Value.absent()
+          : Value(assignedCategory),
+      mergedTxnUuid: mergedTxnUuid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mergedTxnUuid),
+      notifiedAtMs: notifiedAtMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notifiedAtMs),
+    );
+  }
+
+  factory StoredPendingMemo.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return StoredPendingMemo(
+      captureHash: serializer.fromJson<String>(json['captureHash']),
+      amountPaise: serializer.fromJson<int>(json['amountPaise']),
+      direction: serializer.fromJson<String>(json['direction']),
+      payee: serializer.fromJson<String>(json['payee']),
+      payeeNormalized: serializer.fromJson<String>(json['payeeNormalized']),
+      vpa: serializer.fromJson<String?>(json['vpa']),
+      accountTail: serializer.fromJson<String?>(json['accountTail']),
+      dateMs: serializer.fromJson<int>(json['dateMs']),
+      capturedAtMs: serializer.fromJson<int>(json['capturedAtMs']),
+      note: serializer.fromJson<String?>(json['note']),
+      assignedCategory: serializer.fromJson<String?>(json['assignedCategory']),
+      mergedTxnUuid: serializer.fromJson<String?>(json['mergedTxnUuid']),
+      notifiedAtMs: serializer.fromJson<int?>(json['notifiedAtMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'captureHash': serializer.toJson<String>(captureHash),
+      'amountPaise': serializer.toJson<int>(amountPaise),
+      'direction': serializer.toJson<String>(direction),
+      'payee': serializer.toJson<String>(payee),
+      'payeeNormalized': serializer.toJson<String>(payeeNormalized),
+      'vpa': serializer.toJson<String?>(vpa),
+      'accountTail': serializer.toJson<String?>(accountTail),
+      'dateMs': serializer.toJson<int>(dateMs),
+      'capturedAtMs': serializer.toJson<int>(capturedAtMs),
+      'note': serializer.toJson<String?>(note),
+      'assignedCategory': serializer.toJson<String?>(assignedCategory),
+      'mergedTxnUuid': serializer.toJson<String?>(mergedTxnUuid),
+      'notifiedAtMs': serializer.toJson<int?>(notifiedAtMs),
+    };
+  }
+
+  StoredPendingMemo copyWith(
+          {String? captureHash,
+          int? amountPaise,
+          String? direction,
+          String? payee,
+          String? payeeNormalized,
+          Value<String?> vpa = const Value.absent(),
+          Value<String?> accountTail = const Value.absent(),
+          int? dateMs,
+          int? capturedAtMs,
+          Value<String?> note = const Value.absent(),
+          Value<String?> assignedCategory = const Value.absent(),
+          Value<String?> mergedTxnUuid = const Value.absent(),
+          Value<int?> notifiedAtMs = const Value.absent()}) =>
+      StoredPendingMemo(
+        captureHash: captureHash ?? this.captureHash,
+        amountPaise: amountPaise ?? this.amountPaise,
+        direction: direction ?? this.direction,
+        payee: payee ?? this.payee,
+        payeeNormalized: payeeNormalized ?? this.payeeNormalized,
+        vpa: vpa.present ? vpa.value : this.vpa,
+        accountTail: accountTail.present ? accountTail.value : this.accountTail,
+        dateMs: dateMs ?? this.dateMs,
+        capturedAtMs: capturedAtMs ?? this.capturedAtMs,
+        note: note.present ? note.value : this.note,
+        assignedCategory: assignedCategory.present
+            ? assignedCategory.value
+            : this.assignedCategory,
+        mergedTxnUuid:
+            mergedTxnUuid.present ? mergedTxnUuid.value : this.mergedTxnUuid,
+        notifiedAtMs:
+            notifiedAtMs.present ? notifiedAtMs.value : this.notifiedAtMs,
+      );
+  StoredPendingMemo copyWithCompanion(StoredPendingMemosCompanion data) {
+    return StoredPendingMemo(
+      captureHash:
+          data.captureHash.present ? data.captureHash.value : this.captureHash,
+      amountPaise:
+          data.amountPaise.present ? data.amountPaise.value : this.amountPaise,
+      direction: data.direction.present ? data.direction.value : this.direction,
+      payee: data.payee.present ? data.payee.value : this.payee,
+      payeeNormalized: data.payeeNormalized.present
+          ? data.payeeNormalized.value
+          : this.payeeNormalized,
+      vpa: data.vpa.present ? data.vpa.value : this.vpa,
+      accountTail:
+          data.accountTail.present ? data.accountTail.value : this.accountTail,
+      dateMs: data.dateMs.present ? data.dateMs.value : this.dateMs,
+      capturedAtMs: data.capturedAtMs.present
+          ? data.capturedAtMs.value
+          : this.capturedAtMs,
+      note: data.note.present ? data.note.value : this.note,
+      assignedCategory: data.assignedCategory.present
+          ? data.assignedCategory.value
+          : this.assignedCategory,
+      mergedTxnUuid: data.mergedTxnUuid.present
+          ? data.mergedTxnUuid.value
+          : this.mergedTxnUuid,
+      notifiedAtMs: data.notifiedAtMs.present
+          ? data.notifiedAtMs.value
+          : this.notifiedAtMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StoredPendingMemo(')
+          ..write('captureHash: $captureHash, ')
+          ..write('amountPaise: $amountPaise, ')
+          ..write('direction: $direction, ')
+          ..write('payee: $payee, ')
+          ..write('payeeNormalized: $payeeNormalized, ')
+          ..write('vpa: $vpa, ')
+          ..write('accountTail: $accountTail, ')
+          ..write('dateMs: $dateMs, ')
+          ..write('capturedAtMs: $capturedAtMs, ')
+          ..write('note: $note, ')
+          ..write('assignedCategory: $assignedCategory, ')
+          ..write('mergedTxnUuid: $mergedTxnUuid, ')
+          ..write('notifiedAtMs: $notifiedAtMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      captureHash,
+      amountPaise,
+      direction,
+      payee,
+      payeeNormalized,
+      vpa,
+      accountTail,
+      dateMs,
+      capturedAtMs,
+      note,
+      assignedCategory,
+      mergedTxnUuid,
+      notifiedAtMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is StoredPendingMemo &&
+          other.captureHash == this.captureHash &&
+          other.amountPaise == this.amountPaise &&
+          other.direction == this.direction &&
+          other.payee == this.payee &&
+          other.payeeNormalized == this.payeeNormalized &&
+          other.vpa == this.vpa &&
+          other.accountTail == this.accountTail &&
+          other.dateMs == this.dateMs &&
+          other.capturedAtMs == this.capturedAtMs &&
+          other.note == this.note &&
+          other.assignedCategory == this.assignedCategory &&
+          other.mergedTxnUuid == this.mergedTxnUuid &&
+          other.notifiedAtMs == this.notifiedAtMs);
+}
+
+class StoredPendingMemosCompanion extends UpdateCompanion<StoredPendingMemo> {
+  final Value<String> captureHash;
+  final Value<int> amountPaise;
+  final Value<String> direction;
+  final Value<String> payee;
+  final Value<String> payeeNormalized;
+  final Value<String?> vpa;
+  final Value<String?> accountTail;
+  final Value<int> dateMs;
+  final Value<int> capturedAtMs;
+  final Value<String?> note;
+  final Value<String?> assignedCategory;
+  final Value<String?> mergedTxnUuid;
+  final Value<int?> notifiedAtMs;
+  final Value<int> rowid;
+  const StoredPendingMemosCompanion({
+    this.captureHash = const Value.absent(),
+    this.amountPaise = const Value.absent(),
+    this.direction = const Value.absent(),
+    this.payee = const Value.absent(),
+    this.payeeNormalized = const Value.absent(),
+    this.vpa = const Value.absent(),
+    this.accountTail = const Value.absent(),
+    this.dateMs = const Value.absent(),
+    this.capturedAtMs = const Value.absent(),
+    this.note = const Value.absent(),
+    this.assignedCategory = const Value.absent(),
+    this.mergedTxnUuid = const Value.absent(),
+    this.notifiedAtMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  StoredPendingMemosCompanion.insert({
+    required String captureHash,
+    required int amountPaise,
+    required String direction,
+    required String payee,
+    required String payeeNormalized,
+    this.vpa = const Value.absent(),
+    this.accountTail = const Value.absent(),
+    required int dateMs,
+    required int capturedAtMs,
+    this.note = const Value.absent(),
+    this.assignedCategory = const Value.absent(),
+    this.mergedTxnUuid = const Value.absent(),
+    this.notifiedAtMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : captureHash = Value(captureHash),
+        amountPaise = Value(amountPaise),
+        direction = Value(direction),
+        payee = Value(payee),
+        payeeNormalized = Value(payeeNormalized),
+        dateMs = Value(dateMs),
+        capturedAtMs = Value(capturedAtMs);
+  static Insertable<StoredPendingMemo> custom({
+    Expression<String>? captureHash,
+    Expression<int>? amountPaise,
+    Expression<String>? direction,
+    Expression<String>? payee,
+    Expression<String>? payeeNormalized,
+    Expression<String>? vpa,
+    Expression<String>? accountTail,
+    Expression<int>? dateMs,
+    Expression<int>? capturedAtMs,
+    Expression<String>? note,
+    Expression<String>? assignedCategory,
+    Expression<String>? mergedTxnUuid,
+    Expression<int>? notifiedAtMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (captureHash != null) 'capture_hash': captureHash,
+      if (amountPaise != null) 'amount_paise': amountPaise,
+      if (direction != null) 'direction': direction,
+      if (payee != null) 'payee': payee,
+      if (payeeNormalized != null) 'payee_normalized': payeeNormalized,
+      if (vpa != null) 'vpa': vpa,
+      if (accountTail != null) 'account_tail': accountTail,
+      if (dateMs != null) 'date_ms': dateMs,
+      if (capturedAtMs != null) 'captured_at_ms': capturedAtMs,
+      if (note != null) 'note': note,
+      if (assignedCategory != null) 'assigned_category': assignedCategory,
+      if (mergedTxnUuid != null) 'merged_txn_uuid': mergedTxnUuid,
+      if (notifiedAtMs != null) 'notified_at_ms': notifiedAtMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  StoredPendingMemosCompanion copyWith(
+      {Value<String>? captureHash,
+      Value<int>? amountPaise,
+      Value<String>? direction,
+      Value<String>? payee,
+      Value<String>? payeeNormalized,
+      Value<String?>? vpa,
+      Value<String?>? accountTail,
+      Value<int>? dateMs,
+      Value<int>? capturedAtMs,
+      Value<String?>? note,
+      Value<String?>? assignedCategory,
+      Value<String?>? mergedTxnUuid,
+      Value<int?>? notifiedAtMs,
+      Value<int>? rowid}) {
+    return StoredPendingMemosCompanion(
+      captureHash: captureHash ?? this.captureHash,
+      amountPaise: amountPaise ?? this.amountPaise,
+      direction: direction ?? this.direction,
+      payee: payee ?? this.payee,
+      payeeNormalized: payeeNormalized ?? this.payeeNormalized,
+      vpa: vpa ?? this.vpa,
+      accountTail: accountTail ?? this.accountTail,
+      dateMs: dateMs ?? this.dateMs,
+      capturedAtMs: capturedAtMs ?? this.capturedAtMs,
+      note: note ?? this.note,
+      assignedCategory: assignedCategory ?? this.assignedCategory,
+      mergedTxnUuid: mergedTxnUuid ?? this.mergedTxnUuid,
+      notifiedAtMs: notifiedAtMs ?? this.notifiedAtMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (captureHash.present) {
+      map['capture_hash'] = Variable<String>(captureHash.value);
+    }
+    if (amountPaise.present) {
+      map['amount_paise'] = Variable<int>(amountPaise.value);
+    }
+    if (direction.present) {
+      map['direction'] = Variable<String>(direction.value);
+    }
+    if (payee.present) {
+      map['payee'] = Variable<String>(payee.value);
+    }
+    if (payeeNormalized.present) {
+      map['payee_normalized'] = Variable<String>(payeeNormalized.value);
+    }
+    if (vpa.present) {
+      map['vpa'] = Variable<String>(vpa.value);
+    }
+    if (accountTail.present) {
+      map['account_tail'] = Variable<String>(accountTail.value);
+    }
+    if (dateMs.present) {
+      map['date_ms'] = Variable<int>(dateMs.value);
+    }
+    if (capturedAtMs.present) {
+      map['captured_at_ms'] = Variable<int>(capturedAtMs.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (assignedCategory.present) {
+      map['assigned_category'] = Variable<String>(assignedCategory.value);
+    }
+    if (mergedTxnUuid.present) {
+      map['merged_txn_uuid'] = Variable<String>(mergedTxnUuid.value);
+    }
+    if (notifiedAtMs.present) {
+      map['notified_at_ms'] = Variable<int>(notifiedAtMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StoredPendingMemosCompanion(')
+          ..write('captureHash: $captureHash, ')
+          ..write('amountPaise: $amountPaise, ')
+          ..write('direction: $direction, ')
+          ..write('payee: $payee, ')
+          ..write('payeeNormalized: $payeeNormalized, ')
+          ..write('vpa: $vpa, ')
+          ..write('accountTail: $accountTail, ')
+          ..write('dateMs: $dateMs, ')
+          ..write('capturedAtMs: $capturedAtMs, ')
+          ..write('note: $note, ')
+          ..write('assignedCategory: $assignedCategory, ')
+          ..write('mergedTxnUuid: $mergedTxnUuid, ')
+          ..write('notifiedAtMs: $notifiedAtMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1680,6 +2345,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $StoredCategoryRulesTable(this);
   late final $StoredMatchesTable storedMatches = $StoredMatchesTable(this);
   late final $PinnedMonthsTable pinnedMonths = $PinnedMonthsTable(this);
+  late final $StoredPendingMemosTable storedPendingMemos =
+      $StoredPendingMemosTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1689,7 +2356,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         storedTransactions,
         storedCategoryRules,
         storedMatches,
-        pinnedMonths
+        pinnedMonths,
+        storedPendingMemos
       ];
 }
 
@@ -2600,6 +3268,308 @@ typedef $$PinnedMonthsTableProcessedTableManager = ProcessedTableManager<
     ),
     PinnedMonth,
     PrefetchHooks Function()>;
+typedef $$StoredPendingMemosTableCreateCompanionBuilder
+    = StoredPendingMemosCompanion Function({
+  required String captureHash,
+  required int amountPaise,
+  required String direction,
+  required String payee,
+  required String payeeNormalized,
+  Value<String?> vpa,
+  Value<String?> accountTail,
+  required int dateMs,
+  required int capturedAtMs,
+  Value<String?> note,
+  Value<String?> assignedCategory,
+  Value<String?> mergedTxnUuid,
+  Value<int?> notifiedAtMs,
+  Value<int> rowid,
+});
+typedef $$StoredPendingMemosTableUpdateCompanionBuilder
+    = StoredPendingMemosCompanion Function({
+  Value<String> captureHash,
+  Value<int> amountPaise,
+  Value<String> direction,
+  Value<String> payee,
+  Value<String> payeeNormalized,
+  Value<String?> vpa,
+  Value<String?> accountTail,
+  Value<int> dateMs,
+  Value<int> capturedAtMs,
+  Value<String?> note,
+  Value<String?> assignedCategory,
+  Value<String?> mergedTxnUuid,
+  Value<int?> notifiedAtMs,
+  Value<int> rowid,
+});
+
+class $$StoredPendingMemosTableFilterComposer
+    extends Composer<_$AppDatabase, $StoredPendingMemosTable> {
+  $$StoredPendingMemosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get captureHash => $composableBuilder(
+      column: $table.captureHash, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get amountPaise => $composableBuilder(
+      column: $table.amountPaise, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get direction => $composableBuilder(
+      column: $table.direction, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get payee => $composableBuilder(
+      column: $table.payee, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get payeeNormalized => $composableBuilder(
+      column: $table.payeeNormalized,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get vpa => $composableBuilder(
+      column: $table.vpa, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get accountTail => $composableBuilder(
+      column: $table.accountTail, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get dateMs => $composableBuilder(
+      column: $table.dateMs, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get capturedAtMs => $composableBuilder(
+      column: $table.capturedAtMs, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get assignedCategory => $composableBuilder(
+      column: $table.assignedCategory,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mergedTxnUuid => $composableBuilder(
+      column: $table.mergedTxnUuid, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get notifiedAtMs => $composableBuilder(
+      column: $table.notifiedAtMs, builder: (column) => ColumnFilters(column));
+}
+
+class $$StoredPendingMemosTableOrderingComposer
+    extends Composer<_$AppDatabase, $StoredPendingMemosTable> {
+  $$StoredPendingMemosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get captureHash => $composableBuilder(
+      column: $table.captureHash, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get amountPaise => $composableBuilder(
+      column: $table.amountPaise, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get direction => $composableBuilder(
+      column: $table.direction, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get payee => $composableBuilder(
+      column: $table.payee, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get payeeNormalized => $composableBuilder(
+      column: $table.payeeNormalized,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get vpa => $composableBuilder(
+      column: $table.vpa, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get accountTail => $composableBuilder(
+      column: $table.accountTail, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get dateMs => $composableBuilder(
+      column: $table.dateMs, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get capturedAtMs => $composableBuilder(
+      column: $table.capturedAtMs,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get assignedCategory => $composableBuilder(
+      column: $table.assignedCategory,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mergedTxnUuid => $composableBuilder(
+      column: $table.mergedTxnUuid,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get notifiedAtMs => $composableBuilder(
+      column: $table.notifiedAtMs,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$StoredPendingMemosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $StoredPendingMemosTable> {
+  $$StoredPendingMemosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get captureHash => $composableBuilder(
+      column: $table.captureHash, builder: (column) => column);
+
+  GeneratedColumn<int> get amountPaise => $composableBuilder(
+      column: $table.amountPaise, builder: (column) => column);
+
+  GeneratedColumn<String> get direction =>
+      $composableBuilder(column: $table.direction, builder: (column) => column);
+
+  GeneratedColumn<String> get payee =>
+      $composableBuilder(column: $table.payee, builder: (column) => column);
+
+  GeneratedColumn<String> get payeeNormalized => $composableBuilder(
+      column: $table.payeeNormalized, builder: (column) => column);
+
+  GeneratedColumn<String> get vpa =>
+      $composableBuilder(column: $table.vpa, builder: (column) => column);
+
+  GeneratedColumn<String> get accountTail => $composableBuilder(
+      column: $table.accountTail, builder: (column) => column);
+
+  GeneratedColumn<int> get dateMs =>
+      $composableBuilder(column: $table.dateMs, builder: (column) => column);
+
+  GeneratedColumn<int> get capturedAtMs => $composableBuilder(
+      column: $table.capturedAtMs, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<String> get assignedCategory => $composableBuilder(
+      column: $table.assignedCategory, builder: (column) => column);
+
+  GeneratedColumn<String> get mergedTxnUuid => $composableBuilder(
+      column: $table.mergedTxnUuid, builder: (column) => column);
+
+  GeneratedColumn<int> get notifiedAtMs => $composableBuilder(
+      column: $table.notifiedAtMs, builder: (column) => column);
+}
+
+class $$StoredPendingMemosTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $StoredPendingMemosTable,
+    StoredPendingMemo,
+    $$StoredPendingMemosTableFilterComposer,
+    $$StoredPendingMemosTableOrderingComposer,
+    $$StoredPendingMemosTableAnnotationComposer,
+    $$StoredPendingMemosTableCreateCompanionBuilder,
+    $$StoredPendingMemosTableUpdateCompanionBuilder,
+    (
+      StoredPendingMemo,
+      BaseReferences<_$AppDatabase, $StoredPendingMemosTable, StoredPendingMemo>
+    ),
+    StoredPendingMemo,
+    PrefetchHooks Function()> {
+  $$StoredPendingMemosTableTableManager(
+      _$AppDatabase db, $StoredPendingMemosTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$StoredPendingMemosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$StoredPendingMemosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$StoredPendingMemosTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> captureHash = const Value.absent(),
+            Value<int> amountPaise = const Value.absent(),
+            Value<String> direction = const Value.absent(),
+            Value<String> payee = const Value.absent(),
+            Value<String> payeeNormalized = const Value.absent(),
+            Value<String?> vpa = const Value.absent(),
+            Value<String?> accountTail = const Value.absent(),
+            Value<int> dateMs = const Value.absent(),
+            Value<int> capturedAtMs = const Value.absent(),
+            Value<String?> note = const Value.absent(),
+            Value<String?> assignedCategory = const Value.absent(),
+            Value<String?> mergedTxnUuid = const Value.absent(),
+            Value<int?> notifiedAtMs = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              StoredPendingMemosCompanion(
+            captureHash: captureHash,
+            amountPaise: amountPaise,
+            direction: direction,
+            payee: payee,
+            payeeNormalized: payeeNormalized,
+            vpa: vpa,
+            accountTail: accountTail,
+            dateMs: dateMs,
+            capturedAtMs: capturedAtMs,
+            note: note,
+            assignedCategory: assignedCategory,
+            mergedTxnUuid: mergedTxnUuid,
+            notifiedAtMs: notifiedAtMs,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String captureHash,
+            required int amountPaise,
+            required String direction,
+            required String payee,
+            required String payeeNormalized,
+            Value<String?> vpa = const Value.absent(),
+            Value<String?> accountTail = const Value.absent(),
+            required int dateMs,
+            required int capturedAtMs,
+            Value<String?> note = const Value.absent(),
+            Value<String?> assignedCategory = const Value.absent(),
+            Value<String?> mergedTxnUuid = const Value.absent(),
+            Value<int?> notifiedAtMs = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              StoredPendingMemosCompanion.insert(
+            captureHash: captureHash,
+            amountPaise: amountPaise,
+            direction: direction,
+            payee: payee,
+            payeeNormalized: payeeNormalized,
+            vpa: vpa,
+            accountTail: accountTail,
+            dateMs: dateMs,
+            capturedAtMs: capturedAtMs,
+            note: note,
+            assignedCategory: assignedCategory,
+            mergedTxnUuid: mergedTxnUuid,
+            notifiedAtMs: notifiedAtMs,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$StoredPendingMemosTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $StoredPendingMemosTable,
+    StoredPendingMemo,
+    $$StoredPendingMemosTableFilterComposer,
+    $$StoredPendingMemosTableOrderingComposer,
+    $$StoredPendingMemosTableAnnotationComposer,
+    $$StoredPendingMemosTableCreateCompanionBuilder,
+    $$StoredPendingMemosTableUpdateCompanionBuilder,
+    (
+      StoredPendingMemo,
+      BaseReferences<_$AppDatabase, $StoredPendingMemosTable, StoredPendingMemo>
+    ),
+    StoredPendingMemo,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2614,4 +3584,6 @@ class $AppDatabaseManager {
       $$StoredMatchesTableTableManager(_db, _db.storedMatches);
   $$PinnedMonthsTableTableManager get pinnedMonths =>
       $$PinnedMonthsTableTableManager(_db, _db.pinnedMonths);
+  $$StoredPendingMemosTableTableManager get storedPendingMemos =>
+      $$StoredPendingMemosTableTableManager(_db, _db.storedPendingMemos);
 }
