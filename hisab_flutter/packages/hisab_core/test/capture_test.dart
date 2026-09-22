@@ -431,6 +431,37 @@ void main() {
       expect(memo?.direction, Direction.debit);
       expect(memo?.amountPaise, 45000);
     });
+
+    test('testPayeeSurvivesCharactersThatLengthenWhenLowercased', () {
+      // I-3: `toLowerCase()` can change a string's length — U+0130 'İ' becomes
+      // 'i' + U+0307 — so an offset taken from the lowercased mirror does not
+      // address the original. Slicing the original with one threw a RangeError
+      // here (Swift trapped outright), which upstream swallowed as one dropped
+      // alert.
+      final padding = 'İ' * 20;
+      final text = 'Rs.450.00 debited $padding to ZEPTO';
+      final memo = AlertParser.parse(text, _at(now));
+      expect(memo?.payee, 'ZEPTO');
+      expect(memo?.amountPaise, 45000);
+    });
+
+    test('testAShortLowercaseLengtheningRunDoesNotShiftThePayee', () {
+      // The same defect below the throwing threshold: the slice slid along and
+      // returned a mangled payee instead.
+      const text = 'Rs.450.00 debited İ to ZEPTO CORNER on 22-09-26';
+      final memo = AlertParser.parse(text, _at(now));
+      expect(memo?.payee, 'ZEPTO CORNER');
+    });
+
+    test('testAnUnreadableNumericDateFallsThroughToTheNamedMonth', () {
+      // I-2: the numeric pattern matches '12-34-56' inside a reference number,
+      // and month 34 is not a month. That dead candidate must not veto the
+      // real '20Sep26' later in the same alert — the date feeds `captureHash`.
+      const text = 'Rs.100 debited to Cafe Mocha ref 12-34-5678 on 20Sep26';
+      final memo = AlertParser.parse(text, _at(now));
+      expect(istDayString(memo!.date), '2026-09-20');
+      expect(memo.payee, 'Cafe Mocha');
+    });
   });
 
   group('MemoMerger', () {

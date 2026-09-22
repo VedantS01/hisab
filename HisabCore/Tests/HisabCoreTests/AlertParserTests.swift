@@ -179,4 +179,38 @@ final class AlertParserTests: XCTestCase {
         XCTAssertEqual(memo?.direction, .debit)
         XCTAssertEqual(memo?.amountPaise, 45_000)
     }
+
+    func testPayeeSurvivesCharactersThatLengthenWhenLowercased() {
+        // I-3: `lowercased()` can make a string LONGER — U+0130 "İ" becomes
+        // "i" + U+0307 — so a `String.Index` taken from the lowercased mirror
+        // is not a valid index into the original. Slicing the original with
+        // one used to trap ("Range requires lowerBound <= upperBound") once
+        // the run was long enough. The App Intent takes arbitrary user text
+        // from Shortcuts, the share sheet and Siri, so this is reachable.
+        let padding = String(repeating: "\u{0130}", count: 20)
+        let text = "Rs.450.00 debited \(padding) to ZEPTO"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "ZEPTO")
+        XCTAssertEqual(memo?.amountPaise, 45_000)
+    }
+
+    func testAShortLowercaseLengtheningRunDoesNotShiftThePayee() {
+        // The same defect below the trapping threshold: a single U+0130 slid
+        // the slice one byte along and returned a mangled payee instead.
+        let text = "Rs.450.00 debited \u{0130} to ZEPTO CORNER on 22-09-26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "ZEPTO CORNER")
+    }
+
+    func testAnUnreadableNumericDateFallsThroughToTheNamedMonth() {
+        // I-2: the numeric pattern matches "12-34-56" inside a reference
+        // number, and month 34 is not a month. That dead candidate must not
+        // veto the real "20Sep26" later in the same alert — the memo's date
+        // feeds `captureHash`, so vetoing it gave the two cores different
+        // identities for one alert and shifted MemoMerger's ±3-day window.
+        let text = "Rs.100 debited to Cafe Mocha ref 12-34-5678 on 20Sep26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo.map { PendingMemo.istDayString($0.date) }, "2026-09-20")
+        XCTAssertEqual(memo?.payee, "Cafe Mocha")
+    }
 }

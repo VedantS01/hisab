@@ -113,6 +113,18 @@ final class StoredPendingMemo {
     var amountPaise: Int64 = 0
     var directionRaw: String = ""
     var payee: String = ""
+    /// M-1: a denormalized copy of `PendingMemo.payeeNormalized`, WRITTEN ON
+    /// INSERT AND READ BY NOTHING. `asMemo` rebuilds the memo from `payee` and
+    /// the computed property re-derives this value, so every consumer already
+    /// gets a fresh one; this column exists only to keep the stored row the
+    /// same shape as the Android `pending_memos` table, whose identical column
+    /// cannot be dropped without a second migration on the release that is
+    /// already carrying the first.
+    ///
+    /// It goes STALE if `SuggestionEngine.normalize` ever changes: a row keeps
+    /// whatever that function returned the day it was captured. Anything that
+    /// must agree with today's normalization — a rule key, a capture hash, a
+    /// cluster lookup — reads `asMemo.payeeNormalized`, never this.
     var payeeNormalized: String = ""
     var vpa: String?
     var accountTail: String?

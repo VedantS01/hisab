@@ -36,11 +36,10 @@ class AlertParser {
 
     final direction = _direction(lower);
     if (direction == null) return null;
-    final amount = _amount(lower);
+    final amount = _amount(collapsed);
     if (amount == null || amount.paise <= 0) return null;
     final vpa = _vpa(lower);
-    final extracted =
-        _payee(collapsed, lower, direction, amount.end);
+    final extracted = _payee(collapsed, direction, amount.end);
     final payee = extracted ?? (vpa != null ? vpa.split('@')[0] : null);
     if (payee == null || payee.isEmpty) return null;
 
@@ -69,16 +68,24 @@ class AlertParser {
   /// the amount is the one landmark guaranteed to sit inside the transaction
   /// clause, whereas a direction keyword ("sent", "paid") turns up in template
   /// preambles and would let a disclaimer's " to " win.
-  static _AmountHit? _amount(String lower) {
+  ///
+  /// Runs on the ORIGINAL text, matching case-insensitively, rather than on
+  /// the lowercased mirror: `end` is an offset the payee slice uses, and an
+  /// offset taken from the mirror is only accidentally valid in the original.
+  /// Dart's `toLowerCase` happens to be a 1:1 code-point mapping, so the two
+  /// agree today; Swift's `lowercased()` applies the full mapping and U+0130
+  /// 'İ' becomes 'i' + U+0307, which trapped there. Neither core makes the
+  /// assumption any more.
+  static _AmountHit? _amount(String text) {
     final hit = _firstAmount(
-        r'(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)', lower);
+        r'(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)', text);
     if (hit != null) return hit;
-    return _firstAmount(r'(?<![0-9.])([0-9][0-9,]*\.[0-9]{2})(?![0-9.])', lower);
+    return _firstAmount(r'(?<![0-9.])([0-9][0-9,]*\.[0-9]{2})(?![0-9.])', text);
   }
 
-  static _AmountHit? _firstAmount(String pattern, String lower) {
-    final regex = RegExp(pattern);
-    final match = regex.firstMatch(lower);
+  static _AmountHit? _firstAmount(String pattern, String text) {
+    final regex = RegExp(pattern, caseSensitive: false);
+    final match = regex.firstMatch(text);
     if (match == null) return null;
     final captured = match.group(1);
     if (captured == null) return null;
@@ -131,14 +138,19 @@ class AlertParser {
   /// There is intentionally NO whole-message fallback — an alert that phrases
   /// the payee before the amount is declined instead. Declining costs one
   /// uncaptured alert; guessing costs a wrong rule.
-  static String? _payee(
-      String text, String lower, Direction direction, int start) {
+  ///
+  /// Both the search and the slice happen in ONE string. Searching a
+  /// lowercased mirror and slicing the original is the assumption that trapped
+  /// in Swift (see `_amount`); a case-insensitive search keeps every offset
+  /// belonging to the string it is used on, and the payee keeps the casing the
+  /// alert gave it.
+  static String? _payee(String text, Direction direction, int start) {
     final leadIns = direction == Direction.credit ? _creditLeadIns : _debitLeadIns;
     for (final leadIn in leadIns) {
-      final idx = lower.indexOf(leadIn, start);
-      if (idx == -1) continue;
-      final tailStart = idx + leadIn.length;
-      final cleaned = _trimToPayee(text.substring(tailStart));
+      final pattern = RegExp(RegExp.escape(leadIn), caseSensitive: false);
+      final matches = pattern.allMatches(text, start);
+      if (matches.isEmpty) continue;
+      final cleaned = _trimToPayee(text.substring(matches.first.end));
       if (cleaned != null) return cleaned;
     }
     return null;
@@ -206,6 +218,12 @@ class AlertParser {
 
   /// `22-09-26`, `22/09/2026`, `22Sep26`, `22-Sep-2026`. A two-digit year is
   /// 2000-based: these alerts are never historical.
+  ///
+  /// A numeric candidate that is not a real date does NOT veto the named
+  /// pattern: "ref 12-34-5678" matches the numeric shape with month 34, and
+  /// stopping there would throw away the "20Sep26" further along the same
+  /// alert. The date feeds `PendingMemo.captureHash`, so vetoing it gave the
+  /// two cores different identities for one alert.
   static DateTime? _date(String lower) {
     final numeric = RegExp(r'([0-9]{2})[-/]([0-9]{2})[-/]([0-9]{2,4})');
     final numericMatch = numeric.firstMatch(lower);

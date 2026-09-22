@@ -5,22 +5,39 @@ import HisabCore
 /// SwiftData shim for pending memos. Deliberately logic-free.
 @MainActor
 enum MemoStore {
-    /// False when this alert was already captured — the dedup guard that stops
-    /// Android's notification *updates* producing a second memo.
+    /// What one capture attempt did to the store.
+    ///
+    /// `.duplicate` and `.failed` used to share a single `false`, so a store
+    /// that could not be read reported itself to the user as "already logged"
+    /// — a confident answer about a memo that was never written. They are
+    /// different events and the caller has to tell them apart: one means
+    /// capture is working, the other means it is not.
+    enum InsertOutcome: Equatable {
+        case inserted
+        case duplicate
+        case failed
+    }
+
+    /// `.duplicate` when this alert was already captured — the dedup guard
+    /// that stops Android's notification *updates* producing a second memo.
     @discardableResult
-    static func insert(_ memo: PendingMemo, into ctx: ModelContext) -> Bool {
+    static func insert(_ memo: PendingMemo, into ctx: ModelContext) -> InsertOutcome {
         let hash = memo.captureHash
         let existing = FetchDescriptor<StoredPendingMemo>(
             predicate: #Predicate { $0.captureHash == hash })
         // A thrown fetch must not be read as "not found": with unique-attribute
         // upsert behind this guard, inserting on a failed lookup can overwrite a
         // memo the user already categorized. Declining one capture is the cheaper
-        // error.
-        guard let found = try? ctx.fetch(existing) else { return false }
-        if !found.isEmpty { return false }
+        // error — but it is a failure, not a duplicate.
+        guard let found = try? ctx.fetch(existing) else { return .failed }
+        if !found.isEmpty { return .duplicate }
         ctx.insert(StoredPendingMemo(memo: memo))
-        try? ctx.save()
-        return true
+        do {
+            try ctx.save()
+        } catch {
+            return .failed
+        }
+        return .inserted
     }
 
     /// Unmerged, unlabelled memos, newest first.

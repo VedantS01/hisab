@@ -27,7 +27,11 @@ struct CaptureSetupView: View {
             Section {
                 Text("Hisab reads the text of a bank or UPI alert you hand it: the amount, who it went to, the UPI ID and the last digits of the account.")
                     .font(.subheadline)
-                Text("It is kept on this phone, in Hisab's own store, and nothing is sent anywhere. A captured alert is a memo, not a ledger entry — your statements stay the single source of truth, and a memo's real output is a categorization rule. Memos are deleted after \(PendingMemo.expiryDays) days.")
+                // M-5: `MemoStore.expire` spares merged memos on purpose —
+                // their details are what stop the same alert being captured
+                // again — so a flat "deleted after 45 days" was a promise the
+                // app does not keep.
+                Text("It is kept on this phone, in Hisab's own store, and nothing is sent anywhere. A captured alert is a memo, not a ledger entry — your statements stay the single source of truth, and a memo's real output is a categorization rule. A memo Hisab never matched to a statement is deleted after \(PendingMemo.expiryDays) days; one it did match is kept, so the same alert is not captured twice.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } header: {
@@ -60,6 +64,7 @@ struct CaptureSetupView: View {
                 step(4, "Choose Run Immediately, and turn Notify When Run off.")
                 step(5, "Add exactly one action: Hisab › Add Transaction Alert.")
                 step(6, "Set its Alert Text to the Shortcut Input (the message body).")
+                step(7, "Leave Note empty. Anything you put there is saved word for word, so it is for a short note of your own — never the message body.")
             } header: {
                 Text("Step 1 — the automation")
             } footer: {

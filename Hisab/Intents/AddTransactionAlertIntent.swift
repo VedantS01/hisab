@@ -42,13 +42,22 @@ struct AddTransactionAlertIntent: AppIntent {
         }
         memo.note = note
 
-        let inserted = MemoStore.insert(memo, into: ctx)
-        CapturePrefs.lastCaptureAt = Date()
-
-        guard inserted else {
+        switch MemoStore.insert(memo, into: ctx) {
+        case .failed:
+            // M-6: a store that could not be read or written is NOT a
+            // duplicate. Saying "already logged" here would promise the user
+            // their spend is filed when nothing was written, and refreshing
+            // `lastCaptureAt` would paint the broken store healthy in Settings
+            // — the one place that would otherwise show something is wrong.
+            return .result(dialog: "Hisab couldn't save that alert. Nothing was stored.")
+        case .duplicate:
+            // A recognized repeat still proves the pipeline works end to end.
+            CapturePrefs.lastCaptureAt = Date()
             return .result(dialog: "Already logged \(Money.formatPaise(memo.amountPaise)).")
+        case .inserted:
+            CapturePrefs.lastCaptureAt = Date()
+            await CaptureNotifier.considerNotifying(memo: memo, in: ctx)
+            return .result(dialog: "Logged \(Money.formatPaise(memo.amountPaise)) to \(memo.payee).")
         }
-        await CaptureNotifier.considerNotifying(memo: memo, in: ctx)
-        return .result(dialog: "Logged \(Money.formatPaise(memo.amountPaise)) to \(memo.payee).")
     }
 }

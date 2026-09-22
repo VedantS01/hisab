@@ -15,10 +15,9 @@ public enum AlertParser {
         let lower = collapsed.lowercased()
 
         guard let direction = direction(in: lower) else { return nil }
-        guard let amount = amount(in: lower), amount.paise > 0 else { return nil }
+        guard let amount = amount(in: collapsed), amount.paise > 0 else { return nil }
         let vpa = self.vpa(in: lower)
-        let extracted = payee(in: collapsed, lower: lower, direction: direction,
-                              from: amount.end)
+        let extracted = payee(in: collapsed, direction: direction, from: amount.end)
         guard let payee = extracted ?? vpa.map({ String($0.split(separator: "@")[0]) }),
               !payee.isEmpty else { return nil }
 
@@ -45,22 +44,31 @@ public enum AlertParser {
     /// the amount is the one landmark guaranteed to sit inside the transaction
     /// clause, whereas a direction keyword ("sent", "paid") turns up in template
     /// preambles and would let a disclaimer's " to " win.
-    private static func amount(in lower: String) -> (paise: Int64, end: String.Index)? {
+    ///
+    /// Runs on the ORIGINAL text, matching case-insensitively, rather than on
+    /// the lowercased mirror: `end` is an index the payee slice uses, and
+    /// `lowercased()` can LENGTHEN a string — U+0130 "İ" becomes "i" + U+0307
+    /// — so an index taken from the mirror is not valid in the original. That
+    /// mismatch returned a shifted payee, and trapped outright once the run of
+    /// such characters was long enough.
+    private static func amount(in text: String) -> (paise: Int64, end: String.Index)? {
         if let hit = firstAmount(#"(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"#,
-                                 in: lower) {
+                                 in: text) {
             return hit
         }
-        return firstAmount(#"(?<![0-9.])([0-9][0-9,]*\.[0-9]{2})(?![0-9.])"#, in: lower)
+        return firstAmount(#"(?<![0-9.])([0-9][0-9,]*\.[0-9]{2})(?![0-9.])"#, in: text)
     }
 
     private static func firstAmount(_ pattern: String,
-                                    in lower: String) -> (paise: Int64, end: String.Index)? {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let range = NSRange(lower.startIndex..., in: lower)
-        guard let match = regex.firstMatch(in: lower, range: range),
-              let whole = Range(match.range, in: lower),
-              let captured = Range(match.range(at: 1), in: lower),
-              let paise = Money.signedPaise(fromDecimalString: String(lower[captured]))
+                                    in text: String) -> (paise: Int64, end: String.Index)? {
+        guard let regex = try? NSRegularExpression(pattern: pattern,
+                                                   options: [.caseInsensitive])
+        else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        guard let match = regex.firstMatch(in: text, range: range),
+              let whole = Range(match.range, in: text),
+              let captured = Range(match.range(at: 1), in: text),
+              let paise = Money.signedPaise(fromDecimalString: String(text[captured]))
         else { return nil }
         return (paise, whole.upperBound)
     }
@@ -110,11 +118,18 @@ public enum AlertParser {
     /// There is intentionally NO whole-message fallback — an alert that phrases
     /// the payee before the amount is declined instead. Declining costs one
     /// uncaptured alert; guessing costs a wrong rule.
-    private static func payee(in text: String, lower: String, direction: Direction,
+    ///
+    /// Both the search and the slice happen in ONE string. Searching a
+    /// lowercased mirror and slicing the original is what trapped on U+0130
+    /// (see `amount(in:)`); a case-insensitive search keeps every index
+    /// belonging to the string it is used on, and the payee keeps the casing
+    /// the alert gave it.
+    private static func payee(in text: String, direction: Direction,
                               from start: String.Index) -> String? {
         let leadIns = direction == .credit ? creditLeadIns : debitLeadIns
         for leadIn in leadIns {
-            guard let found = lower.range(of: leadIn, range: start..<lower.endIndex) else {
+            guard let found = text.range(of: leadIn, options: [.caseInsensitive],
+                                         range: start..<text.endIndex) else {
                 continue
             }
             if let cleaned = trimToPayee(String(text[found.upperBound...])) {
@@ -168,13 +183,20 @@ public enum AlertParser {
 
     /// `22-09-26`, `22/09/2026`, `22Sep26`, `22-Sep-2026`. A two-digit year is
     /// 2000-based: these alerts are never historical.
+    ///
+    /// A numeric candidate that is not a real date does NOT veto the named
+    /// pattern: "ref 12-34-5678" matches the numeric shape with month 34, and
+    /// returning nil there would throw away the "20Sep26" further along the
+    /// same alert. The date feeds `PendingMemo.captureHash`, so vetoing it
+    /// gave the two cores different identities for one alert.
     private static func date(in lower: String) -> Date? {
         if let numeric = try? NSRegularExpression(pattern: #"([0-9]{2})[-/]([0-9]{2})[-/]([0-9]{2,4})"#) {
             let range = NSRange(lower.startIndex..., in: lower)
             if let match = numeric.firstMatch(in: lower, range: range),
                let d = capturedInt(match, 1, lower), let m = capturedInt(match, 2, lower),
-               let y = capturedInt(match, 3, lower) {
-                return makeDate(day: d, month: m, year: y)
+               let y = capturedInt(match, 3, lower),
+               let made = makeDate(day: d, month: m, year: y) {
+                return made
             }
         }
         if let named = try? NSRegularExpression(pattern: #"([0-9]{1,2})[- ]?([a-z]{3})[- ]?([0-9]{2,4})"#) {

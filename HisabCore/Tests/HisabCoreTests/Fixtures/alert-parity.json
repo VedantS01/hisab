@@ -128,6 +128,22 @@
         "rulePattern": "swiggy",
         "ruleKind": "merchant"
       }
+    },
+    {
+      "name": "unreadable-numeric-candidate-does-not-veto-the-named-month-date",
+      "text": "Rs.100 debited to Cafe Mocha ref 12-34-5678 on 20Sep26",
+      "expected": {
+        "amountPaise": 10000,
+        "direction": "debit",
+        "payee": "Cafe Mocha",
+        "payeeNormalized": "cafe mocha",
+        "vpa": null,
+        "accountTail": null,
+        "dateISO": "2026-09-20",
+        "captureHash": "5767c1e75eda0aac3ba31ef158d34a97ab3325fcca771e93cea5f458c215be7b",
+        "rulePattern": "cafe mocha",
+        "ruleKind": "merchant"
+      }
     }
   ],
   "rejected": [
