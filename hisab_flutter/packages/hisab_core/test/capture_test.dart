@@ -1,6 +1,9 @@
 // Dart twin of PendingMemoTests.swift, AlertParserTests.swift and
 // MemoMergerTests.swift (HisabCore/Tests/HisabCoreTests). Same test names,
 // same expectations, same fixtures — see task-4-brief.md.
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:hisab_core/hisab_core.dart';
 import 'package:test/test.dart';
 
@@ -692,5 +695,90 @@ void main() {
       // concatenate into one token instead of splitting at the mark.
       expect(MemoMerger.tokens('राम KIRANA'), {'राम', 'kirana'});
     });
+  });
+
+  group('Alert parity', () {
+    // Swift twin: AlertParityTests.swift. Same fixture (copied here by
+    // tool/sync_assets.sh) pins AlertParser.parse and MemoMerger.merge so
+    // the two cores cannot silently disagree on either. See task-5-brief.md.
+    final fixture = jsonDecode(
+            File('test/fixtures/alert-parity.json').readAsStringSync())
+        as Map<String, dynamic>;
+    final receivedAt = DateTime.parse(fixture['receivedAt'] as String);
+
+    Direction directionOf(String raw) =>
+        raw == 'credit' ? Direction.credit : Direction.debit;
+
+    for (final c in (fixture['cases'] as List).cast<Map<String, dynamic>>()) {
+      test('${c['name']} parses identically to Swift', () {
+        final text = c['text'] as String;
+        final expected = c['expected'] as Map<String, dynamic>;
+        final memo = AlertParser.parse(text, receivedAt);
+        expect(memo, isNotNull, reason: '${c['name']}: expected a parse');
+        expect(memo!.amountPaise, expected['amountPaise']);
+        expect(memo.direction.name, expected['direction']);
+        expect(memo.payee, expected['payee']);
+        expect(memo.payeeNormalized, expected['payeeNormalized']);
+        expect(memo.vpa, expected['vpa']);
+        expect(memo.accountTail, expected['accountTail']);
+        expect(istDayString(memo.date), expected['dateISO']);
+        expect(memo.captureHash, expected['captureHash']);
+        expect(memo.ruleKey.pattern, expected['rulePattern']);
+        expect(memo.ruleKey.kind.name, expected['ruleKind']);
+      });
+    }
+
+    test('rejected texts all fail to parse', () {
+      for (final text in (fixture['rejected'] as List).cast<String>()) {
+        expect(AlertParser.parse(text, receivedAt), isNull,
+            reason: 'expected nil for rejected text: $text');
+      }
+    });
+
+    for (final m
+        in (fixture['merges'] as List).cast<Map<String, dynamic>>()) {
+      test('${m['name']} merges identically to Swift', () {
+        final memoFixtures =
+            (m['memos'] as List).cast<Map<String, dynamic>>();
+        final memos = [
+          for (final mf in memoFixtures)
+            PendingMemo(
+              amountPaise: mf['amountPaise'] as int,
+              direction: directionOf(mf['direction'] as String),
+              payee: mf['payee'] as String,
+              vpa: mf['vpa'] as String?,
+              accountTail: mf['accountTail'] as String?,
+              date: _day(mf['dateISO'] as String),
+              capturedAt: _day(mf['dateISO'] as String),
+            ),
+        ];
+        // Each fixture-recorded hash must match what this run computes --
+        // catches drift in PendingMemo's hash algorithm independent of the
+        // merge assignment itself.
+        for (var i = 0; i < memos.length; i++) {
+          expect(memos[i].captureHash, memoFixtures[i]['captureHash'],
+              reason: '${m['name']}: memo ${memoFixtures[i]['id']} '
+                  'hash differs');
+        }
+
+        final candidateFixtures =
+            (m['candidates'] as List).cast<Map<String, dynamic>>();
+        final candidates = [
+          for (final cf in candidateFixtures)
+            MemoMergeCandidate(
+              id: cf['id'] as String,
+              date: _day(cf['dateISO'] as String),
+              amountPaise: cf['amountPaise'] as int,
+              direction: directionOf(cf['direction'] as String),
+              narration: cf['narration'] as String,
+            ),
+        ];
+
+        final result = MemoMerger.merge(memos: memos, candidates: candidates);
+        final expected =
+            (m['expected'] as Map<String, dynamic>).cast<String, String>();
+        expect(result, expected);
+      });
+    }
   });
 }

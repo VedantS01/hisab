@@ -1,0 +1,187 @@
+{
+  "receivedAt": "2026-09-22T14:30:00+05:30",
+  "cases": [
+    {
+      "name": "hdfc-upi-debit",
+      "text": "Rs.450.00 debited from a/c XX1234 on 22-09-26 to VPA vedant@okaxis. Ref 123456789012. Not you? Call 18002586161",
+      "expected": {
+        "amountPaise": 45000,
+        "direction": "debit",
+        "payee": "vedant@okaxis",
+        "payeeNormalized": "vedant okaxis",
+        "vpa": "vedant@okaxis",
+        "accountTail": "1234",
+        "dateISO": "2026-09-22",
+        "captureHash": "e0bb64aec731fd7ddf8cf72d25b358bc606f8da972d6154496321377a924b905",
+        "rulePattern": "vedant@okaxis",
+        "ruleKind": "vpa"
+      }
+    },
+    {
+      "name": "lakh-grouped-merchant",
+      "text": "INR 1,23,456.78 debited from A/c no. XX9876 towards BLUE TOKAI COFFEE on 21/09/2026",
+      "expected": {
+        "amountPaise": 12345678,
+        "direction": "debit",
+        "payee": "BLUE TOKAI COFFEE",
+        "payeeNormalized": "blue tokai coffee",
+        "vpa": null,
+        "accountTail": "9876",
+        "dateISO": "2026-09-21",
+        "captureHash": "d93fa4a9208695266c41b9579c627ca72a5428cd6e5a887ce763c77560260ae9",
+        "rulePattern": "blue tokai coffee",
+        "ruleKind": "merchant"
+      }
+    },
+    {
+      "name": "credit-not-debit",
+      "text": "₹2,000 credited to your account XX1234 from RAHUL on 22Sep26",
+      "expected": {
+        "amountPaise": 200000,
+        "direction": "credit",
+        "payee": "RAHUL",
+        "payeeNormalized": "rahul",
+        "vpa": null,
+        "accountTail": "1234",
+        "dateISO": "2026-09-22",
+        "captureHash": "00c72a1cdf67a68c3425887f73c553c11fecdba72108ca4c0fa72c3d48ce4f0a",
+        "rulePattern": "rahul",
+        "ruleKind": "merchant"
+      }
+    },
+    {
+      "name": "no-date-falls-back-to-received",
+      "text": "Rs 99.00 debited from a/c XX1234 to ZEPTO",
+      "expected": {
+        "amountPaise": 9900,
+        "direction": "debit",
+        "payee": "ZEPTO",
+        "payeeNormalized": "zepto",
+        "vpa": null,
+        "accountTail": "1234",
+        "dateISO": "2026-09-22",
+        "captureHash": "267430b055f0c2e7b13509523efa61db69d394e09ceece78dcfd730ec465ed2b",
+        "rulePattern": "zepto",
+        "ruleKind": "merchant"
+      }
+    },
+    {
+      "name": "email-is-not-a-vpa",
+      "text": "Rs.450.00 debited from a/c XX1234 to SWIGGY. Queries: help@swiggy.in",
+      "expected": {
+        "amountPaise": 45000,
+        "direction": "debit",
+        "payee": "SWIGGY",
+        "payeeNormalized": "swiggy",
+        "vpa": null,
+        "accountTail": "1234",
+        "dateISO": "2026-09-22",
+        "captureHash": "d79114f92b50f786f61b94fa97f2cd2d622448c383f4e2a5292276156dd1a34a",
+        "rulePattern": "swiggy",
+        "ruleKind": "merchant"
+      }
+    },
+    {
+      "name": "stop-word-as-whole-word-in-merchant-name",
+      "text": "Rs.150.00 debited from a/c XX1234 to SHOP ON WHEELS on 22-09-26",
+      "expected": {
+        "amountPaise": 15000,
+        "direction": "debit",
+        "payee": "SHOP ON WHEELS",
+        "payeeNormalized": "shop on wheels",
+        "vpa": null,
+        "accountTail": "1234",
+        "dateISO": "2026-09-22",
+        "captureHash": "a50fa8c2639c478b3060584dfa6982f79f7417a9eb4ac96ce9272ca351e998b2",
+        "rulePattern": "shop on wheels",
+        "ruleKind": "merchant"
+      }
+    },
+    {
+      "name": "numeric-vpa",
+      "text": "Rs.150.00 debited from a/c XX1234 to VPA 9876543210@ybl on 22-09-26",
+      "expected": {
+        "amountPaise": 15000,
+        "direction": "debit",
+        "payee": "9876543210@ybl",
+        "payeeNormalized": "ybl",
+        "vpa": "9876543210@ybl",
+        "accountTail": "1234",
+        "dateISO": "2026-09-22",
+        "captureHash": "1ecccf840a3a8feab17185eac426e37d4538ba7d12459c8422d4471b44d43743",
+        "rulePattern": "9876543210@ybl",
+        "ruleKind": "vpa"
+      }
+    },
+    {
+      "name": "via-upi-tail",
+      "text": "You have paid Rs.450.00 to SWIGGY via UPI on 22-09-26",
+      "expected": {
+        "amountPaise": 45000,
+        "direction": "debit",
+        "payee": "SWIGGY",
+        "payeeNormalized": "swiggy",
+        "vpa": null,
+        "accountTail": null,
+        "dateISO": "2026-09-22",
+        "captureHash": "d79114f92b50f786f61b94fa97f2cd2d622448c383f4e2a5292276156dd1a34a",
+        "rulePattern": "swiggy",
+        "ruleKind": "merchant"
+      }
+    }
+  ],
+  "rejected": [
+    "Your a/c XX1234: Rs.500.00 debited and Rs.500.00 credited on 22-09-26",
+    "Your a/c XX1234 balance is Rs.12,345.67 as on 22-09-26",
+    "Payment debited from a/c XX1234 to VEDANT",
+    "Payment debited on 22.09.26 to ZEPTO",
+    "Get a personal loan instantly! Spend more and earn rewards."
+  ],
+  "merges": [
+    {
+      "name": "no-swap-between-distant-true-row-and-exact-date-row",
+      "memos": [
+        {
+          "id": "memo-a-older",
+          "amountPaise": 45000,
+          "direction": "debit",
+          "payee": "ZEPTO",
+          "vpa": null,
+          "accountTail": null,
+          "dateISO": "2026-09-20",
+          "captureHash": "ed9fbd5f751fa8f1458505835a964bb8b0df546063a4d330f06a8bff2c56afcb"
+        },
+        {
+          "id": "memo-b-newer",
+          "amountPaise": 45000,
+          "direction": "debit",
+          "payee": "ZEPTO",
+          "vpa": null,
+          "accountTail": null,
+          "dateISO": "2026-09-21",
+          "captureHash": "a28360a91d390ca7ff9fae53cb7188119eed04cec549e012b2857ea6bd08a8f0"
+        }
+      ],
+      "candidates": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "dateISO": "2026-09-23",
+          "amountPaise": 45000,
+          "direction": "debit",
+          "narration": "ZEPTO MARKETPLACE"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "dateISO": "2026-09-21",
+          "amountPaise": 45000,
+          "direction": "debit",
+          "narration": "ZEPTO MARKETPLACE"
+        }
+      ],
+      "expected": {
+        "ed9fbd5f751fa8f1458505835a964bb8b0df546063a4d330f06a8bff2c56afcb": "00000000-0000-4000-8000-000000000001",
+        "a28360a91d390ca7ff9fae53cb7188119eed04cec549e012b2857ea6bd08a8f0": "00000000-0000-4000-8000-000000000002"
+      }
+    }
+  ]
+}
