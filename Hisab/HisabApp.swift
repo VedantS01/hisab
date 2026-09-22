@@ -1,6 +1,9 @@
 import SwiftUI
 import SwiftData
 import HisabCore
+#if DEBUG
+import Darwin
+#endif
 
 @main
 struct HisabApp: App {
@@ -78,6 +81,26 @@ struct RootView: View {
             }
             #if DEBUG
             if args.contains("--force-suggestion") { SuggestionSchedule.resetForDebug() }
+            #endif
+            #if DEBUG
+            // Simulator-only: drives one alert through the real App Intent, so the
+            // dedup guard can be proven against the real store. UI automation cannot
+            // reach the Shortcuts app here, and MemoStore has no unit-test target.
+            for (index, arg) in args.enumerated() where arg == "--capture-alert" {
+                guard args.indices.contains(index + 1) else { continue }
+                let intent = AddTransactionAlertIntent()
+                intent.text = args[index + 1]
+                _ = try? await intent.perform()
+                let memos = MemoStore.all(context)
+                print("debug-capture: memos=\(memos.count) hashes=\(memos.map(\.captureHash).sorted())")
+                // simctl's --console-pipe attaches to the app's real stdout, which is
+                // fully-buffered (not line-buffered) once it's a pipe rather than a
+                // tty; without an explicit flush the line above sits in libc's buffer
+                // and is lost when simctl terminate kills the process before it exits
+                // normally. This flush is harness-only debug plumbing, not a change to
+                // the intent's own behaviour.
+                fflush(stdout)
+            }
             #endif
             if !SuggestionSchedule.alreadyShownToday {
                 suggestion = SuggestionEngine.queue(records: Queries.suggestionRecords(context),
