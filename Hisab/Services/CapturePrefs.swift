@@ -27,6 +27,11 @@ enum CapturePrefs {
         return UserDefaults.standard.integer(forKey: notifyCountKey)
     }
 
+    /// Not atomic: the read, increment and write are three steps, so two truly
+    /// concurrent callers could lose an increment. Safe today because every
+    /// caller is @MainActor and the process has one container. Anyone adding a
+    /// non-main-actor caller must revisit this. Failure mode is under-counting
+    /// toward the daily cap, never over-counting, so it cannot cause spam.
     static func recordNotification(now: Date) {
         let today = PendingMemo.istDayString(now)
         let count = notificationsSentToday(now: now) + 1

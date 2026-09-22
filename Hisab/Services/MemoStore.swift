@@ -12,7 +12,12 @@ enum MemoStore {
         let hash = memo.captureHash
         let existing = FetchDescriptor<StoredPendingMemo>(
             predicate: #Predicate { $0.captureHash == hash })
-        if let found = try? ctx.fetch(existing), !found.isEmpty { return false }
+        // A thrown fetch must not be read as "not found": with unique-attribute
+        // upsert behind this guard, inserting on a failed lookup can overwrite a
+        // memo the user already categorized. Declining one capture is the cheaper
+        // error.
+        guard let found = try? ctx.fetch(existing) else { return false }
+        if !found.isEmpty { return false }
         ctx.insert(StoredPendingMemo(memo: memo))
         try? ctx.save()
         return true

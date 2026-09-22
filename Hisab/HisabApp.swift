@@ -4,19 +4,11 @@ import HisabCore
 
 @main
 struct HisabApp: App {
-    let container: ModelContainer = {
-        do {
-            return try ModelContainer(for: HisabSchema.schema)
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
     var body: some Scene {
         WindowGroup {
             RootView()
         }
-        .modelContainer(container)
+        .modelContainer(HisabContainer.shared)
     }
 }
 
