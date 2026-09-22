@@ -267,11 +267,18 @@ struct RootView: View {
     }
 
     private func printNotificationReport() async {
-        // The cap and `notifiedAt` are now written from `add`'s completion
-        // handler, which lands asynchronously. Without this wait the report can
-        // read the store before a SUCCESSFUL send has been recorded and make a
-        // working send look like a suppressed one — the exact confusion this
-        // harness exists to remove.
+        // CORRECTED (task 11a fix round 1): this wait is NOT about our own
+        // writes any more. `considerNotifying` now does `try await center.add`
+        // and then records the cap and `notifiedAt` in straight-line main-actor
+        // code, so by the time it returns those two are already durable.
+        //
+        // What the wait protects against is the notification daemon's own
+        // registration lag: `pendingNotificationRequests()` and
+        // `deliveredNotifications()` do not reflect an accepted `add`
+        // instantly, so a report taken immediately can show an empty pending
+        // list for a banner that was scheduled — the exact confusion this
+        // harness exists to remove. Do not delete it on the grounds that the
+        // async writes are gone; that is a different reason and it has gone.
         try? await Task.sleep(for: .milliseconds(750))
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()

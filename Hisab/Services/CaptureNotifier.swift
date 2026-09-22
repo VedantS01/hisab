@@ -105,56 +105,41 @@ enum CaptureNotifier {
         // lying to itself about work it did not do. CORRECTED (task 11a): the
         // declined-permission case does NOT arrive here. Task 10's fix round
         // observed `add` returning no error at `.denied`, which is why the
-        // authorization check at the top of this function exists. This guard
+        // authorization check at the top of this function exists. This catch
         // covers a genuine scheduling refusal only, and no way has been found
         // to provoke one on a simulator, so the branch stays unexercised.
-        //
-        // Kept in completion-handler form on purpose: `try await center.add`
-        // would fold the two writes below into straight-line code and make
-        // `--capture-notify-report`'s 750 ms wait unnecessary, which is a
-        // bigger change than this task was scoped for. The compiler's
-        // "consider using asynchronous alternative function" warning at this
-        // line is that suggestion, and is knowingly left standing.
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error {
-                // A1 exists because this failure is otherwise invisible: no
-                // error at the call site, no banner, and no clue which.
-                #if DEBUG
-                print("debug-notify: add FAILED for \(captureHash): "
-                    + "\(error.localizedDescription)")
-                fflush(stdout)
-                #endif
-                return
-            }
-            // The completion arrives on an arbitrary queue; the prefs write and
-            // the SwiftData write both belong to the main actor.
-            Task { @MainActor in
-                // KNOWN LIMITATION, recorded deliberately and NOT fixed here: the send
-                // is recorded against `now` — the day the notification was *scheduled* —
-                // even when the quiet-hours branch held it until tomorrow morning. Ten
-                // memos held after 22:00 therefore spend Monday's budget, are delivered
-                // Tuesday at 08:00, and Tuesday's fresh budget allows ten more: twenty
-                // banners in one morning, the outcome the cap exists to prevent. The
-                // clean fix is to check and record against the DELIVERY day, but the cap
-                // is checked inside NotificationPolicy.decide before a delivery date
-                // exists, so the fix is circular and would reopen the core closed in
-                // task 9. Reaching it needs ten uncategorizable payments between 22:00
-                // and 08:00; dogfooding will show whether that happens in practice.
-                CapturePrefs.recordNotification(now: now)
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+        } catch {
+            // A1 exists because this failure is otherwise invisible: no banner,
+            // and no clue whether the cause was permission or scheduling.
+            #if DEBUG
+            print("debug-notify: add FAILED for \(captureHash): "
+                + "\(error.localizedDescription)")
+            fflush(stdout)
+            #endif
+            return
+        }
 
-                // NOT the `ctx` parameter: it is a non-Sendable ModelContext,
-                // and capturing it in this '@Sendable' completion handler is an
-                // error under Swift 6 ("sending 'ctx' risks causing data
-                // races"). `HisabContainer.shared` is the process's only
-                // container and `mainContext` is the very context every
-                // @MainActor caller passes in, so re-reading it here is the
-                // same object without the capture.
-                let ctx = HisabContainer.shared.mainContext
-                if let stored = MemoStore.find(hash: captureHash, in: ctx) {
-                    stored.notifiedAt = now
-                    try? ctx.save()
-                }
-            }
+        // Straight-line after the `await`, and already on the main actor: both
+        // writes happen before this function returns, so no caller can observe
+        // a successful send that has not yet been recorded.
+        //
+        // KNOWN LIMITATION, recorded deliberately and NOT fixed here: the send
+        // is recorded against `now` — the day the notification was *scheduled* —
+        // even when the quiet-hours branch held it until tomorrow morning. Ten
+        // memos held after 22:00 therefore spend Monday's budget, are delivered
+        // Tuesday at 08:00, and Tuesday's fresh budget allows ten more: twenty
+        // banners in one morning, the outcome the cap exists to prevent. The
+        // clean fix is to check and record against the DELIVERY day, but the cap
+        // is checked inside NotificationPolicy.decide before a delivery date
+        // exists, so the fix is circular and would reopen the core closed in
+        // task 9. Reaching it needs ten uncategorizable payments between 22:00
+        // and 08:00; dogfooding will show whether that happens in practice.
+        CapturePrefs.recordNotification(now: now)
+        if let stored = MemoStore.find(hash: captureHash, in: ctx) {
+            stored.notifiedAt = now
+            try? ctx.save()
         }
     }
 
