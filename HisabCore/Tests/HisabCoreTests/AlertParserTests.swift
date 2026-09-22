@@ -137,12 +137,46 @@ final class AlertParserTests: XCTestCase {
         XCTAssertEqual(memo?.payee, "9876543210@ybl")
     }
 
-    func testDeclinesWhenThePayeeClausePrecedesTheDirectionWord() {
-        // Deliberate recall cost: anchoring extraction after the direction
-        // keyword means a payee phrased BEFORE it is missed, not guessed.
-        // There is intentionally no whole-message fallback — that fallback is
-        // exactly what let C3's leading disclaimer hijack the payee before.
+    func testReadsAPayeeClauseThatPrecedesTheDirectionWord() {
+        // Amount-anchoring (fix round 3) removes the recall cost round 2's
+        // direction-anchoring introduced: the amount is mandatory and sits
+        // inside the transaction clause regardless of where the direction
+        // word falls, so this now parses correctly instead of declining.
         let text = "Rs.450.00 to SWIGGY has been debited from a/c XX1234"
-        XCTAssertNil(AlertParser.parse(text: text, receivedAt: at(now)))
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "SWIGGY")
+    }
+
+    func testIgnoresABoilerplatePreambleContainingADirectionWord() {
+        // N1: direction words ("sent") routinely appear in template preambles.
+        // Anchoring on the amount instead of the direction word means the
+        // preamble, and the disclaimer's " to ", cannot hijack the match.
+        let text = "This SMS is sent by XYZ Bank. For queries write to us at 1800123456. Rs.500.00 debited from a/c XX1234 to SWIGGY on 22-09-26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "SWIGGY")
+    }
+
+    func testKeepsAMerchantNameContainingOnAsAWord() {
+        // N2: "on" only ends a payee when a date plausibly follows it, so
+        // "X ON WHEELS" (a real Indian business pattern) survives intact.
+        let text = "Rs.150.00 debited from a/c XX1234 to SHOP ON WHEELS on 22-09-26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "SHOP ON WHEELS")
+    }
+
+    func testKeepsAMerchantNameStartingWithAFormerStopWord() {
+        // N3: a name whose first token used to be a stop token ("id") must
+        // not be dropped entirely.
+        let text = "Rs.320.00 debited from a/c XX1234 to ID FRESH FOOD on 22-09-26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "ID FRESH FOOD")
+    }
+
+    func testStopsAtAConnectorWord() {
+        // N4: connector words like "using" must not leak into the payee and
+        // fragment one merchant into two different rule keys.
+        let text = "Purchase of Rs.450.00 at SWIGGY using a/c XX1234"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "SWIGGY")
     }
 }
