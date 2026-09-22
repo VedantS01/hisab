@@ -90,4 +90,20 @@ final class AlertParserTests: XCTestCase {
         XCTAssertEqual(AlertParser.parse(text: text, receivedAt: at(now))?.amountPaise,
                        45_000)
     }
+
+    func testReadsVPAWhenTheAlertEndsTheSentenceWithAPeriod() {
+        // Regression: a trailing sentence period must not be mistaken for a
+        // dotted email domain and swallow the VPA.
+        let text = "Rs.100.00 debited from a/c XX1234 to VPA vedant@okaxis. Thank you for using UPI."
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.vpa, "vedant@okaxis")
+    }
+
+    func testDoesNotReadAnEmailAsAVPAEvenAtTheEndOfASentence() {
+        // An email domain dot must still block a VPA match, even when a
+        // second, sentence-ending period follows immediately after it.
+        let text = "Rs.450.00 debited from a/c XX1234 to SWIGGY. Queries: help@swiggy.in."
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertNil(memo?.vpa)
+    }
 }

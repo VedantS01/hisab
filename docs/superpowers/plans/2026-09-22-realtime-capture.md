@@ -420,8 +420,17 @@ public enum AlertParser {
 
     /// A VPA handle has no dot; an email domain does. That single distinction
     /// keeps support addresses out of the rule key.
+    ///
+    /// Both lookaheads are load-bearing. `(?![a-z0-9-])` asserts the handle was
+    /// consumed whole, which is what stops the engine backtracking into a
+    /// partial handle and matching `help@swigg` out of `help@swiggy.in`.
+    /// `(?!\.[a-z])` then rejects a dotted domain, distinguishing a domain dot
+    /// (followed by a letter) from a sentence-ending period (followed by a
+    /// space or end of string). An earlier form, `(?![a-z0-9._-]*\.)`, looked
+    /// equivalent and was not: `[a-z0-9._-]*` matches empty and so reaches ANY
+    /// later dot, which made every VPA ending a sentence fail to match.
     private static func vpa(in lower: String) -> String? {
-        let pattern = #"([a-z0-9][a-z0-9._-]{1,})@([a-z]{2,})(?![a-z0-9._-]*\.)"#
+        let pattern = #"([a-z0-9][a-z0-9._-]{1,})@([a-z]{2,})(?![a-z0-9-])(?!\.[a-z])"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let range = NSRange(lower.startIndex..., in: lower)
         guard let match = regex.firstMatch(in: lower, range: range),
@@ -760,7 +769,7 @@ Use whatever those print. Do not assume the Swift spelling carries over.
 Port every test case from `PendingMemoTests`, `AlertParserTests` and `MemoMergerTests` into `capture_test.dart`, same names and same expectations. All 22 cases.
 
 **The two regex engines are the likeliest source of divergence in this whole feature.** Two patterns need explicit verification, not assumption:
-- the VPA pattern's trailing `(?![a-z0-9._-]*\.)`, against the email test case;
+- the VPA pattern's two trailing lookaheads `(?![a-z0-9-])(?!\.[a-z])`, against **all three** of its cases: a VPA ending a sentence with a period, an email mid-sentence, and an email ending a sentence. The first form of this pattern was wrong in Swift and would have been wrong identically in Dart — both lookaheads earn their place, so do not "simplify" either one;
 - the fallback amount pattern's `(?<![0-9.])…(?![0-9.])`, against both the dotted-date rejection and the genuine-two-decimal cases. Dart's `RegExp` does support lookbehind, but confirm it on this exact pattern rather than trusting that.
 
 If either engine cannot express a pattern identically, do not quietly rewrite one side — report it, because the parity fixture is what makes the two cores trustworthy and a silent divergence defeats it.

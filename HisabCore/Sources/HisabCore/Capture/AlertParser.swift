@@ -64,7 +64,7 @@ public enum AlertParser {
     /// A VPA handle has no dot; an email domain does. That single distinction
     /// keeps support addresses out of the rule key.
     private static func vpa(in lower: String) -> String? {
-        let pattern = #"([a-z0-9][a-z0-9._-]{1,})@([a-z]{2,})(?![a-z0-9._-]*\.)"#
+        let pattern = #"([a-z0-9][a-z0-9._-]{1,})@([a-z]{2,})(?![a-z0-9-])(?!\.[a-z])"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let range = NSRange(lower.startIndex..., in: lower)
         guard let match = regex.firstMatch(in: lower, range: range),
