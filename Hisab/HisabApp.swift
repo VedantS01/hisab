@@ -91,14 +91,27 @@ struct RootView: View {
                 let intent = AddTransactionAlertIntent()
                 intent.text = args[index + 1]
                 _ = try? await intent.perform()
-                let memos = MemoStore.all(context)
-                print("debug-capture: memos=\(memos.count) hashes=\(memos.map(\.captureHash).sorted())")
+                let memos = MemoStore.all(context).sorted { $0.captureHash < $1.captureHash }
+                print("debug-capture: memos=\(memos.count) hashes=\(memos.map(\.captureHash)) categories=\(memos.map { $0.assignedCategory ?? "nil" })")
                 // simctl's --console-pipe attaches to the app's real stdout, which is
                 // fully-buffered (not line-buffered) once it's a pipe rather than a
                 // tty; without an explicit flush the line above sits in libc's buffer
                 // and is lost when simctl terminate kills the process before it exits
                 // normally. This flush is harness-only debug plumbing, not a change to
                 // the intent's own behaviour.
+                fflush(stdout)
+            }
+            // Simulator-only: assigns a category to the single most recently
+            // captured memo, so a follow-up --capture-alert run can prove (or
+            // disprove) that a duplicate capture preserves it rather than
+            // silently reverting it via SwiftData's unique-attribute upsert.
+            for (index, arg) in args.enumerated() where arg == "--capture-assign" {
+                guard args.indices.contains(index + 1) else { continue }
+                if let target = MemoStore.pending(context).first {
+                    MemoStore.assign(category: args[index + 1], to: target, in: context)
+                }
+                let memos = MemoStore.all(context).sorted { $0.captureHash < $1.captureHash }
+                print("debug-capture: memos=\(memos.count) hashes=\(memos.map(\.captureHash)) categories=\(memos.map { $0.assignedCategory ?? "nil" })")
                 fflush(stdout)
             }
             #endif
