@@ -289,6 +289,16 @@ struct RootView: View {
                 printCaptureState()
                 fflush(stdout)
             }
+            // Simulator-only: the store as it stands, with no alert driven
+            // through first. `--capture-alert` and friends print on their way
+            // out, but the import harness above does not — and task 12's whole
+            // effect is what an IMPORT does to memos captured in an earlier
+            // launch. Placed after every argument that writes, so one line
+            // describes the end of the run rather than the middle of it.
+            if args.contains("--capture-state") {
+                printCaptureState()
+                fflush(stdout)
+            }
             // Simulator-only: the blast-radius measurement B2 asks for.
             //   --capture-rule-impact <pattern> <category>
             // Prints the number the offer WOULD show, then writes the rule
@@ -400,8 +410,19 @@ struct RootView: View {
         // success branch is otherwise unobservable from a launch argument.
         let sampleTxn = Queries.allTransactions(context).first
             .map { "\($0.uuid.uuidString)|\($0.counterparty)" } ?? "none"
+        let merged = memos.map { memo in
+            let txn = memo.mergedTxnUUID.map { String($0.uuidString.prefix(8)) } ?? "nil"
+            return "\(memo.captureHash.prefix(8))=\(txn)"
+        }
+        // `pending` and `merged` are what prove task 12: `memos` counts every
+        // row including retired ones, so a merge does not move it. What moves
+        // is the inbox — `MemoStore.pending` — and the reason it moved has to
+        // be visible as the transaction the memo was attached to, not inferred
+        // from a count going down (expiry moves the same count).
         print("debug-capture: enabled=\(CapturePrefs.isEnabled) "
-            + "memos=\(memos.count) hashes=\(memos.map(\.captureHash)) "
+            + "memos=\(memos.count) pending=\(MemoStore.pending(context).count) "
+            + "hashes=\(memos.map(\.captureHash)) "
+            + "merged=\(merged) "
             + "categories=\(memos.map { $0.assignedCategory ?? "nil" }) "
             + "offers=\(offers) sampleTxn=\(sampleTxn) "
             + "router=memo:\(router.pendingMemoHash ?? "nil"),"
