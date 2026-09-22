@@ -55,6 +55,24 @@
                 <action android:name="android.service.notification.NotificationListenerService"/>
             </intent-filter>
         </service>
+        <!-- flutter_local_notifications. Both receivers are the plugin's own
+             and are NOT exported: nothing outside the app can reach them.
+
+             ActionBroadcastReceiver carries a tap on a notification's category
+             button; ScheduledNotificationReceiver delivers a banner held over
+             quiet hours. Neither needs a permission, and deliberately NO
+             RECEIVE_BOOT_COMPLETED is declared — rescheduling held banners
+             across a reboot is not worth a permission on a zero-network app,
+             and Hisab's app manifest declaring no uses-permission at all is a
+             property a test pins. A held banner lost to a reboot costs the
+             user nothing: the memo is still in the needs-review inbox. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

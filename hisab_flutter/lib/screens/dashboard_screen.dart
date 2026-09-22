@@ -9,6 +9,7 @@ import '../theme.dart';
 import '../widgets/import_flow.dart';
 import '../widgets/insight_evidence_sheet.dart';
 import '../widgets/insight_strip.dart';
+import '../widgets/needs_review_section.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -70,8 +71,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final txns = Queries.analytics(data.txns, data.matches, matcher,
         selfTransfers: selfTransfers);
     if (txns.isEmpty) {
-      return Center(
-        child: Padding(
+      // The capture line and the needs-review card are mounted here too, not
+      // only below. A user who relies on capture and has imported nothing yet
+      // is exactly the person with memos waiting and no statements — putting
+      // these only on the populated dashboard would hide the feature from the
+      // people using it most.
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const CaptureHealthBanner(),
+          NeedsReviewSection(data: data),
+          Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -96,6 +106,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
+        ],
       );
     }
 
@@ -134,6 +145,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        const CaptureHealthBanner(),
+        NeedsReviewSection(data: data),
         // The strip sits above the month chips, matching iOS: it always
         // speaks about the latest complete month, so mounting it under the
         // chips would imply it follows the selection. Everything below the

@@ -178,6 +178,32 @@ class Queries {
     return (projected(SourceKind.paymentApp), projected(SourceKind.bank));
   }
 
+  /// Projection feeding [RuleImpact.affectedCount]. Twin of
+  /// `Queries.impactRows` in Swift.
+  ///
+  /// BOTH flags are populated from real data, and that is load-bearing.
+  /// `RuleImpact` skips a row when `hasOverride || isSelfTransfer`, so a row
+  /// built with `isSelfTransfer` left at a default would be counted as
+  /// movable when no rule can ever move it — `effectiveCategory` labels a
+  /// self transfer from reconciliation BEFORE the override check and before
+  /// the matcher. The number is shown to the user as "this will also update N
+  /// past transactions", so a silently inflated count is a broken promise.
+  ///
+  /// [visible] first, for the same reason analytics uses it: a matched bank
+  /// row is reconciliation evidence the user never sees, and promising to
+  /// recategorize it would count a change with no visible effect.
+  static List<RuleImpactRow> impactRows(List<StoredTransaction> txns,
+      List<StoredMatche> matches, Set<String> selfTransfers) {
+    return [
+      for (final txn in visible(txns, matches))
+        RuleImpactRow(
+          text: '${txn.counterparty} ${txn.narration}',
+          hasOverride: txn.categoryOverride != null,
+          isSelfTransfer: selfTransfers.contains(txn.uuid),
+        )
+    ];
+  }
+
   /// Projection feeding SuggestionEngine.
   static List<SpendRecord> suggestionRecords(List<StoredTransaction> txns,
       List<StoredMatche> matches, CategoryMatcher matcher) {

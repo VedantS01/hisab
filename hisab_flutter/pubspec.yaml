@@ -30,6 +30,8 @@ dependencies:
   # INTERNET, and never READ_SMS, which Play would make the app unpublishable
   # for. The app declares the listener service itself.
   notification_listener_service: ^1.0.0
+  flutter_local_notifications: ^22.3.1
+  timezone: ^0.11.1
 
 dev_dependencies:
   flutter_test:

@@ -1,7 +1,8 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
-import 'package:hisab_core/hisab_core.dart' show Suppressions;
+import 'package:hisab_core/hisab_core.dart' show Suppressions, istDayLabel;
 
+import '../services/capture_notifier.dart';
 import '../services/capture_prefs.dart';
 import '../services/demo_data.dart';
 import '../services/insight_store.dart';
@@ -9,6 +10,7 @@ import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
 import '../theme.dart';
+import 'capture_setup_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -88,6 +90,8 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 8),
+              const CaptureSettingsCard(),
               const SizedBox(height: 8),
               const Text('Categorization rules',
                   style: TextStyle(fontWeight: FontWeight.w600)),
@@ -197,5 +201,87 @@ class SettingsScreen extends StatelessWidget {
           .write(StoredCategoryRulesCompanion(
               pattern: Value(pattern), category: Value(category)));
     }
+  }
+}
+
+/// Capture in Settings: the toggle, what capture last managed to read, and the
+/// way through to the setup screen.
+///
+/// The toggle is duplicated here and on [CaptureSetupScreen] deliberately —
+/// both write through [CaptureNotifier.setEnabled], which is the single place
+/// capture starts and stops, so the two cannot disagree about what "off"
+/// means. Off unsubscribes the listener: no memo is written, not merely no
+/// notification.
+class CaptureSettingsCard extends StatefulWidget {
+  const CaptureSettingsCard({super.key});
+
+  @override
+  State<CaptureSettingsCard> createState() => _CaptureSettingsCardState();
+}
+
+class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
+  bool _enabled = false;
+  DateTime? _lastCapture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final enabled = await CapturePrefs.isEnabled();
+    final last = await CapturePrefs.lastCaptureAt();
+    if (!mounted) return;
+    setState(() {
+      _enabled = enabled;
+      _lastCapture = last;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final last = _lastCapture;
+    return Card(
+      child: Column(
+        children: [
+          SwitchListTile(
+            activeThumbColor: HisabTheme.khataRed,
+            secondary: const Icon(Icons.notifications_active,
+                color: HisabTheme.khataRed),
+            title: const Text('Capture bank alerts'),
+            subtitle: const Text(
+                'Reads bank and UPI notifications on this phone and files '
+                'what it cannot categorize for review.',
+                style: TextStyle(fontSize: 12)),
+            value: _enabled,
+            onChanged: (value) async {
+              setState(() => _enabled = value);
+              await CaptureNotifier.setEnabled(value,
+                  db: state.db, ruleset: state.ruleset);
+              await _refresh();
+            },
+          ),
+          ListTile(
+            dense: true,
+            title: const Text('Last captured'),
+            trailing: Text(
+                last == null ? 'Never' : istDayLabel(last),
+                style: const TextStyle(color: Colors.black54)),
+          ),
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.tune, color: HisabTheme.khataRed),
+            title: const Text('Capture setup'),
+            onTap: () async {
+              await Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const CaptureSetupScreen()));
+              await _refresh();
+            },
+          ),
+        ],
+      ),
+    );
   }
 }

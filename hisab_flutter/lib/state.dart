@@ -17,8 +17,29 @@ class Snapshot {
   final List<StoredCategoryRule> ruleRows;
   final List<StoredDocument> documents;
   final List<PinnedMonth> pins;
-  const Snapshot(
-      this.txns, this.matches, this.ruleRows, this.documents, this.pins);
+
+  /// EVERY memo, not only the pending ones.
+  ///
+  /// The review sheet looks a memo up by hash over all of them, because
+  /// assigning a category is precisely what removes it from the pending set —
+  /// filtering here would make a sheet blank itself the moment the user
+  /// answered the question it is asking. `pendingMemos` is the filtered view
+  /// the inbox and the dashboard section want.
+  final List<StoredPendingMemo> memos;
+
+  const Snapshot(this.txns, this.matches, this.ruleRows, this.documents,
+      this.pins, this.memos);
+
+  /// Unmerged, unlabelled memos, newest first — the same predicate
+  /// `MemoStore.pending` applies in SQL.
+  List<StoredPendingMemo> get pendingMemos {
+    final rows = [
+      for (final memo in memos)
+        if (memo.mergedTxnUuid == null && memo.assignedCategory == null) memo
+    ];
+    rows.sort((a, b) => b.capturedAtMs.compareTo(a.capturedAtMs));
+    return rows;
+  }
 }
 
 class AppState {
@@ -52,6 +73,7 @@ class AppState {
     List<StoredCategoryRule>? rules;
     List<StoredDocument>? documents;
     List<PinnedMonth>? pins;
+    List<StoredPendingMemo>? memos;
     final subs = <StreamSubscription>[];
 
     void emit() {
@@ -59,8 +81,10 @@ class AppState {
           matches != null &&
           rules != null &&
           documents != null &&
-          pins != null) {
-        latest = Snapshot(txns!, matches!, rules!, documents!, pins!);
+          pins != null &&
+          memos != null) {
+        latest =
+            Snapshot(txns!, matches!, rules!, documents!, pins!, memos!);
         controller.add(latest!);
       }
     }
@@ -86,6 +110,14 @@ class AppState {
         }));
         subs.add(db.select(db.pinnedMonths).watch().listen((v) {
           pins = v;
+          emit();
+        }));
+        // A watch, not a one-shot fetch: a memo captured while the app is
+        // open — or a category assigned from a notification button — has to
+        // reach the widget tree without anything telling it to look again.
+        // This is the Flutter equivalent of iOS's `@Query`.
+        subs.add(db.select(db.storedPendingMemos).watch().listen((v) {
+          memos = v;
           emit();
         }));
       },
