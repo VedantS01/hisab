@@ -324,9 +324,25 @@ final class AlertParserTests: XCTestCase {
         XCTAssertEqual(memo?.payee, "SWIGGY")
     }
 
-    func testRejectsPromotionalTextWithoutAmount() {
+    func testRejectsPromotionalText() {
+        // Rejected on direction: "Spend" is not "spent". Named for what it is.
         let text = "Get a personal loan instantly! Spend more and earn rewards."
         XCTAssertNil(AlertParser.parse(text: text, receivedAt: at(now)))
+    }
+
+    func testDoesNotReadADottedDateAsAnAmount() {
+        // The fallback two-decimal pattern would happily read "22.09" out of
+        // "22.09.26" and report a ₹22.09 payment. A wrong number in the user's
+        // own data is the one failure this product cannot absorb.
+        let text = "Payment debited on 22.09.26 to ZEPTO"
+        XCTAssertNil(AlertParser.parse(text: text, receivedAt: at(now)))
+    }
+
+    func testStillReadsAGenuineTwoDecimalAmountWithoutACurrencyMarker() {
+        // The dotted-date guard must not swallow this.
+        let text = "Debited 450.00 from a/c XX1234 to ZEPTO on 22-09-26"
+        XCTAssertEqual(AlertParser.parse(text: text, receivedAt: at(now))?.amountPaise,
+                       45_000)
     }
 }
 ```
@@ -383,20 +399,23 @@ public enum AlertParser {
     /// Requires a currency marker, or failing that two decimal places. Without
     /// this an account number or a phone number becomes an amount.
     private static func amount(in lower: String) -> Int64? {
-        let patterns = [
-            #"(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"#,
-            #"([0-9][0-9,]*\.[0-9]{2})"#,
-        ]
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            let range = NSRange(lower.startIndex..., in: lower)
-            guard let match = regex.firstMatch(in: lower, range: range),
-                  let captured = Range(match.range(at: 1), in: lower) else { continue }
-            if let paise = Money.signedPaise(fromDecimalString: String(lower[captured])) {
-                return paise
-            }
+        // A currency marker makes the amount unambiguous.
+        if let paise = firstAmount(#"(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"#,
+                                   in: lower) {
+            return paise
         }
-        return nil
+        // Without a marker, demand two decimals AND reject anything sitting
+        // inside a longer dotted run: "22.09.26" is a date, and reading ₹22.09
+        // out of it would put a number the user never spent into their data.
+        return firstAmount(#"(?<![0-9.])([0-9][0-9,]*\.[0-9]{2})(?![0-9.])"#, in: lower)
+    }
+
+    private static func firstAmount(_ pattern: String, in lower: String) -> Int64? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(lower.startIndex..., in: lower)
+        guard let match = regex.firstMatch(in: lower, range: range),
+              let captured = Range(match.range(at: 1), in: lower) else { return nil }
+        return Money.signedPaise(fromDecimalString: String(lower[captured]))
     }
 
     /// A VPA handle has no dot; an email domain does. That single distinction
@@ -492,7 +511,7 @@ public enum AlertParser {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test --package-path HisabCore --filter AlertParserTests`
-Expected: PASS, 9 tests.
+Expected: PASS, 11 tests.
 
 - [ ] **Step 5: Run the whole Swift suite for regressions**
 
@@ -595,7 +614,9 @@ final class MemoMergerTests: XCTestCase {
                                            narration: "ZEPTO MARKETPLACE")
         let merged = MemoMerger.merge(memos: [a, b], candidates: [candidate])
         XCTAssertEqual(merged.count, 1)
-        XCTAssertEqual(merged[b.captureHash], id, "the closer-dated memo should win")
+        XCTAssertEqual(merged[a.captureHash], id,
+                       "memos are claimed oldest-first, deterministically")
+        XCTAssertNil(merged[b.captureHash], "the second memo stays pending")
     }
 
     func testPicksNearestDateAmongCandidates() {
@@ -736,7 +757,13 @@ Use whatever those print. Do not assume the Swift spelling carries over.
 
 - [ ] **Step 3: Write the failing Dart tests**
 
-Port every test case from `PendingMemoTests`, `AlertParserTests` and `MemoMergerTests` into `capture_test.dart`, same names and same expectations. All 20 cases. Dart's `RegExp` differs from `NSRegularExpression` in lookahead handling — the VPA pattern's trailing `(?![a-z0-9._-]*\.)` must be verified against the email test case specifically, since that is where the two engines are most likely to disagree.
+Port every test case from `PendingMemoTests`, `AlertParserTests` and `MemoMergerTests` into `capture_test.dart`, same names and same expectations. All 22 cases.
+
+**The two regex engines are the likeliest source of divergence in this whole feature.** Two patterns need explicit verification, not assumption:
+- the VPA pattern's trailing `(?![a-z0-9._-]*\.)`, against the email test case;
+- the fallback amount pattern's `(?<![0-9.])…(?![0-9.])`, against both the dotted-date rejection and the genuine-two-decimal cases. Dart's `RegExp` does support lookbehind, but confirm it on this exact pattern rather than trusting that.
+
+If either engine cannot express a pattern identically, do not quietly rewrite one side — report it, because the parity fixture is what makes the two cores trustworthy and a silent divergence defeats it.
 
 - [ ] **Step 4: Run tests to verify they fail**
 
@@ -748,7 +775,7 @@ Expected: FAIL — the capture library does not exist.
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run: `cd hisab_flutter/packages/hisab_core && dart test test/capture_test.dart`
-Expected: PASS, 20 tests.
+Expected: PASS, 22 tests.
 
 - [ ] **Step 7: Run the whole Dart core suite**
 
@@ -793,7 +820,7 @@ One JSON file, an array of cases. Each case pins the *whole* parse outcome so no
         "amountPaise": 45000,
         "direction": "debit",
         "payee": "vedant@okaxis",
-        "payeeNormalized": "vedant",
+        "payeeNormalized": "vedant okaxis",
         "vpa": "vedant@okaxis",
         "accountTail": "1234",
         "dateISO": "2026-09-22",
@@ -825,12 +852,12 @@ One JSON file, an array of cases. Each case pins the *whole* parse outcome so no
         "amountPaise": 200000,
         "direction": "credit",
         "payee": "your account XX1234 from RAHUL",
-        "payeeNormalized": "your account from",
+        "payeeNormalized": "your account xx",
         "vpa": null,
         "accountTail": "1234",
         "dateISO": "2026-09-22",
         "captureHash": "<fill from the Swift run>",
-        "rulePattern": "your account from",
+        "rulePattern": "your account xx",
         "ruleKind": "merchant"
       }
     },
