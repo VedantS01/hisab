@@ -11,6 +11,13 @@ final class DeepLinkRouter {
     var pendingTxnUUID: UUID?
     var showNeedsReview = false
 
+    /// Bumped by `CaptureNotifier.respond` whenever a category button queues a
+    /// rule offer. The offers themselves live in UserDefaults, which is not
+    /// observable; this is the observable edge that tells a running app to look
+    /// again. Not part of `clear()` — it is a change counter, not a
+    /// destination, and resetting it would re-fire the reader.
+    var ruleOfferGeneration = 0
+
     /// `hisab://memo/<captureHash>` or `hisab://transaction/<uuid>`.
     /// An unrecognised or unresolvable link opens the needs-review inbox
     /// rather than failing silently.
@@ -31,6 +38,14 @@ final class DeepLinkRouter {
             pendingMemoHash = nil
             showNeedsReview = pendingTxnUUID == nil
         default:
+            // Clears the siblings for the same reason the other two branches
+            // do, which this branch did not. It was invisible while the interim
+            // scaffold rendered both fields at once; now that `RootView` picks
+            // ONE destination by precedence, an unrecognised link arriving on
+            // top of a live memo or transaction route was simply swallowed —
+            // the state still said "show the memo", and the link did nothing.
+            pendingMemoHash = nil
+            pendingTxnUUID = nil
             showNeedsReview = true
         }
     }

@@ -9,10 +9,22 @@ struct SettingsView: View {
     @State private var showAddRule = false
     @State private var editTarget: StoredCategoryRule?
     @State private var eraseArmed = false
+    /// UserDefaults is not observable, so these mirror it and are re-read in
+    /// `.task` — the same shape `DashboardView.suppressions` uses.
+    @State private var captureEnabled = CapturePrefs.isEnabled
+    @State private var captureHealth = CaptureHealth.current
+    @State private var lastCaptureAt = CapturePrefs.lastCaptureAt
+    @State private var authorization = UNAuthorizationStatusBox.unknown
 
     var body: some View {
         NavigationStack {
             List {
+                // First, not after the rule table: that table is ~85 seed rows
+                // deep, so a capture section below it is off-screen by a full
+                // screen or more — which is where the toggle a user goes to
+                // Settings to find would have been.
+                captureSection
+
                 Section {
                     ForEach(rules, id: \.uuid) { rule in
                         Button {
@@ -94,6 +106,7 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(HisabTheme.background)
             .navigationTitle("Settings")
+            .task { await refreshCapture() }
             .sheet(isPresented: $showAddRule) {
                 RuleEditorSheet(rule: nil, nextOrder: rules.count,
                                 existingCategories: distinctCategories)
@@ -108,6 +121,57 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+    }
+
+    /// The capture toggle, its health line, and the way to the setup screen.
+    ///
+    /// The toggle goes through `CaptureNotifier.setEnabled`, never through
+    /// `CapturePrefs.isEnabled` directly: turning capture off has to cancel the
+    /// notifications already queued (I5), and turning it on has to ask for
+    /// notification permission the first time (P1). Writing the flag here would
+    /// silently skip both.
+    @ViewBuilder
+    private var captureSection: some View {
+        Section {
+            Toggle("Capture bank alerts", isOn: $captureEnabled)
+                .tint(HisabTheme.khataRed)
+                .accessibilityIdentifier("capture-toggle")
+                .onChange(of: captureEnabled) { _, newValue in
+                    Task {
+                        await CaptureNotifier.setEnabled(newValue)
+                        await refreshCapture()
+                    }
+                }
+            if captureEnabled {
+                LabeledContent("Last captured",
+                               value: lastCaptureAt.map(ISTStamp.dayTime) ?? "Never")
+                    .accessibilityIdentifier("capture-last")
+                if authorization == .denied {
+                    Label("Notifications are off for Hisab, so it cannot ask what an unknown payment was. Turn them on in iOS Settings › Notifications › Hisab.",
+                          systemImage: "bell.slash")
+                        .font(.footnote)
+                        .foregroundStyle(HisabTheme.khataRed)
+                }
+                if let message = captureHealth.message {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("capture-health-line")
+                }
+            }
+            NavigationLink("Capture setup") { CaptureSetupView() }
+        } header: {
+            Text("Alert capture")
+        } footer: {
+            Text("Hands a bank or UPI alert to Hisab through a Shortcuts automation you build yourself. Captured alerts are memos, not ledger entries — your statements stay the source of truth. Nothing leaves this phone.")
+        }
+    }
+
+    private func refreshCapture() async {
+        captureEnabled = CapturePrefs.isEnabled
+        lastCaptureAt = CapturePrefs.lastCaptureAt
+        captureHealth = CaptureHealth.current
+        authorization = UNAuthorizationStatusBox(await CaptureNotifier.authorizationStatus())
     }
 
     private var distinctCategories: [String] {

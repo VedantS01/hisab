@@ -19,6 +19,37 @@ enum CaptureNotifier {
             .requestAuthorization(options: [.alert, .sound, .badge])
     }
 
+    /// What iOS will currently do with a banner, for Settings to show rather
+    /// than leaving a user who tapped "Don't Allow" with a toggle that looks on
+    /// and a feature that never speaks (P1).
+    static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    /// The one way capture is switched on or off. Going ON asks for
+    /// notification permission; going OFF stops the work already in flight.
+    ///
+    /// I5: two writes used to survive a disable. A quiet-hours `.hold` request
+    /// is handed to `UNUserNotificationCenter` with a time trigger hours away,
+    /// so it fires the morning AFTER the user switched capture off — and
+    /// `respond` then assigned a category from its buttons. "I turned it off
+    /// and it is still doing things" is exactly the trust this toggle exists to
+    /// buy, so a disable clears the pending queue, and `respond` is gated too.
+    ///
+    /// Only *pending* requests are removed. A banner already delivered sits in
+    /// Notification Center and can be withdrawn by nothing short of
+    /// `removeDeliveredNotifications`, which would also erase the user's own
+    /// Hisab notification history. The `respond` gate is what makes an
+    /// already-delivered banner inert.
+    static func setEnabled(_ enabled: Bool) async {
+        CapturePrefs.isEnabled = enabled
+        guard enabled else {
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+            return
+        }
+        await requestAuthorization()
+    }
+
     /// Notifies only when Hisab could NOT categorize the payee — precisely the
     /// memory-decay case this feature exists for.
     ///
@@ -216,30 +247,63 @@ enum CaptureNotifier {
 
     private static let ruleOfferKey = "capture.pendingRuleOffer"
 
-    /// Consumed by the review UI (task 11), which turns it into a
-    /// `StoredCategoryRule` if the user accepts and clears it either way.
-    /// Stored as a two-element array, not a joined string, so no reader is ever
-    /// tempted to split a category name apart again.
-    static var pendingRuleOffer: RuleOffer? {
+    /// Every queued offer, oldest first. Consumed by `RuleOfferSheet`, which
+    /// presents them in turn, turns one into a `StoredCategoryRule` if the user
+    /// accepts, and clears it either way.
+    ///
+    /// P6: this used to be a one-deep slot, which contradicted its own
+    /// reasoning — if "the offer is the durable value this whole feature exists
+    /// to produce", then two category taps before the app is next opened must
+    /// not silently discard the first. Two unknown payees in one afternoon is
+    /// an ordinary day, not a corner case.
+    ///
+    /// Stored as a FLAT `[String]` of hash/category pairs, keeping both the key
+    /// and the element type the one-deep version used: an offer written by an
+    /// older build still reads back correctly here, and a category name
+    /// containing "|" is still never split apart.
+    static var pendingRuleOffers: [RuleOffer] {
         get {
             guard let parts = UserDefaults.standard.array(forKey: ruleOfferKey) as? [String],
-                  parts.count == 2 else { return nil }
-            return RuleOffer(captureHash: parts[0], category: parts[1])
+                  parts.count % 2 == 0 else { return [] }
+            return stride(from: 0, to: parts.count, by: 2).map {
+                RuleOffer(captureHash: parts[$0], category: parts[$0 + 1])
+            }
         }
         set {
-            guard let newValue else {
+            guard !newValue.isEmpty else {
                 UserDefaults.standard.removeObject(forKey: ruleOfferKey)
                 return
             }
-            UserDefaults.standard.set([newValue.captureHash, newValue.category],
+            UserDefaults.standard.set(newValue.flatMap { [$0.captureHash, $0.category] },
                                       forKey: ruleOfferKey)
         }
+    }
+
+    /// Queues one offer, replacing any earlier offer for the SAME memo: two
+    /// taps on one memo are the user changing their mind, and only the last
+    /// answer is worth offering as a rule.
+    static func queue(offer: RuleOffer) {
+        var offers = pendingRuleOffers.filter { $0.captureHash != offer.captureHash }
+        offers.append(offer)
+        pendingRuleOffers = offers
+    }
+
+    /// Drops the offer for one memo, whether the user accepted it or not.
+    static func clearOffer(captureHash: String) {
+        pendingRuleOffers = pendingRuleOffers.filter { $0.captureHash != captureHash }
     }
 
     /// Applies one notification response: a category button assigns and queues
     /// the rule offer; anything else routes the user to the memo.
     static func respond(actionID: String, captureHash: String?,
                         router: DeepLinkRouter, in ctx: ModelContext) {
+        // I5: a banner delivered before the user switched capture off is still
+        // on the lock screen, and its category buttons still work. Without this
+        // gate the app writes to the store — an assignment plus a rule offer —
+        // hours after the user turned the feature off. The tap still opens
+        // Hisab, because iOS opens an app for a notification response whatever
+        // the app then does; it simply does nothing else.
+        guard CapturePrefs.isEnabled else { return }
         guard let captureHash, !captureHash.isEmpty else {
             // A payload-less notification can still be tapped. Land the user
             // somewhere real rather than on whatever tab was last open.
@@ -256,6 +320,11 @@ enum CaptureNotifier {
             return
         }
         MemoStore.assign(category: category, to: memo, in: ctx)
-        pendingRuleOffer = RuleOffer(captureHash: captureHash, category: category)
+        queue(offer: RuleOffer(captureHash: captureHash, category: category))
+        // UserDefaults is not observable, so a foregrounded app would not learn
+        // of the offer until its next launch — and a banner IS delivered while
+        // Hisab is open (see the delegate's `willPresent`). The router is
+        // observable and `RootView.body` already reads it.
+        router.ruleOfferGeneration += 1
     }
 }

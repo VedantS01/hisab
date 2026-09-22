@@ -89,17 +89,54 @@ struct RootView: View {
     @Environment(DeepLinkRouter.self) private var router
     @State private var selectedTab = "dashboard"
     @State private var suggestion: RuleSuggestion?
+    /// Rule offers queued by a notification's category button, presented in
+    /// turn (P6). Mirrors `CaptureNotifier.pendingRuleOffers`, which lives in
+    /// UserDefaults and cannot be observed; `router.ruleOfferGeneration` is the
+    /// observable edge that says when to re-read it.
+    @State private var ruleOffers: [CaptureNotifier.RuleOffer] = []
 
-    private struct SuggestionItem: Identifiable {
-        let suggestion: RuleSuggestion
-        var id: String { suggestion.merchantPattern }
+    /// The ONE thing this view can be presenting.
+    ///
+    /// P5: the suggestion prompt and the capture route used to be two `.sheet`
+    /// modifiers on this same `TabView`. On a cold launch from a notification
+    /// tap on a day the daily suggestion had not yet shown, both bindings
+    /// became true in a single update and SwiftUI presented one and silently
+    /// dropped the other — and the one it dropped was the one the user had just
+    /// tapped. One `.sheet(item:)` over an enum makes that unrepresentable: the
+    /// destinations are now ordered rather than racing.
+    enum Destination: Identifiable {
+        case memo(String)
+        case transaction(UUID)
+        case needsReview
+        case ruleOffer(CaptureNotifier.RuleOffer)
+        case suggestion(RuleSuggestion)
+
+        var id: String {
+            switch self {
+            case .memo(let hash): "memo|\(hash)"
+            case .transaction(let uuid): "txn|\(uuid.uuidString)"
+            case .needsReview: "needs-review"
+            case .ruleOffer(let offer): "offer|\(offer.captureHash)|\(offer.category)"
+            case .suggestion(let suggestion): "suggestion|\(suggestion.merchantPattern)"
+            }
+        }
     }
 
     /// Reads — not merely writes — the router. If this ever becomes a write-only
     /// reference again, the deep link and the notification tap both go silently
     /// dead, exactly as 1.2's dismiss/mute did.
-    private var isRouted: Bool {
-        router.pendingMemoHash != nil || router.pendingTxnUUID != nil || router.showNeedsReview
+    ///
+    /// Order is precedence, and it is deliberate: something the user just
+    /// tapped outranks a queued offer, which outranks the once-a-day prompt
+    /// nobody asked for. Whatever loses is not discarded — it is still in the
+    /// state this reads, so it presents as soon as the winner is dismissed.
+    private var destination: Destination? {
+        if let hash = router.pendingMemoHash { return .memo(hash) }
+        if let uuid = router.pendingTxnUUID { return .transaction(uuid) }
+        if router.showNeedsReview { return .needsReview }
+        if let offer = ruleOffers.first { return .ruleOffer(offer) }
+        if let suggestion { return .suggestion(suggestion) }
+        return nil
     }
 
     var body: some View {
@@ -108,10 +145,10 @@ struct RootView: View {
         // observation scope, so presentation would rest on that; reading here
         // puts the router's properties in this view's dependency set directly,
         // leaving no mechanism by which a change could fail to re-render.
-        // (The neighbouring suggestion sheet uses the same `Binding` shape but
-        // is backed by `@State`, where any mutation invalidates the view
-        // regardless of what `body` read. It is not precedent for this case.)
-        let routed = isRouted
+        // (The suggestion and the queued offers are `@State`, where any
+        // mutation invalidates the view regardless of what `body` read. The
+        // router's properties are not, which is why they are read here.)
+        let destination = self.destination
         TabView(selection: $selectedTab) {
             Tab("Dashboard", systemImage: "chart.bar.doc.horizontal", value: "dashboard") {
                 DashboardView()
@@ -139,7 +176,26 @@ struct RootView: View {
             // flag lives in UserDefaults and survives a reinstall-free relaunch,
             // so a run that wants capture OFF has to say so rather than assume
             // the default still holds.
-            if args.contains("--capture-disable") { CapturePrefs.isEnabled = false }
+            // Goes through `setEnabled`, not the raw flag, so the harness
+            // exercises the disable path the Settings toggle takes — I5's
+            // cancellation of already-queued notifications included.
+            if args.contains("--capture-disable") { await CaptureNotifier.setEnabled(false) }
+            // Simulator-only: backdates the two health timestamps, e.g.
+            //   --capture-backdate 10 10   (nothing has arrived for 10 days)
+            //   --capture-backdate 0 10    (arriving, none of it parses)
+            // B4's three health states are otherwise unreachable in a
+            // verification run: `lastAttemptAt` is written only by the intent,
+            // and a simulator shares the host clock, so there is no way to be
+            // three days later. Takes effect on the NEXT launch's render, since
+            // the banner reads on appear.
+            if let index = args.firstIndex(of: "--capture-backdate"),
+               args.indices.contains(index + 2),
+               let attemptDays = Int(args[index + 1]),
+               let captureDays = Int(args[index + 2]) {
+                let day = 86_400.0
+                CapturePrefs.lastAttemptAt = Date().addingTimeInterval(-Double(attemptDays) * day)
+                CapturePrefs.lastCaptureAt = Date().addingTimeInterval(-Double(captureDays) * day)
+            }
             #endif
             // Authorization is requested when the user turns capture ON (task
             // 11's Settings toggle) and again here whenever capture is already
@@ -216,6 +272,53 @@ struct RootView: View {
                 printCaptureState()
                 fflush(stdout)
             }
+            // Simulator-only: drives one notification RESPONSE through the real
+            // `CaptureNotifier.respond`, e.g.
+            //   --capture-respond 'CAT|Groceries' <hash>   (a category button)
+            //   --capture-respond MEMO_LATER <hash>        (the Later button)
+            // Three of `respond`'s four branches were unobserved (P9) and the
+            // simulator cannot be made to tap a real banner's buttons, so this
+            // is the only way to exercise them — and the only way to prove I5's
+            // gate, which is the difference between a store write and no store
+            // write after the toggle goes off.
+            for (index, arg) in args.enumerated() where arg == "--capture-respond" {
+                guard args.indices.contains(index + 2) else { continue }
+                CaptureNotifier.respond(actionID: args[index + 1],
+                                        captureHash: args[index + 2],
+                                        router: router, in: context)
+                printCaptureState()
+                fflush(stdout)
+            }
+            // Simulator-only: the blast-radius measurement B2 asks for.
+            //   --capture-rule-impact <pattern> <category>
+            // Prints the number the offer WOULD show, then writes the rule
+            // through the same helper the offer's button uses and counts the
+            // rows whose effective category really changed. Both numbers come
+            // from one run over one store, so they are comparable by
+            // construction rather than by two readings lining up.
+            for (index, arg) in args.enumerated() where arg == "--capture-rule-impact" {
+                guard args.indices.contains(index + 2) else { continue }
+                printRuleImpact(pattern: args[index + 1], category: args[index + 2])
+            }
+            // Simulator-only: parks one request in the system's PENDING queue,
+            // so I5's cancellation has something to cancel.
+            //
+            // The real producer of a pending request is the quiet-hours `.hold`
+            // branch, which only fires between 22:00 and 08:00 IST — a window a
+            // verification run cannot enter, since a simulator shares the host
+            // clock. This stands in for it: same API, same queue, a trigger far
+            // enough out that it cannot fire mid-run. It is a PROBE, not a
+            // reproduction of the hold path.
+            if args.contains("--capture-schedule-probe") {
+                let content = UNMutableNotificationContent()
+                content.title = "Probe"
+                content.body = "Stands in for a quiet-hours hold."
+                let request = UNNotificationRequest(
+                    identifier: "capture-probe", content: content,
+                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3600,
+                                                               repeats: false))
+                try? await UNUserNotificationCenter.current().add(request)
+            }
             // Simulator-only: reports what the notification system actually did.
             // A missing banner has two indistinguishable causes — an unanswered
             // permission prompt and a categorize-guard that returned early — and
@@ -225,6 +328,11 @@ struct RootView: View {
                 await printNotificationReport()
             }
             #endif
+            // The launch-time read of the offer queue. `onChange` below only
+            // catches an offer queued while this app is already running; a
+            // category button tapped on a lock-screen banner queued it in a
+            // process that has since been killed, which is the normal case.
+            ruleOffers = CaptureNotifier.pendingRuleOffers
             if !SuggestionSchedule.alreadyShownToday {
                 suggestion = SuggestionEngine.queue(records: Queries.suggestionRecords(context),
                                                     now: Date(),
@@ -232,17 +340,43 @@ struct RootView: View {
             }
         }
         .sheet(item: Binding(
-            get: { suggestion.map(SuggestionItem.init) },
-            set: { if $0 == nil { suggestion = nil } }
-        ), onDismiss: { SuggestionSchedule.markShown() }) { item in
-            SuggestionPrompt(suggestion: item.suggestion)
+            get: { destination },
+            set: { newValue in
+                // A dismissal clears only what was actually on screen, so the
+                // next-highest destination can take its turn rather than being
+                // swept away with it.
+                guard newValue == nil else { return }
+                switch destination {
+                case .memo, .transaction, .needsReview:
+                    router.clear()
+                case .ruleOffer(let offer):
+                    CaptureNotifier.clearOffer(captureHash: offer.captureHash)
+                    ruleOffers = CaptureNotifier.pendingRuleOffers
+                case .suggestion:
+                    suggestion = nil
+                    SuggestionSchedule.markShown()
+                case nil:
+                    break
+                }
+            }
+        )) { destination in
+            switch destination {
+            case .memo(let hash):
+                MemoReviewSheet(captureHash: hash)
+            case .transaction(let uuid):
+                TransactionRouteSheet(uuid: uuid)
+            case .needsReview:
+                NeedsReviewInbox()
+            case .ruleOffer(let offer):
+                RuleOfferSheet(offer: offer) {
+                    ruleOffers = CaptureNotifier.pendingRuleOffers
+                }
+            case .suggestion(let suggestion):
+                SuggestionPrompt(suggestion: suggestion)
+            }
         }
-        .sheet(isPresented: Binding(
-            get: { routed },
-            set: { if !$0 { router.clear() } }
-        )) {
-            CaptureRouteSheet(memoHash: router.pendingMemoHash,
-                              txnUUID: router.pendingTxnUUID)
+        .onChange(of: router.ruleOfferGeneration) { _, _ in
+            ruleOffers = CaptureNotifier.pendingRuleOffers
         }
     }
 
@@ -259,11 +393,74 @@ struct RootView: View {
         func stamp(_ date: Date?) -> String {
             date.map { String(format: "%.2f", $0.timeIntervalSince1970) } ?? "nil"
         }
+        let offers = CaptureNotifier.pendingRuleOffers
+            .map { "\($0.captureHash.prefix(8))=\($0.category)" }
+        // One real transaction id, so `hisab://transaction/<uuid>` can be aimed
+        // at a row that exists. Nothing else in the app prints one, and P9's
+        // success branch is otherwise unobservable from a launch argument.
+        let sampleTxn = Queries.allTransactions(context).first
+            .map { "\($0.uuid.uuidString)|\($0.counterparty)" } ?? "none"
         print("debug-capture: enabled=\(CapturePrefs.isEnabled) "
             + "memos=\(memos.count) hashes=\(memos.map(\.captureHash)) "
             + "categories=\(memos.map { $0.assignedCategory ?? "nil" }) "
+            + "offers=\(offers) sampleTxn=\(sampleTxn) "
+            + "router=memo:\(router.pendingMemoHash ?? "nil"),"
+            + "txn:\(router.pendingTxnUUID?.uuidString ?? "nil"),"
+            + "inbox:\(router.showNeedsReview) "
             + "lastAttemptAt=\(stamp(CapturePrefs.lastAttemptAt)) "
             + "lastCaptureAt=\(stamp(CapturePrefs.lastCaptureAt))")
+    }
+
+    /// The offered count and the real one, measured in a single pass.
+    ///
+    /// `offered` is what `MemoReviewSheet` would put in the sentence. `changed`
+    /// is counted afterwards by re-deriving every visible row's effective
+    /// category with the rule in place and comparing it to the same row's
+    /// category before — the app's own read-time categorization, not a second
+    /// implementation of it. `naive` is the same count with `isSelfTransfer`
+    /// forced to false, which is what a caller that built rows straight from
+    /// `StoredTransaction` would get; when it exceeds `offered`, the gap is
+    /// exactly the over-count the flag exists to prevent.
+    private func printRuleImpact(pattern: String, category: String) {
+        let txns = Queries.allTransactions(context)
+        let matches = (try? context.fetch(FetchDescriptor<StoredMatch>())) ?? []
+        let selfTransfers = Queries.selfTransferUUIDs(in: txns)
+        let ruleRows = (try? context.fetch(FetchDescriptor<StoredCategoryRule>(
+            sortBy: [SortDescriptor(\.sortOrder)]))) ?? []
+        let rules = Queries.rules(from: ruleRows)
+        let rows = Queries.impactRows(txns, matches: matches, selfTransfers: selfTransfers)
+        let offered = RuleImpact.affectedCount(pattern: pattern, category: category,
+                                               rows: rows, rules: rules)
+        let naive = RuleImpact.affectedCount(
+            pattern: pattern, category: category,
+            rows: rows.map { RuleImpact.Row(text: $0.text, hasOverride: $0.hasOverride,
+                                            isSelfTransfer: false) },
+            rules: rules)
+
+        let visible = Queries.visible(txns, matches: matches)
+        func categories(_ matcher: CategoryMatcher, _ rows: [StoredTransaction]) -> [String] {
+            rows.map { Queries.effectiveCategory(of: $0, matcher: matcher,
+                                                 selfTransfers: selfTransfers) }
+        }
+        let beforeVisible = categories(Queries.matcher(from: ruleRows), visible)
+        let beforeAll = categories(Queries.matcher(from: ruleRows), txns)
+
+        RuleOffers.createRule(pattern: pattern, category: category,
+                              existing: ruleRows, in: context)
+
+        let afterRuleRows = (try? context.fetch(FetchDescriptor<StoredCategoryRule>(
+            sortBy: [SortDescriptor(\.sortOrder)]))) ?? []
+        let afterMatcher = Queries.matcher(from: afterRuleRows)
+        let changed = zip(beforeVisible, categories(afterMatcher, visible))
+            .count { $0 != $1 }
+        // The same count over EVERY row, matched bank evidence included, so a
+        // disagreement between the two populations is visible rather than
+        // assumed away.
+        let changedAll = zip(beforeAll, categories(afterMatcher, txns)).count { $0 != $1 }
+        print("debug-impact: pattern=\(pattern) category=\(category) "
+            + "offered=\(offered) changed=\(changed) naive=\(naive) "
+            + "changedAllRows=\(changedAll) visible=\(visible.count) all=\(txns.count)")
+        fflush(stdout)
     }
 
     private func printNotificationReport() async {
@@ -306,87 +503,4 @@ struct RootView: View {
         fflush(stdout)
     }
     #endif
-}
-
-/// Interim destination for a `hisab://` link and for a notification tap.
-///
-/// Task 11 replaces this with `MemoReviewSheet` and `NeedsReviewSection`. It
-/// exists now because router state that nothing renders is precisely the
-/// write-only bug this task is meant to avoid, and because this task's own
-/// verification has nothing to observe without a reader.
-///
-/// Deliberately NOT wrapped in `#if DEBUG`: until task 11 lands, a release
-/// build still needs *something* to render the route, and a router nothing
-/// renders is the worse failure. The deprecation is a compile-time tripwire
-/// instead — every use site warns until this type is deleted.
-@available(*, deprecated,
-            message: "Interim scaffold — Task 11 must delete this and route to MemoReviewSheet")
-struct CaptureRouteSheet: View {
-    let memoHash: String?
-    let txnUUID: UUID?
-
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-
-    private var memo: StoredPendingMemo? {
-        memoHash.flatMap { MemoStore.find(hash: $0, in: context) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if let memo {
-                    memoDetail(memo)
-                } else {
-                    inbox
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func memoDetail(_ memo: StoredPendingMemo) -> some View {
-        List {
-            LabeledContent("Amount", value: Money.formatPaise(memo.amountPaise))
-            LabeledContent("Payee", value: memo.payee)
-            LabeledContent("Captured", value: memo.capturedAt.formatted(date: .abbreviated,
-                                                                        time: .shortened))
-            LabeledContent("Category", value: memo.assignedCategory ?? "—")
-            if let offer = CaptureNotifier.pendingRuleOffer, offer.captureHash == memo.captureHash {
-                LabeledContent("Rule offer", value: offer.category)
-            }
-        }
-        .navigationTitle("Review memo")
-        .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("capture-route-memo")
-    }
-
-    /// Where an unresolvable link lands — a real list, not a blank screen.
-    private var inbox: some View {
-        List {
-            if let txnUUID {
-                Section("Transaction") { Text(txnUUID.uuidString) }
-            }
-            Section("Needs review") {
-                let pending = MemoStore.pending(context)
-                if pending.isEmpty {
-                    Text("Nothing waiting.").foregroundStyle(.secondary)
-                } else {
-                    ForEach(pending, id: \.captureHash) { memo in
-                        VStack(alignment: .leading) {
-                            Text(Money.formatPaise(memo.amountPaise))
-                            Text(memo.payee).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("Needs review")
-        .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("capture-route-inbox")
-    }
 }
