@@ -1,10 +1,13 @@
 import XCTest
 @testable import HisabCore
 
-/// One schema, two languages: pins `AlertParser.parse` and `MemoMerger.merge`
-/// so the two cores cannot silently disagree on either. Unit tests on each
-/// side prove a core matches its own expectations; this fixture is the only
-/// artifact that proves the two cores match *each other*.
+/// One schema, two languages: pins `AlertParser.parse`, `MemoMerger.merge`,
+/// `NotificationPolicy.decide`, `CategoryRanker.topCategories` and
+/// `RuleImpact.affectedCount` so the two cores cannot silently disagree on any
+/// of them. Unit tests on each side prove a core matches its own expectations;
+/// this fixture is the only artifact that proves the two cores match *each
+/// other* — and only while BOTH sides read it, which is why the last three
+/// blocks are asserted here as well as in `capture_test.dart`.
 ///
 /// Set ALERT_GT_OUT to a *directory* to regenerate `captureHash` values (in
 /// `cases` and `merges[].memos`) and the `merges[].expected` maps from the
@@ -55,10 +58,54 @@ final class AlertParityTests: XCTestCase {
             var expected: [String: String]
         }
 
+        struct PolicyCase: Codable {
+            var name: String
+            var now: String
+            var sentToday: Int
+            var decision: String
+            var until: String?
+        }
+        struct RankingRecord: Codable {
+            var category: String
+            var at: String
+            var direction: String
+            var amountPaise: Int64
+        }
+        struct RankingCase: Codable {
+            var name: String
+            var now: String
+            var limit: Int
+            var records: [RankingRecord]
+            var expected: [String]
+        }
+        struct ImpactRule: Codable {
+            var pattern: String
+            var category: String
+        }
+        struct ImpactRow: Codable {
+            var text: String
+            var hasOverride: Bool
+            var isSelfTransfer: Bool
+        }
+        struct ImpactCase: Codable {
+            var name: String
+            var pattern: String
+            var category: String
+            var rules: [ImpactRule]
+            var rows: [ImpactRow]
+            var expected: Int
+        }
+
         var receivedAt: String
         var cases: [Case]
         var rejected: [String]
         var merges: [MergeCase]
+        // Decoded AND re-encoded: these three are authored by hand and must
+        // survive an `ALERT_GT_OUT` dump. A `Fixture` missing them would
+        // silently drop them from the regenerated blob.
+        var policy: [PolicyCase]
+        var ranking: [RankingCase]
+        var ruleImpact: [ImpactCase]
     }
 
     private func parseISO(_ iso: String) -> Date {
@@ -173,6 +220,67 @@ final class AlertParityTests: XCTestCase {
                            "\(mergeCase.name): merge assignment differs")
         }
 
+        // MARK: policy, ranking, ruleImpact
+        //
+        // The three blocks the capture logic added. Dart asserts them too; a
+        // shared fixture asserted from only ONE side is not a lock, it is a
+        // place for the other side to drift unnoticed.
+        //
+        // Nothing here is regenerated on a dump. Every value is authored by
+        // hand — a decision, an ordering, a count — so a disagreement is a
+        // defect in one of the two cores, never a fixture to refresh.
+        for testCase in fixture.policy {
+            let decision = NotificationPolicy.decide(now: parseISO(testCase.now),
+                                                     sentToday: testCase.sentToday)
+            let expected: NotificationDecision
+            switch testCase.decision {
+            case "send": expected = .send
+            case "suppress": expected = .suppress
+            case "hold":
+                guard let until = testCase.until else {
+                    XCTFail("\(testCase.name): a hold case carries no `until`")
+                    continue
+                }
+                expected = .hold(until: parseISO(until))
+            default:
+                XCTFail("\(testCase.name): bad decision in fixture: \(testCase.decision)")
+                continue
+            }
+            XCTAssertEqual(decision, expected, "\(testCase.name): decision differs")
+        }
+
+        for testCase in fixture.ranking {
+            let records = testCase.records.map {
+                SpendRecord(merchant: "m", amountPaise: $0.amountPaise,
+                            date: parseISO($0.at), direction: direction($0.direction),
+                            effectiveCategory: $0.category)
+            }
+            // No `ruleset:` parameter here, unlike the Dart twin: Swift's
+            // `CategoryRanker` reads `Resources/rulesets/india-default.json`
+            // through `Bundle.module`, while `hisab_core` is pure Dart with no
+            // asset loader and takes the loaded `Ruleset` as an argument. The
+            // ranking cases whose expectations come from the seed top-up are
+            // exactly what pins the two readings of that one JSON together.
+            let actual = CategoryRanker.topCategories(records: records,
+                                                      now: parseISO(testCase.now),
+                                                      limit: testCase.limit)
+            XCTAssertEqual(actual, testCase.expected, "\(testCase.name): ranking differs")
+        }
+
+        for testCase in fixture.ruleImpact {
+            let rules = testCase.rules.map {
+                CategoryRule(pattern: $0.pattern, category: $0.category)
+            }
+            let rows = testCase.rows.map {
+                RuleImpact.Row(text: $0.text, hasOverride: $0.hasOverride,
+                               isSelfTransfer: $0.isSelfTransfer)
+            }
+            let actual = RuleImpact.affectedCount(pattern: testCase.pattern,
+                                                  category: testCase.category,
+                                                  rows: rows, rules: rules)
+            XCTAssertEqual(actual, testCase.expected, "\(testCase.name): count differs")
+        }
+
         if let dumpDir {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -181,7 +289,9 @@ final class AlertParityTests: XCTestCase {
             let out = URL(fileURLWithPath: dumpDir).appendingPathComponent("alert-parity.json")
             try data.write(to: out)
             print("alert-parity: wrote \(fixture.cases.count) cases, "
-                 + "\(fixture.merges.count) merge scenarios to \(out.path)")
+                 + "\(fixture.merges.count) merge scenarios, "
+                 + "\(fixture.policy.count) policy, \(fixture.ranking.count) ranking, "
+                 + "\(fixture.ruleImpact.count) ruleImpact to \(out.path)")
         }
     }
 }
