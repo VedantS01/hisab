@@ -99,6 +99,14 @@ final class PendingMemoTests: XCTestCase {
         XCTAssertEqual(memo.payeeNormalized, "blue tokai coffee")
     }
 
+    func testExpiryBoundaryIsInclusiveAt45Days() {
+        let captured = date("2026-08-01 10:00")
+        let day45 = YearMonth.istCalendar.date(byAdding: .day, value: 45, to: captured)!
+        let day46 = YearMonth.istCalendar.date(byAdding: .day, value: 46, to: captured)!
+        XCTAssertFalse(PendingMemo.isExpired(capturedAt: captured, now: day45))
+        XCTAssertTrue(PendingMemo.isExpired(capturedAt: captured, now: day46))
+    }
+
     func testRuleKeyPrefersVPAOverUnstableDisplayName() {
         // The whole point: "VEDANT SABOO" varies per statement, the VPA does not.
         let withVPA = PendingMemo(amountPaise: 1, direction: .debit,

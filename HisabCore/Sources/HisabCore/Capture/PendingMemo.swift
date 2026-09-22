@@ -69,6 +69,17 @@ public struct PendingMemo: Sendable, Equatable, Codable {
     }
 }
 
+public extension PendingMemo {
+    /// Memos are a labelling channel, not storage. Statements arrive monthly;
+    /// 45 days leaves buffer for a late import without unbounded growth.
+    static let expiryDays = 45
+
+    static func isExpired(capturedAt: Date, now: Date) -> Bool {
+        let days = YearMonth.istCalendar.dateComponents([.day], from: capturedAt, to: now).day ?? 0
+        return days > expiryDays
+    }
+}
+
 public enum RuleKeyKind: String, Codable, Sendable {
     case vpa, merchant
 }

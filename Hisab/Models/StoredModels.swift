@@ -106,3 +106,50 @@ final class PinnedMonth {
 
     var yearMonth: YearMonth { YearMonth(year: year, month: month) }
 }
+
+@Model
+final class StoredPendingMemo {
+    @Attribute(.unique) var captureHash: String = ""
+    var amountPaise: Int64 = 0
+    var directionRaw: String = ""
+    var payee: String = ""
+    var payeeNormalized: String = ""
+    var vpa: String?
+    var accountTail: String?
+    var date: Date = Date.distantPast
+    var capturedAt: Date = Date.distantPast
+    var note: String?
+    var assignedCategory: String?
+    var mergedTxnUUID: UUID?
+    var notifiedAt: Date?
+
+    init(memo: PendingMemo) {
+        self.captureHash = memo.captureHash
+        self.amountPaise = memo.amountPaise
+        self.directionRaw = memo.direction.rawValue
+        self.payee = memo.payee
+        self.payeeNormalized = memo.payeeNormalized
+        self.vpa = memo.vpa
+        self.accountTail = memo.accountTail
+        self.date = memo.date
+        self.capturedAt = memo.capturedAt
+        self.note = memo.note
+    }
+
+    var direction: Direction { Direction(rawValue: directionRaw) ?? .debit }
+
+    var asMemo: PendingMemo {
+        PendingMemo(amountPaise: amountPaise, direction: direction, payee: payee,
+                    vpa: vpa, accountTail: accountTail, date: date,
+                    capturedAt: capturedAt, note: note)
+    }
+}
+
+/// One definition of the store's shape. The App Intent opens its own
+/// container, and two drifting schema lists would corrupt the store.
+enum HisabSchema {
+    static let schema = Schema([
+        StoredDocument.self, StoredTransaction.self, StoredCategoryRule.self,
+        StoredMatch.self, PinnedMonth.self, StoredPendingMemo.self,
+    ])
+}

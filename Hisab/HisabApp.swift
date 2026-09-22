@@ -5,10 +5,8 @@ import HisabCore
 @main
 struct HisabApp: App {
     let container: ModelContainer = {
-        let schema = Schema([StoredDocument.self, StoredTransaction.self,
-                             StoredCategoryRule.self, StoredMatch.self, PinnedMonth.self])
         do {
-            return try ModelContainer(for: schema)
+            return try ModelContainer(for: HisabSchema.schema)
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
