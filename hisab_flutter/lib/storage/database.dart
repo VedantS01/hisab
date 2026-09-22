@@ -63,16 +63,52 @@ class PinnedMonths extends Table {
   Set<Column> get primaryKey => {monthKey};
 }
 
+/// A bank/UPI alert captured but not yet admitted to the ledger. Mirrors
+/// StoredPendingMemo in Hisab/Models/StoredModels.swift field-for-field.
+/// The raw alert text is deliberately absent: only parsed fields persist.
+class StoredPendingMemos extends Table {
+  TextColumn get captureHash => text()();
+  IntColumn get amountPaise => integer()();
+  TextColumn get direction => text()(); // debit | credit
+  TextColumn get payee => text()();
+  TextColumn get payeeNormalized => text()();
+  TextColumn get vpa => text().nullable()();
+  TextColumn get accountTail => text().nullable()();
+  IntColumn get dateMs => integer()();
+  IntColumn get capturedAtMs => integer()();
+  TextColumn get note => text().nullable()();
+  TextColumn get assignedCategory => text().nullable()();
+  TextColumn get mergedTxnUuid => text().nullable()();
+  IntColumn get notifiedAtMs => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {captureHash};
+}
+
 @DriftDatabase(tables: [
   StoredDocuments,
   StoredTransactions,
   StoredCategoryRules,
   StoredMatches,
   PinnedMonths,
+  StoredPendingMemos,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  /// There was no MigrationStrategy before v2, so every install in the field
+  /// carries a v1 database with no pending-memo table. Without this, opening
+  /// one throws `no such table` on the first memo query — and a fresh install
+  /// (created at v2 by `onCreate`) would never show it.
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.createTable(storedPendingMemos);
+          }
+        },
+      );
 }

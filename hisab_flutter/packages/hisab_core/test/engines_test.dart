@@ -422,5 +422,13 @@ void main() {
       expect(SuggestionEngine.normalize('UPI/DR/12345/CHAI-POINT'), 'upi dr chai');
       expect(SuggestionEngine.normalize('  ACME  '), 'acme');
     });
+
+    test('testNormalizeKeepsNonASCIILetters', () {
+      // Swift twin: SuggestionEngineTests.testNormalizeKeepsNonASCIILetters.
+      // Parity fixture — this exact string is asserted on the Swift side
+      // (SuggestionEngine.normalize("BLUÉ TOKAI CAFÉ") == "blué tokai café"),
+      // not whatever Dart's own implementation happens to produce.
+      expect(SuggestionEngine.normalize('BLUÉ TOKAI CAFÉ'), 'blué tokai café');
+    });
   });
 }

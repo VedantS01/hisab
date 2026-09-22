@@ -3,6 +3,12 @@
 library;
 
 export 'src/analytics.dart';
+export 'src/capture/alert_parser.dart';
+export 'src/capture/category_ranker.dart';
+export 'src/capture/memo_merger.dart';
+export 'src/capture/notification_policy.dart';
+export 'src/capture/pending_memo.dart';
+export 'src/capture/rule_impact.dart';
 export 'src/categories.dart';
 export 'src/generic_bank/chain_interpreter.dart';
 export 'src/generic_bank/column_inference.dart';

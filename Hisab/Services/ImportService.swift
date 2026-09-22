@@ -30,6 +30,50 @@ final class ImportService {
     private let context: ModelContext
     private let resolver: ImportResolver
 
+    /// Takes a copy of a document handed to Hisab from the share sheet, Files
+    /// or Mail, and returns the copy to import.
+    ///
+    /// The URL `onOpenURL` delivers is security-scoped and open IN PLACE: it
+    /// is readable inside `startAccessingSecurityScopedResource()` and for as
+    /// long as the system chooses to keep the grant alive, which is not long
+    /// enough. Presenting a sheet is at least one run-loop turn away, the user
+    /// may then sit on a password prompt for a minute, and a `Data(contentsOf:)`
+    /// at the far end of that fails with a permission error that looks exactly
+    /// like an unreadable file. Copying here, while the grant is certainly
+    /// live, is what makes the rest of the flow ordinary file reading.
+    ///
+    /// The copy goes to `tmp`, not `Documents`: `copyIntoSandbox` already
+    /// keeps the durable copy under `Documents/imports`, and a second one in a
+    /// directory `UIFileSharingEnabled` now exposes would be both redundant
+    /// and a statement sitting somewhere the user did not put it.
+    ///
+    /// Returns the ORIGINAL url when the copy fails, rather than nil. Every
+    /// failure this can hit is one `importFile` can hit too, and it reports
+    /// them through the sheet's error UI; returning nil would mean deciding
+    /// here to show the user nothing at all.
+    nonisolated static func stageIncomingFile(at url: URL) -> URL {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let directory = FileManager.default.temporaryDirectory.appending(path: "incoming")
+        // The staged copy keeps the sender's filename, extension included.
+        // That is not cosmetic: `ImportResolver` gates its locked-PDF check on
+        // `filename.hasSuffix(".pdf")`, so a copy renamed to something neutral
+        // would turn a password-protected statement into "Hisab can't read
+        // this format yet" — a dead end instead of a password prompt.
+        let destination = directory.appending(path: url.lastPathComponent)
+        do {
+            try FileManager.default.createDirectory(at: directory,
+                                                    withIntermediateDirectories: true)
+            // The same statement can be sent twice; the second send must not
+            // fail on "file exists" and silently import the first one's bytes.
+            try? FileManager.default.removeItem(at: destination)
+            try FileManager.default.copyItem(at: url, to: destination)
+            return destination
+        } catch {
+            return url
+        }
+    }
+
     init(context: ModelContext, resolver: ImportResolver = .live()) {
         self.context = context
         self.resolver = resolver
@@ -80,10 +124,19 @@ final class ImportService {
         context.insert(document)
         copyIntoSandbox(data: data, hash: fileHash, filename: url.lastPathComponent)
 
+        var inserted: [StoredTransaction] = []
         for index in newIndices {
-            context.insert(StoredTransaction(parsed: parsed.transactions[index],
-                                             source: source, document: document))
+            let txn = StoredTransaction(parsed: parsed.transactions[index],
+                                        source: source, document: document)
+            context.insert(txn)
+            inserted.append(txn)
         }
+
+        // After insertion and before the save, so a throw anywhere above leaves
+        // every memo exactly where it was. A memo retired against a statement
+        // that never landed would vanish from the inbox with nothing to show
+        // for it.
+        retireMemos(against: inserted)
 
         let months = parsed.effectivePeriod.months
         for month in months {
@@ -91,9 +144,63 @@ final class ImportService {
         }
         try context.save()
 
+        // Housekeeping, deliberately AFTER the save rather than beside the
+        // merge: `MemoStore.expire` saves the context itself, so calling it
+        // above would commit the retirements before `try context.save()` had
+        // a chance to throw — the one thing the placement of `retireMemos` is
+        // there to prevent. Expiry is not part of this import's outcome; a
+        // memo old enough to drop is old enough whatever the file contained.
+        MemoStore.expire(now: Date(), in: context)
+
         return ImportReport(source: source, totalParsed: parsed.transactions.count,
                             newCount: newIndices.count, monthsTouched: months,
                             duplicateOfExistingFile: false)
+    }
+
+    /// Attaches memos to the statement rows they turn out to have been about.
+    ///
+    /// A memo is a note about a payment, never a ledger entry: an alert carries
+    /// no UTR, so it can join neither content-hash dedup nor balance-chain
+    /// validation. When the statement finally arrives, the payment enters the
+    /// ledger as an ordinary row and the memo's job is done — `mergedTxnUUID`
+    /// is what takes it out of the needs-review inbox (see `MemoStore.pending`)
+    /// without deleting the user's own note and category.
+    ///
+    /// Only the rows this import actually inserted are offered as candidates.
+    /// Rows already in the store were offered to these same memos by the import
+    /// that brought them in, and re-offering them would let a second import of
+    /// an unrelated month re-open a decision that was already made against a
+    /// larger, more complete candidate set.
+    ///
+    /// `MemoMerger` owns every rule about what may pair with what, and is
+    /// pinned to its Dart twin by shared fixtures. Nothing here may second-guess
+    /// it: this function projects rows in, and writes the result back out.
+    private func retireMemos(against inserted: [StoredTransaction]) {
+        guard !inserted.isEmpty else { return }
+        let open = MemoStore.all(context).filter { $0.mergedTxnUUID == nil }
+        guard !open.isEmpty else { return }
+
+        // `"\(counterparty) \(narration)"` is the exact text
+        // `Queries.category(of:rules:)` categorizes on, so the VPA and payee
+        // gates see the same string the rule matcher does. A narrower
+        // projection would make a memo fail to merge onto a row a rule written
+        // from that very memo would happily claim.
+        let candidates = inserted.map {
+            MemoMergeCandidate(id: $0.uuid, date: $0.date, amountPaise: $0.amountPaise,
+                               direction: $0.direction,
+                               narration: "\($0.counterparty) \($0.narration)")
+        }
+        let paired = MemoMerger.merge(memos: open.map(\.asMemo), candidates: candidates)
+        guard !paired.isEmpty else { return }
+
+        for memo in open {
+            // `asMemo.captureHash` recomputes from the same stored fields the
+            // hash was built from at capture, so the stored column is the key
+            // `merge` returned. Reading the column keeps this a lookup rather
+            // than a second hashing of every memo.
+            guard let txnUUID = paired[memo.captureHash] else { continue }
+            memo.mergedTxnUUID = txnUUID
+        }
     }
 
     /// Keeps the original bytes so a future parser fix can re-run over past uploads.

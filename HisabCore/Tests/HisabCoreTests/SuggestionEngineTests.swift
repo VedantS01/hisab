@@ -95,4 +95,11 @@ final class SuggestionEngineTests: XCTestCase {
                        "upi dr chai")
         XCTAssertEqual(SuggestionEngine.normalize("  ACME  "), "acme")
     }
+
+    func testNormalizeKeepsNonASCIILetters() {
+        // Parity fixture: the Dart twin must assert this exact string, not
+        // whatever its own implementation happens to produce.
+        XCTAssertEqual(SuggestionEngine.normalize("BLUÉ TOKAI CAFÉ"),
+                       "blué tokai café")
+    }
 }

@@ -106,3 +106,62 @@ final class PinnedMonth {
 
     var yearMonth: YearMonth { YearMonth(year: year, month: month) }
 }
+
+@Model
+final class StoredPendingMemo {
+    @Attribute(.unique) var captureHash: String = ""
+    var amountPaise: Int64 = 0
+    var directionRaw: String = ""
+    var payee: String = ""
+    /// M-1: a denormalized copy of `PendingMemo.payeeNormalized`, WRITTEN ON
+    /// INSERT AND READ BY NOTHING. `asMemo` rebuilds the memo from `payee` and
+    /// the computed property re-derives this value, so every consumer already
+    /// gets a fresh one; this column exists only to keep the stored row the
+    /// same shape as the Android `pending_memos` table, whose identical column
+    /// cannot be dropped without a second migration on the release that is
+    /// already carrying the first.
+    ///
+    /// It goes STALE if `SuggestionEngine.normalize` ever changes: a row keeps
+    /// whatever that function returned the day it was captured. Anything that
+    /// must agree with today's normalization — a rule key, a capture hash, a
+    /// cluster lookup — reads `asMemo.payeeNormalized`, never this.
+    var payeeNormalized: String = ""
+    var vpa: String?
+    var accountTail: String?
+    var date: Date = Date.distantPast
+    var capturedAt: Date = Date.distantPast
+    var note: String?
+    var assignedCategory: String?
+    var mergedTxnUUID: UUID?
+    var notifiedAt: Date?
+
+    init(memo: PendingMemo) {
+        self.captureHash = memo.captureHash
+        self.amountPaise = memo.amountPaise
+        self.directionRaw = memo.direction.rawValue
+        self.payee = memo.payee
+        self.payeeNormalized = memo.payeeNormalized
+        self.vpa = memo.vpa
+        self.accountTail = memo.accountTail
+        self.date = memo.date
+        self.capturedAt = memo.capturedAt
+        self.note = memo.note
+    }
+
+    var direction: Direction { Direction(rawValue: directionRaw) ?? .debit }
+
+    var asMemo: PendingMemo {
+        PendingMemo(amountPaise: amountPaise, direction: direction, payee: payee,
+                    vpa: vpa, accountTail: accountTail, date: date,
+                    capturedAt: capturedAt, note: note)
+    }
+}
+
+/// One definition of the store's shape. The App Intent opens its own
+/// container, and two drifting schema lists would corrupt the store.
+enum HisabSchema {
+    static let schema = Schema([
+        StoredDocument.self, StoredTransaction.self, StoredCategoryRule.self,
+        StoredMatch.self, PinnedMonth.self, StoredPendingMemo.self,
+    ])
+}

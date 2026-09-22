@@ -24,7 +24,55 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- hisab:// deep links, so a capture notification can open the
+                 memo it is about. BROWSABLE is required for a link tapped
+                 outside the app to resolve here. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="hisab"/>
+            </intent-filter>
         </activity>
+
+        <!-- Near-real-time capture. This is the SANCTIONED mechanism: reading
+             the SMS inbox would need READ_SMS, and Play grants an exception
+             for that only through a process requiring an APK published before
+             2019, which Hisab does not have. READ_SMS, RECEIVE_SMS and
+             READ_CALL_LOG must never appear in this file.
+
+             The service is bound by the system and holds
+             BIND_NOTIFICATION_LISTENER_SERVICE so that only the system can
+             bind it. Notifications are filtered against
+             assets/capture/allowlist.json before their text is examined, and
+             the text itself is parsed and discarded — never stored. -->
+        <service
+            android:name="notification.listener.service.NotificationListener"
+            android:label="Hisab transaction capture"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
+        <!-- flutter_local_notifications. Both receivers are the plugin's own
+             and are NOT exported: nothing outside the app can reach them.
+
+             ActionBroadcastReceiver carries a tap on a notification's category
+             button; ScheduledNotificationReceiver delivers a banner held over
+             quiet hours. Neither needs a permission, and deliberately NO
+             RECEIVE_BOOT_COMPLETED is declared — rescheduling held banners
+             across a reboot is not worth a permission on a zero-network app,
+             and Hisab's app manifest declaring no uses-permission at all is a
+             property a test pins. A held banner lost to a reboot costs the
+             user nothing: the memo is still in the needs-review inbox. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

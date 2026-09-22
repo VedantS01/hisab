@@ -96,10 +96,17 @@ struct DashboardView: View {
             config: InsightsConfig.cached,
             suppressions: suppressions)
 
-        if txns.isEmpty {
-            emptyState
-        } else {
-            VStack(spacing: 16) {
+        // Capture health and the needs-review inbox sit ABOVE the empty-state
+        // branch on purpose: a user who relies on capture and has imported
+        // nothing yet is exactly the person with memos waiting and no
+        // transactions, and putting them inside the `else` would hide the
+        // feature from its own core audience.
+        VStack(spacing: 16) {
+            CaptureHealthBanner()
+            NeedsReviewSection()
+            if txns.isEmpty {
+                emptyState
+            } else {
                 InsightStrip(insights: insightResult.cards,
                              onOpen: { openInsight = $0 },
                              onDismiss: { insight in
@@ -135,8 +142,8 @@ struct DashboardView: View {
                 MerchantList(merchants: Analytics.topMerchants(txns, month: selectedMonth, top: 5))
                 RecentTxns(month: selectedMonth)
             }
-            .padding(.top, 8)
         }
+        .padding(.top, 8)
     }
 
     private var emptyState: some View {

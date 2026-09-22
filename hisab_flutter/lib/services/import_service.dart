@@ -8,6 +8,7 @@ import 'package:drift/drift.dart';
 import 'package:hisab_core/hisab_core.dart';
 
 import '../storage/database.dart';
+import 'memo_store.dart';
 import 'queries.dart';
 
 class ImportReport {
@@ -120,13 +121,24 @@ class ImportService {
           periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
           periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
         ));
+    final inserted = <MemoMergeCandidate>[];
     await db.batch((batch) {
       for (final index in newIndices) {
         final txn = parsed.transactions[index];
+        final uuid = newId();
+        inserted.add(MemoMergeCandidate(
+          id: uuid,
+          date: txn.date,
+          amountPaise: txn.amountPaise,
+          direction: txn.direction,
+          // The exact text `Queries.effectiveCategory` categorizes on, so the
+          // VPA and payee gates see the string the rule matcher sees.
+          narration: '${txn.counterparty} ${txn.narration}',
+        ));
         batch.insert(
             db.storedTransactions,
             StoredTransactionsCompanion.insert(
-              uuid: newId(),
+              uuid: uuid,
               contentHash: txn.contentHash(source),
               sourceRaw: source.rawValue,
               dateMs: txn.date.toUtc().millisecondsSinceEpoch,
@@ -144,11 +156,61 @@ class ImportService {
     for (final month in months) {
       await Queries.recomputeMatches(db, month);
     }
+
+    // AFTER insertion, never before: a failed import must not retire memos.
+    await _retireMemos(inserted);
+
     return ImportReport(
         source: source,
         totalParsed: parsed.transactions.length,
         newCount: newIndices.length,
         monthsTouched: months,
         duplicateOfExistingFile: false);
+  }
+
+  /// Retires pending memos against statement rows that have now arrived, and
+  /// drops the ones no statement is going to claim. Twin of Task 12's step in
+  /// `Hisab/Services/ImportService.swift`.
+  ///
+  /// [candidates] is the rows THIS import inserted, matching the Swift twin
+  /// and not the whole table. Two reasons, and the second is a correctness
+  /// one. Rows already in the store were offered to these same memos when
+  /// they landed, so re-offering them lets an unrelated month re-open a
+  /// decision already made against a fuller candidate set. And
+  /// [MemoMerger.merge] guarantees each candidate is claimed at most once
+  /// only WITHIN one call: a row already claimed by a memo that merged on an
+  /// earlier import is no longer among `memos`, so offering it again would
+  /// let a second memo claim the same transaction.
+  Future<void> _retireMemos(List<MemoMergeCandidate> candidates) async {
+    final memoRows = await MemoStore.all(db);
+    final unmerged = [
+      for (final row in memoRows)
+        if (row.mergedTxnUuid == null) row
+    ];
+    if (unmerged.isNotEmpty && candidates.isNotEmpty) {
+      final assignment = MemoMerger.merge(
+        memos: [for (final row in unmerged) row.asMemo],
+        candidates: candidates,
+      );
+      for (final entry in assignment.entries) {
+        await (db.update(db.storedPendingMemos)
+              ..where((t) => t.captureHash.equals(entry.key)))
+            .write(StoredPendingMemosCompanion(
+                mergedTxnUuid: Value(entry.value)));
+      }
+    }
+
+    // NOT DONE, and deliberately: Task 12 asks for the memo's note to be
+    // copied onto the transaction "when the memo carries a note and the
+    // transaction has none". Neither core has anywhere to put it —
+    // `StoredTransactions` has no note column, and neither does SwiftData's
+    // `StoredTransaction`. Adding one on this side alone would put a column
+    // in the Android schema (and a v3 migration) that iOS does not have,
+    // which is a worse outcome than the note staying where it is. It is not
+    // lost: a merged memo is KEPT rather than expired, it carries its note,
+    // and `mergedTxnUuid` points at the row it belongs to — so the note is
+    // reachable from the transaction the moment either core grows a place to
+    // show it.
+    await MemoStore.expire(now: DateTime.now(), db: db);
   }
 }

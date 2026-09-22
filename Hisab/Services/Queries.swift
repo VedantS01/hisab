@@ -120,6 +120,43 @@ enum Queries {
             }
     }
 
+    /// Pure counterpart of `suggestionRecords(_:)`, for views that already hold
+    /// `@Query` rows. The context variant refetches, so a view built on it
+    /// never refreshes — see the note at the top of this section.
+    static func suggestionRecords(_ txns: [StoredTransaction], matches: [StoredMatch],
+                                  matcher: CategoryMatcher,
+                                  selfTransfers: Set<UUID>) -> [SpendRecord] {
+        visible(txns, matches: matches).map { txn in
+            SpendRecord(merchant: txn.counterparty.isEmpty ? txn.narration : txn.counterparty,
+                        amountPaise: txn.amountPaise,
+                        date: txn.date,
+                        direction: txn.direction,
+                        effectiveCategory: effectiveCategory(of: txn, matcher: matcher,
+                                                             selfTransfers: selfTransfers))
+        }
+    }
+
+    /// Rows for `RuleImpact.affectedCount` — what a proposed rule would change.
+    ///
+    /// The population is `visible`, the recorded history: a matched bank row is
+    /// reconciliation *evidence*, not a record, and is not shown anywhere the
+    /// user could watch it change. Counting one would inflate the promise the
+    /// offer makes.
+    ///
+    /// Both flags are filled from real data on purpose. `isSelfTransfer`
+    /// defaults to `false`, and `effectiveCategory` labels a self transfer
+    /// ahead of both the override and the matcher — so leaving the flag at its
+    /// default silently counts every self transfer whose narration happens to
+    /// carry the pattern, with nothing downstream to catch it.
+    static func impactRows(_ txns: [StoredTransaction], matches: [StoredMatch],
+                           selfTransfers: Set<UUID>) -> [RuleImpact.Row] {
+        visible(txns, matches: matches).map { txn in
+            RuleImpact.Row(text: "\(txn.counterparty) \(txn.narration)",
+                           hasOverride: txn.categoryOverride != nil,
+                           isSelfTransfer: selfTransfers.contains(txn.uuid))
+        }
+    }
+
     static func insightPeriods(_ documents: [StoredDocument]) -> [DatePeriod] {
         documents.map(\.period)
     }

@@ -37,10 +37,13 @@ class RuleSuggestion {
 
 class SuggestionEngine {
   static String normalize(String merchant) {
+    // Unicode-aware to match Swift's `ch.isLetter`: an ASCII-only `[a-z]`
+    // test would normalize "BLUÉ TOKAI" differently across the two cores,
+    // producing a different payeeNormalized/captureHash for the same payee.
     final cleaned = merchant
         .toLowerCase()
         .split('')
-        .map((ch) => RegExp(r'[a-z]').hasMatch(ch) ? ch : ' ')
+        .map((ch) => RegExp(r'\p{L}', unicode: true).hasMatch(ch) ? ch : ' ')
         .join();
     return cleaned.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).take(3).join(' ');
   }

@@ -6,6 +6,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hisab/services/demo_data.dart';
 import 'package:hisab/services/import_service.dart';
+import 'package:hisab/screens/settings_screen.dart';
 import 'package:hisab/services/queries.dart';
 import 'package:hisab/storage/database.dart';
 import 'package:hisab_core/hisab_core.dart';
@@ -315,5 +316,51 @@ void main() {
         .map((t) => t.uuid)
         .toSet();
     expect(survivors, mineTxns, reason: "and so must its rows");
+  });
+
+  // MARK: - the rule editor's last door
+
+  group('rule validation', () {
+    test('a usable rule has nothing to say', () {
+      expect(SettingsScreen.ruleValidationMessage('dominos', 'Food Delivery'),
+          isNull);
+    });
+
+    test('a blank pattern is refused, spaces included', () {
+      expect(SettingsScreen.ruleValidationMessage('', 'Food'),
+          contains('match every transaction'));
+      // ' ' passes `isEmpty`, and `CategoryMatcher` finds a space inside very
+      // nearly every narration: one rule, every transaction.
+      expect(SettingsScreen.ruleValidationMessage('   ', 'Food'),
+          contains('match every transaction'));
+    });
+
+    test('a blank category is refused', () {
+      expect(SettingsScreen.ruleValidationMessage('dominos', '  '),
+          contains('category name'));
+    });
+
+    test('the names Hisab assigns itself are refused', () {
+      for (final reserved in SettingsScreen.reservedCategories) {
+        expect(SettingsScreen.ruleValidationMessage('imps-to-self', reserved),
+            contains('assigns on its own'),
+            reason: '$reserved must not be handed out by a rule');
+      }
+      // Case and padding are not a way round it. "Self Transfer" is the one
+      // that actively misleads: `Queries.analytics` excludes self transfers
+      // by the reconciliation-derived SET, never by the label, so rows given
+      // that name would read "Self Transfer" while every spending total
+      // stayed exactly where it was.
+      expect(
+          SettingsScreen.ruleValidationMessage(
+              'imps-to-self', ' self transfer '),
+          contains('assigns on its own'));
+    });
+
+    test('a category merely containing a reserved name is fine', () {
+      expect(
+          SettingsScreen.ruleValidationMessage('nefo', 'Self Transfer Fees'),
+          isNull);
+    });
   });
 }

@@ -3,7 +3,7 @@ description: "Hisab (हिसाब) — private, on-device expense analysis fo
 publish_to: 'none'
 
 # versionName+versionCode for Android.
-version: 1.2.0+2
+version: 1.3.0+3
 
 environment:
   sdk: ^3.6.0
@@ -26,6 +26,12 @@ dependencies:
   # Files & intents (no network involved)
   file_picker: ^8.1.6
   url_launcher: ^6.3.1
+  # Capture (Android only). Declares no Android permissions of its own — not
+  # INTERNET, and never READ_SMS, which Play would make the app unpublishable
+  # for. The app declares the listener service itself.
+  notification_listener_service: ^1.0.0
+  flutter_local_notifications: ^22.3.1
+  timezone: ^0.11.1
 
 dev_dependencies:
   flutter_test:
@@ -47,3 +53,4 @@ flutter:
     - assets/rulesets/
     - assets/insights/
     - assets/demo/
+    - assets/capture/

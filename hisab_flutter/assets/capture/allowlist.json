@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "packages": [
+    "com.google.android.apps.messaging",
+    "com.samsung.android.messaging",
+    "com.android.mms",
+    "net.one97.paytm",
+    "com.phonepe.app",
+    "com.google.android.apps.nbu.paisa.user",
+    "com.csam.icici.bank.imobile",
+    "com.sbi.lotusintouch",
+    "com.snapwork.hdfc",
+    "com.axis.mobile",
+    "com.idfcfirstbank.optimus"
+  ]
+}
