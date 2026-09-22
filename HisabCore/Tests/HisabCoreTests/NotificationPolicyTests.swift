@@ -114,8 +114,11 @@ final class CategoryRankerTests: XCTestCase {
         // this test pins is unchanged — Shopping is the ONLY history-derived
         // entry, and it leads. Without the window and credit filters the
         // history part would read ["Food Delivery", "Shopping", "Transport"].
+        // AMENDED AGAIN (fix round 2, F3): the top-up now comes from the shipped
+        // india-default ruleset rather than the compiled fallback, which puts
+        // Food & Dining second.
         XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
-                       ["Shopping", "Food Delivery", "Groceries"])
+                       ["Shopping", "Food Delivery", "Food & Dining"])
     }
 
     // AMENDED (controller): the two tests above cannot distinguish a correct
@@ -155,8 +158,9 @@ final class CategoryRankerTests: XCTestCase {
         // AMENDED (task 11a): trailing two entries are the P2 seed top-up. A
         // window wide enough to admit the 91-day row would put Shopping first
         // (count tie, alphabetical), so this still discriminates.
+        // AMENDED AGAIN (fix round 2, F3): top-up now ruleset-derived.
         XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
-                       ["Transport", "Food Delivery", "Groceries"],
+                       ["Transport", "Food Delivery", "Food & Dining"],
                        "89 days old is inside the window, 91 days old is outside")
     }
 
@@ -170,19 +174,39 @@ final class CategoryRankerTests: XCTestCase {
     // fit new code.
 
     func testEmptyHistoryFallsBackToSeedCategories() {
+        // AMENDED (fix round 2, F3): the top-up derives from the shipped
+        // india-default ruleset, not the compiled 23-rule fallback, so the
+        // first-appearance order begins Food Delivery, Food & Dining,
+        // Groceries. The compiled list had no Food & Dining at all.
         XCTAssertEqual(CategoryRanker.topCategories(records: [], now: day("2026-09-22"), limit: 3),
-                       ["Food Delivery", "Groceries", "Transport"],
+                       ["Food Delivery", "Food & Dining", "Groceries"],
                        "a user who has never imported must still get three buttons")
     }
 
     func testPartialHistoryIsToppedUpWithoutBeingDisplacedOrDuplicated() {
-        // "Shopping" is both the only real history AND a seed category, so this
-        // pins two things at once: history keeps first place, and the top-up
-        // does not offer the same category twice.
+        // CORRECTED (fix round 2, F5): this used to claim it pinned the dedup
+        // as well. It does not, and could not: at limit 3 the top-up stops after
+        // two seed categories, long before it reaches "Shopping" again, so
+        // deleting the dedup leaves this case green. What it pins is the one
+        // thing it can at this limit — history keeps first place and is not
+        // displaced by the top-up. The dedup is pinned by the case below.
         let now = day("2026-09-22")
         let records = [record("Shopping", "2026-09-20")]
         XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
-                       ["Shopping", "Food Delivery", "Groceries"])
+                       ["Shopping", "Food Delivery", "Food & Dining"])
+    }
+
+    func testTheTopUpDoesNotOfferACategoryHistoryAlreadySupplied() {
+        // The limit has to be deep enough for the top-up to walk PAST the
+        // history-derived category before the dedup is observable at all.
+        // "Shopping" is sixth in the ruleset's first-appearance order, so at
+        // limit 8 the walk reaches it: without the dedup, Shopping appears twice
+        // and Subscriptions — the eighth distinct entry — falls off the end.
+        let now = day("2026-09-22")
+        let records = [record("Shopping", "2026-09-20")]
+        XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 8),
+                       ["Shopping", "Food Delivery", "Food & Dining", "Groceries",
+                        "Transport", "Travel", "Recharges & Bills", "Subscriptions"])
     }
 
     func testFullHistoryIsUntouchedByTheFallback() {
@@ -199,6 +223,15 @@ final class CategoryRankerTests: XCTestCase {
     }
 
     func testFallbackNeverOffersTheThreeNonAnswers() {
+        // KEPT DELIBERATELY (fix round 2, F6): the three assertions below cannot
+        // fail against today's data — no category in the ruleset is one of the
+        // reserved names, so `excluded` never has anything to remove. They stay
+        // because after F3 the list is derived from
+        // `Resources/rulesets/india-default.json`, an editable data file rather
+        // than a compiled array: someone adding a rule categorised
+        // "Miscellaneous" to that JSON is a realistic edit that would put a
+        // non-answer on a notification button, and this is the only thing that
+        // would catch it. The last two assertions are live either way.
         let all = CategoryRanker.topCategories(records: [], now: day("2026-09-22"), limit: 50)
         XCTAssertFalse(all.contains(Categorizer.uncategorized))
         XCTAssertFalse(all.contains(Categorizer.miscellaneous))

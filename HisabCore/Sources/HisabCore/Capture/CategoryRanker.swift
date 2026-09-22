@@ -11,16 +11,29 @@ public enum CategoryRanker {
     /// Distinct categories of the bundled seed ruleset, in the order their
     /// first rule is declared.
     ///
+    /// CORRECTED (fix round 2, F3): this derived from `Categorizer.seedRules`,
+    /// the 23-rule COMPILED FALLBACK whose own doc says it is used only if the
+    /// resource is missing. The user's rule table is really seeded from
+    /// `Categorizer.defaultRuleset()` — `Resources/rulesets/india-default.json`,
+    /// which `Queries.categoryRules` inserts from — a superset with categories
+    /// the compiled list lacks (Food & Dining, Travel, Investments, Insurance,
+    /// Rent & Home, Education, Entertainment) and a different first-appearance
+    /// order. Offering a category the user's own rule table does not contain
+    /// would be offering a category nothing will ever auto-fill again.
+    /// `defaultRuleset()` carries the fallback to `seedRules` internally, so
+    /// this handles a missing resource exactly the way the seeding code does.
+    ///
     /// Declaration order is the tie-break, not a claim about the user: for
     /// someone with no history any order is a guess, and what the fallback
     /// actually owes is that the buttons are non-empty and the same on every
     /// launch. First-appearance order gives that and keeps the everyday
     /// categories (food, groceries, transport) ahead of the occasional ones,
-    /// which a count of seed patterns per category would not — it would open
-    /// with Fuel.
+    /// which a count of seed patterns per category would not — over the shipped
+    /// ruleset it would open with Shopping and Recharges & Bills and leave Food
+    /// Delivery, which has only two patterns, last of fifteen.
     static let seedCategories: [String] = {
         var seen: Set<String> = []
-        return Categorizer.seedRules.compactMap { rule in
+        return Categorizer.defaultRuleset().rules.compactMap { rule in
             guard !excluded.contains(rule.category), seen.insert(rule.category).inserted
             else { return nil }
             return rule.category

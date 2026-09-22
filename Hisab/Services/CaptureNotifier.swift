@@ -42,22 +42,42 @@ enum CaptureNotifier {
         // for `[.alert, .sound, .badge]`), so treating it as a send would be
         // untested speculation. If provisional is ever adopted, this is the
         // line to revisit.
-        let status = await UNUserNotificationCenter.current()
-            .notificationSettings().authorizationStatus
-        guard status == .authorized else {
+        //
+        // `alertSetting` is checked for the same reason and against the same
+        // harm: a user who granted permission and then turned off Lock Screen,
+        // Notification Center and Banners sits at `.authorized` with
+        // `alertSetting == .disabled`. `add` accepts the request, no banner is
+        // ever drawn, and without this the memo still burns one of the day's
+        // ten slots and is stamped `notifiedAt` — P10 reached through a
+        // different Settings toggle. Sound and badge alone are not the feature:
+        // the whole point is a banner with category buttons on it.
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard settings.authorizationStatus == .authorized,
+              settings.alertSetting != .disabled else {
             #if DEBUG
-            print("debug-notify: suppressed, authorizationStatus=\(status.rawValue)")
+            print("debug-notify: suppressed, "
+                + "authorizationStatus=\(settings.authorizationStatus.rawValue) "
+                + "alertSetting=\(settings.alertSetting.rawValue)")
             fflush(stdout)
             #endif
             return
         }
 
         // P7: `notifiedAt` is read here, which is what makes writing it
-        // legitimate. Today `MemoStore.insert`'s dedup means a memo reaching
-        // this function is always fresh, so the guard cannot fire — it is a
-        // standing guarantee for any future capture path that does not dedup,
-        // not a live check. A field written and never read is exactly how the
-        // 1.2 dismiss/mute bug survived a review.
+        // legitimate. A field written and never read is exactly how the 1.2
+        // dismiss/mute bug survived a review.
+        //
+        // NARROWED (fix round 2, F4): what this covers is RE-ENTRY into
+        // `considerNotifying` for a memo that was not re-inserted — the
+        // quiet-hours retry, where a held memo is reconsidered and must not be
+        // scheduled a second time. It is NOT the standing guarantee the comment
+        // used to claim for "any future capture path that does not dedup":
+        // `captureHash` is `@Attribute(.unique)`, so a duplicate insert UPSERTS,
+        // and `StoredPendingMemo.init(memo:)` does not copy `notifiedAt` — a
+        // non-dedup path re-inserting the same hash would reset the field to nil
+        // and this guard would silently not fire. Any such path must therefore
+        // preserve `notifiedAt` across the upsert for this guard to mean
+        // anything at all.
         if let stored = MemoStore.find(hash: memo.captureHash, in: ctx),
            stored.notifiedAt != nil {
             return
