@@ -492,6 +492,41 @@ void main() {
       expect(await MemoStore.pending(db), hasLength(1));
     });
 
+    test('a later import cannot re-claim a transaction a memo already took',
+        () async {
+      // `MemoMerger.merge` guarantees each candidate is used at most once
+      // WITHIN one call. A row claimed on an earlier import is attached to a
+      // memo that is no longer among the unmerged ones, so offering the whole
+      // table again would let a second memo claim the same transaction and
+      // two memos would point at one payment. Candidates are therefore the
+      // rows THIS import inserted, matching the Swift twin.
+      final first = memoFor(payee: 'QWERTYSHOP', at: ist(2026, 9, 22));
+      await MemoStore.insert(first, db: db);
+      await importOne(
+          counterparty: 'QWERTYSHOP',
+          narration: 'UPI-QWERTYSHOP-9876',
+          date: ist(2026, 9, 22));
+      final claimed =
+          (await MemoStore.find(hash: first.captureHash, db: db))!.mergedTxnUuid;
+      expect(claimed, isNotNull);
+
+      // A second memo that WOULD match that row: same amount, same payee,
+      // one day earlier, well inside the three-day window.
+      final second = memoFor(payee: 'QWERTYSHOP', at: ist(2026, 9, 21));
+      await MemoStore.insert(second, db: db);
+      await importOne(
+          counterparty: 'SOMEONE ELSE',
+          narration: 'UPI-SOMEONE-ELSE',
+          amountPaise: 11100,
+          date: ist(2026, 9, 25));
+
+      expect(
+          (await MemoStore.find(hash: second.captureHash, db: db))!
+              .mergedTxnUuid,
+          isNull,
+          reason: 'the earlier import\'s row is not on offer again');
+    });
+
     test('a memo changes no analytics total', () async {
       // Memos are a labelling channel. If one moves a number, the ledger's
       // integrity guarantee is gone — a memo has no UTR, so it can join

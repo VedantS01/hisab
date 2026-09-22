@@ -121,13 +121,24 @@ class ImportService {
           periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
           periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
         ));
+    final inserted = <MemoMergeCandidate>[];
     await db.batch((batch) {
       for (final index in newIndices) {
         final txn = parsed.transactions[index];
+        final uuid = newId();
+        inserted.add(MemoMergeCandidate(
+          id: uuid,
+          date: txn.date,
+          amountPaise: txn.amountPaise,
+          direction: txn.direction,
+          // The exact text `Queries.effectiveCategory` categorizes on, so the
+          // VPA and payee gates see the string the rule matcher sees.
+          narration: '${txn.counterparty} ${txn.narration}',
+        ));
         batch.insert(
             db.storedTransactions,
             StoredTransactionsCompanion.insert(
-              uuid: newId(),
+              uuid: uuid,
               contentHash: txn.contentHash(source),
               sourceRaw: source.rawValue,
               dateMs: txn.date.toUtc().millisecondsSinceEpoch,
@@ -147,7 +158,7 @@ class ImportService {
     }
 
     // AFTER insertion, never before: a failed import must not retire memos.
-    await _retireMemos();
+    await _retireMemos(inserted);
 
     return ImportReport(
         source: source,
@@ -158,38 +169,28 @@ class ImportService {
   }
 
   /// Retires pending memos against statement rows that have now arrived, and
-  /// drops the ones no statement is going to claim. Twin of Task 12's iOS
-  /// step in `ImportService.swift`.
+  /// drops the ones no statement is going to claim. Twin of Task 12's step in
+  /// `Hisab/Services/ImportService.swift`.
   ///
-  /// The candidate set is EVERY stored transaction, not only the rows this
-  /// import added. A memo captured today can be claimed by a statement
-  /// imported last week only if that row is offered, and
-  /// [MemoMerger.merge]'s assignment is global by design — closest pair
-  /// first, each memo and each candidate used at most once.
-  ///
-  /// The narration handed to the merger is `"$counterparty $narration"`, the
-  /// same concatenation [Queries.effectiveCategory] categorizes with, so VPA
-  /// matching sees exactly what categorization sees.
-  Future<void> _retireMemos() async {
+  /// [candidates] is the rows THIS import inserted, matching the Swift twin
+  /// and not the whole table. Two reasons, and the second is a correctness
+  /// one. Rows already in the store were offered to these same memos when
+  /// they landed, so re-offering them lets an unrelated month re-open a
+  /// decision already made against a fuller candidate set. And
+  /// [MemoMerger.merge] guarantees each candidate is claimed at most once
+  /// only WITHIN one call: a row already claimed by a memo that merged on an
+  /// earlier import is no longer among `memos`, so offering it again would
+  /// let a second memo claim the same transaction.
+  Future<void> _retireMemos(List<MemoMergeCandidate> candidates) async {
     final memoRows = await MemoStore.all(db);
     final unmerged = [
       for (final row in memoRows)
         if (row.mergedTxnUuid == null) row
     ];
-    if (unmerged.isNotEmpty) {
-      final txns = await db.select(db.storedTransactions).get();
+    if (unmerged.isNotEmpty && candidates.isNotEmpty) {
       final assignment = MemoMerger.merge(
         memos: [for (final row in unmerged) row.asMemo],
-        candidates: [
-          for (final txn in txns)
-            MemoMergeCandidate(
-              id: txn.uuid,
-              date: dateOf(txn),
-              amountPaise: txn.amountPaise,
-              direction: directionOf(txn),
-              narration: '${txn.counterparty} ${txn.narration}',
-            )
-        ],
+        candidates: candidates,
       );
       for (final entry in assignment.entries) {
         await (db.update(db.storedPendingMemos)
