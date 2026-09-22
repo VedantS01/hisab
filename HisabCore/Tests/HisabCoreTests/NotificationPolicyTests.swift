@@ -39,6 +39,34 @@ final class NotificationPolicyTests: XCTestCase {
         XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 22:00"), sentToday: 0),
                        .hold(until: at("2026-09-23 08:00")))
     }
+
+    func testTheConstantsAreWhatTheyClaim() {
+        // Asserted literally, because the behavioural tests below cannot see a
+        // change in either value on their own: the cap test is self-referential
+        // and no test exercises the 15:00-21:00 gap. A deliberate constant
+        // deserves a guard that fails the moment it moves.
+        XCTAssertEqual(NotificationPolicy.dailyCap, 10)
+        XCTAssertEqual(NotificationPolicy.quietStartHour, 22)
+        XCTAssertEqual(NotificationPolicy.quietEndHour, 8)
+    }
+
+    func testSendsJustUnderTheCapAndSuppressesAtIt() {
+        // Literal 9 and 10, NOT NotificationPolicy.dailyCap — using the
+        // constant here is what made the original test tautological.
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 14:30"), sentToday: 9),
+                       .send)
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 14:30"), sentToday: 10),
+                       .suppress)
+    }
+
+    func testSendsThroughTheEveningUntilTwentyTwo() {
+        // Closes the 15:00-21:00 blind spot: without this, quietStartHour could
+        // be any value from 15 to 22 and the suite would not notice.
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 20:00"), sentToday: 0),
+                       .send)
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 21:59"), sentToday: 0),
+                       .send)
+    }
 }
 
 final class CategoryRankerTests: XCTestCase {
