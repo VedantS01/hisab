@@ -182,6 +182,76 @@
         "ed9fbd5f751fa8f1458505835a964bb8b0df546063a4d330f06a8bff2c56afcb": "00000000-0000-4000-8000-000000000001",
         "a28360a91d390ca7ff9fae53cb7188119eed04cec549e012b2857ea6bd08a8f0": "00000000-0000-4000-8000-000000000002"
       }
+    },
+    {
+      "name": "equal-distance-pairs-force-the-hash-and-id-tie-break",
+      "memos": [
+        {
+          "id": "memo-alpha",
+          "amountPaise": 40000,
+          "direction": "debit",
+          "payee": "ALPHA MART",
+          "vpa": null,
+          "accountTail": null,
+          "dateISO": "2026-09-15",
+          "captureHash": "8ac99a1344fdfb7d4bd9cc9cb34dbf0fd48cb9f1b63f1ea44fb3c42f7d2a1e58"
+        },
+        {
+          "id": "memo-beta",
+          "amountPaise": 40000,
+          "direction": "debit",
+          "payee": "BETA MART",
+          "vpa": null,
+          "accountTail": null,
+          "dateISO": "2026-09-15",
+          "captureHash": "51a48efa85be91beb3da6b721bfa0ff871a8c696cae6a7154c78329a6035e113"
+        }
+      ],
+      "candidates": [
+        {
+          "id": "10000000-0000-4000-8000-0000000000aa",
+          "dateISO": "2026-09-14",
+          "amountPaise": 40000,
+          "direction": "debit",
+          "narration": "ALPHA BETA FRANCHISE OUTLET"
+        },
+        {
+          "id": "10000000-0000-4000-8000-0000000000bb",
+          "dateISO": "2026-09-16",
+          "amountPaise": 40000,
+          "direction": "debit",
+          "narration": "ALPHA BETA FRANCHISE OUTLET"
+        }
+      ],
+      "expected": {
+        "51a48efa85be91beb3da6b721bfa0ff871a8c696cae6a7154c78329a6035e113": "10000000-0000-4000-8000-0000000000aa",
+        "8ac99a1344fdfb7d4bd9cc9cb34dbf0fd48cb9f1b63f1ea44fb3c42f7d2a1e58": "10000000-0000-4000-8000-0000000000bb"
+      }
+    },
+    {
+      "name": "numeric-vpa-handle-collision-does-not-merge",
+      "memos": [
+        {
+          "id": "memo-numeric-vpa",
+          "amountPaise": 50000,
+          "direction": "debit",
+          "payee": "9876543210@ybl",
+          "vpa": "9876543210@ybl",
+          "accountTail": null,
+          "dateISO": "2026-09-20",
+          "captureHash": "43e775972eada5dca1a1e13a75c6c4c82ac6098c6ec7815872f2ff5f0bedea11"
+        }
+      ],
+      "candidates": [
+        {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "dateISO": "2026-09-22",
+          "amountPaise": 50000,
+          "direction": "debit",
+          "narration": "UPI/DR/000111222333/RAVI KUMAR/YBL/1112223334@ybl/Payment"
+        }
+      ],
+      "expected": {}
     }
   ]
 }

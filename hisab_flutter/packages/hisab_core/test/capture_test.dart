@@ -676,6 +676,44 @@ void main() {
           reason: 'm1 gets its own, farther row');
     });
 
+    test('testDoesNotMergeANumericVPAOntoAnotherUserOfTheSameHandle', () {
+      // F1 (Critical): a numeric VPA's local part vanishes under
+      // SuggestionEngine.normalize (letters-only), so payeeNormalized
+      // becomes just the bank handle ("ybl"). The VPA gate correctly fails
+      // here (the digits are absent from the narration), but the payee
+      // fallback must not then match on the handle alone -- that would
+      // merge onto a stranger who happens to use the same UPI provider,
+      // which is the common case, not the edge case.
+      final m = memo(50000, '9876543210@ybl', '9876543210@ybl', '2026-09-20');
+      final candidate = MemoMergeCandidate(
+        id: _newId(),
+        date: _day('2026-09-22'),
+        amountPaise: 50000,
+        direction: Direction.debit,
+        narration:
+            'UPI/DR/000111222333/RAVI KUMAR/YBL/1112223334@ybl/Payment',
+      );
+      expect(MemoMerger.merge(memos: [m], candidates: [candidate]), isEmpty);
+    });
+
+    test('testStillMergesAVPABearingMemoWhenTheNarrationNamesOnlyThePayee',
+        () {
+      // The fix must not become the blunt "return false whenever the VPA
+      // gate fails": some bank narrations name the payee and omit the VPA
+      // entirely. Here the payee's first token ("vedant") is not the VPA's
+      // handle ("okaxis"), so the fallback must still apply.
+      final m = memo(45000, 'VEDANT SABOO', 'vedant@okaxis', '2026-09-20');
+      final candidate = MemoMergeCandidate(
+        id: _newId(),
+        date: _day('2026-09-21'),
+        amountPaise: 45000,
+        direction: Direction.debit,
+        narration: 'UPI/123456/VEDANT SABOO',
+      );
+      final merged = MemoMerger.merge(memos: [m], candidates: [candidate]);
+      expect(merged[m.captureHash], candidate.id);
+    });
+
     test('testDoesNotMergeOnDirectionMismatch', () {
       final m = memo(45000, 'ZEPTO', null, '2026-09-22');
       final candidate = MemoMergeCandidate(

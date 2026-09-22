@@ -161,6 +161,24 @@ class MemoMerger {
         .where((s) => s.isNotEmpty)
         .toList();
     if (payeeTokens.isEmpty) return false;
-    return narrationTokens.contains(payeeTokens.first);
+    final first = payeeTokens.first;
+
+    // A VPA's handle (after "@") identifies a bank shared by millions, not
+    // a person -- unlike its local part, which the VPA-subset check above
+    // already covers. A numeric VPA's local part vanishes under
+    // SuggestionEngine.normalize (letters-only), so payeeNormalized can
+    // collapse to just the handle. If it did, the fallback must not fire on
+    // the handle alone: that would merge onto any stranger who shares the
+    // same UPI provider, which is the common case in India, not the edge
+    // case. Bank narrations that name the payee and omit the VPA entirely
+    // (no handle to collide with) are unaffected.
+    if (vpa != null) {
+      final atIndex = vpa.lastIndexOf('@');
+      if (atIndex != -1 && first == vpa.substring(atIndex + 1)) {
+        return false;
+      }
+    }
+
+    return narrationTokens.contains(first);
   }
 }

@@ -184,6 +184,34 @@ final class MemoMergerTests: XCTestCase {
         XCTAssertEqual(merged[m1.captureHash], candidateA, "m1 gets its own, farther row")
     }
 
+    func testDoesNotMergeANumericVPAOntoAnotherUserOfTheSameHandle() {
+        // F1 (Critical): a numeric VPA's local part vanishes under
+        // SuggestionEngine.normalize (letters-only), so payeeNormalized
+        // becomes just the bank handle ("ybl"). The VPA gate correctly
+        // fails here (the digits are absent from the narration), but the
+        // payee fallback must not then match on the handle alone -- that
+        // would merge onto a stranger who happens to use the same UPI
+        // provider, which is the common case, not the edge case.
+        let m = memo(50_000, "9876543210@ybl", "9876543210@ybl", "2026-09-20")
+        let candidate = MemoMergeCandidate(
+            id: UUID(), date: day("2026-09-22"), amountPaise: 50_000, direction: .debit,
+            narration: "UPI/DR/000111222333/RAVI KUMAR/YBL/1112223334@ybl/Payment")
+        XCTAssertTrue(MemoMerger.merge(memos: [m], candidates: [candidate]).isEmpty)
+    }
+
+    func testStillMergesAVPABearingMemoWhenTheNarrationNamesOnlyThePayee() {
+        // The fix must not become the blunt "return false whenever the VPA
+        // gate fails": some bank narrations name the payee and omit the VPA
+        // entirely. Here the payee's first token ("vedant") is not the VPA's
+        // handle ("okaxis"), so the fallback must still apply.
+        let m = memo(45_000, "VEDANT SABOO", "vedant@okaxis", "2026-09-20")
+        let candidate = MemoMergeCandidate(id: UUID(), date: day("2026-09-21"),
+                                           amountPaise: 45_000, direction: .debit,
+                                           narration: "UPI/123456/VEDANT SABOO")
+        let merged = MemoMerger.merge(memos: [m], candidates: [candidate])
+        XCTAssertEqual(merged[m.captureHash], candidate.id)
+    }
+
     func testDoesNotMergeOnDirectionMismatch() {
         let m = memo(45_000, "ZEPTO", nil, "2026-09-22")
         let candidate = MemoMergeCandidate(id: UUID(), date: day("2026-09-22"),

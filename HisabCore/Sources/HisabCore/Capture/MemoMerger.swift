@@ -113,6 +113,21 @@ public enum MemoMerger {
         guard let first = memo.payeeNormalized.split(separator: " ").first else {
             return false
         }
+
+        // A VPA's handle (after "@") identifies a bank shared by millions,
+        // not a person -- unlike its local part, which the VPA-subset check
+        // above already covers. A numeric VPA's local part vanishes under
+        // SuggestionEngine.normalize (letters-only), so payeeNormalized can
+        // collapse to just the handle. If it did, the fallback must not
+        // fire on the handle alone: that would merge onto any stranger who
+        // shares the same UPI provider, which is the common case in India,
+        // not the edge case. Bank narrations that name the payee and omit
+        // the VPA entirely (no handle to collide with) are unaffected.
+        if let vpa = memo.vpa, let handle = vpa.split(separator: "@").last,
+           String(first) == handle {
+            return false
+        }
+
         return narrationTokens.contains(String(first))
     }
 }
