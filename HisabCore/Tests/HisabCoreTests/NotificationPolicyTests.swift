@@ -1,0 +1,132 @@
+import XCTest
+@testable import HisabCore
+
+final class NotificationPolicyTests: XCTestCase {
+    private func at(_ iso: String) -> Date {
+        let f = DateFormatter()
+        f.calendar = YearMonth.istCalendar
+        f.timeZone = YearMonth.istCalendar.timeZone
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        return f.date(from: iso)!
+    }
+
+    func testSendsDuringWakingHoursUnderTheCap() {
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 14:30"), sentToday: 3), .send)
+    }
+
+    func testSuppressesAtTheDailyCap() {
+        // A heavy UPI day must not turn into 40 notifications.
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 14:30"),
+                                                 sentToday: NotificationPolicy.dailyCap),
+                       .suppress)
+    }
+
+    func testHoldsLateNightUntilMorning() {
+        // Hisab must never wake anyone. 23:10 -> 08:00 next day.
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 23:10"), sentToday: 0),
+                       .hold(until: at("2026-09-23 08:00")))
+    }
+
+    func testHoldsEarlyMorningUntilSameDayEight() {
+        // 02:30 is still "last night" -> 08:00 the SAME day, not the next.
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 02:30"), sentToday: 0),
+                       .hold(until: at("2026-09-22 08:00")))
+    }
+
+    func testSendsExactlyAtEightAndHoldsExactlyAtTwentyTwo() {
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 08:00"), sentToday: 0), .send)
+        XCTAssertEqual(NotificationPolicy.decide(now: at("2026-09-22 22:00"), sentToday: 0),
+                       .hold(until: at("2026-09-23 08:00")))
+    }
+}
+
+final class CategoryRankerTests: XCTestCase {
+    private func day(_ iso: String) -> Date {
+        let f = DateFormatter()
+        f.calendar = YearMonth.istCalendar
+        f.timeZone = YearMonth.istCalendar.timeZone
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: iso)!
+    }
+
+    private func record(_ category: String, _ date: String,
+                        _ direction: Direction = .debit) -> SpendRecord {
+        SpendRecord(merchant: "m", amountPaise: 100, date: day(date),
+                    direction: direction, effectiveCategory: category)
+    }
+
+    func testRanksByCountAndExcludesNonCategories() {
+        let now = day("2026-09-22")
+        let records = [
+            record("Food Delivery", "2026-09-20"), record("Food Delivery", "2026-09-19"),
+            record("Food Delivery", "2026-09-18"),
+            record("Transport", "2026-09-20"), record("Transport", "2026-09-19"),
+            record("Shopping", "2026-09-20"),
+            record("Groceries", "2026-09-20"),
+            // These three must never be offered as an answer.
+            record(Categorizer.uncategorized, "2026-09-20"),
+            record(Categorizer.miscellaneous, "2026-09-20"),
+            record(Categorizer.selfTransfer, "2026-09-20"),
+        ]
+        XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
+                       ["Food Delivery", "Transport", "Groceries"],
+                       "count desc, then alphabetical: Groceries before Shopping")
+    }
+
+    func testIgnoresRecordsOlderThanNinetyDaysAndCredits() {
+        let now = day("2026-09-22")
+        let records = [
+            record("Food Delivery", "2026-01-01"),
+            record("Transport", "2026-09-20", .credit),
+            record("Shopping", "2026-09-20"),
+        ]
+        XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
+                       ["Shopping"])
+    }
+
+    // AMENDED (controller): the two tests above cannot distinguish a correct
+    // implementation from two plausible wrong ones. Both of these must be
+    // written, and both must be shown to fail against a deliberately wrong
+    // implementation at least once - see "On discriminating tests" below.
+
+    func testRanksByCountNotBySpend() {
+        // The doc comment claims count beats spend precisely so one large
+        // payment cannot outrank a habit. Every record in the tests above has
+        // the same amount, so a ranker that summed PAISE would pass them all.
+        let now = day("2026-09-22")
+        let records = [
+            SpendRecord(merchant: "m", amountPaise: 5_000_00, date: day("2026-09-20"),
+                        direction: .debit, effectiveCategory: "Shopping"),
+            record("Transport", "2026-09-20"),
+            record("Transport", "2026-09-19"),
+            record("Transport", "2026-09-18"),
+        ]
+        XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 2),
+                       ["Transport", "Shopping"],
+                       "3 small debits must outrank 1 large one")
+    }
+
+    func testWindowBoundaryIsNinetyDays() {
+        // The existing window test uses a record 264 days old, which would
+        // pass against windowDays = 1 or 200 alike - it pins nothing.
+        let now = day("2026-09-22")
+        let inside = now.addingTimeInterval(-89 * 86_400)
+        let outside = now.addingTimeInterval(-91 * 86_400)
+        let records = [
+            SpendRecord(merchant: "m", amountPaise: 100, date: inside,
+                        direction: .debit, effectiveCategory: "Transport"),
+            SpendRecord(merchant: "m", amountPaise: 100, date: outside,
+                        direction: .debit, effectiveCategory: "Shopping"),
+        ]
+        XCTAssertEqual(CategoryRanker.topCategories(records: records, now: now, limit: 3),
+                       ["Transport"],
+                       "89 days old is inside the window, 91 days old is outside")
+    }
+
+    func testReturnsFewerThanLimitWhenNotEnoughHistory() {
+        XCTAssertEqual(CategoryRanker.topCategories(records: [], now: day("2026-09-22"), limit: 3),
+                       [])
+    }
+}
