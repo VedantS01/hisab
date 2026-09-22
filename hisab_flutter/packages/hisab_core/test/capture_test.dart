@@ -765,6 +765,469 @@ void main() {
     });
   });
 
+  group('NotificationPolicy', () {
+    // Swift twin: NotificationPolicyTests.swift — same names, same
+    // expectations. See task-14-brief.md.
+
+    test('testSendsDuringWakingHoursUnderTheCap', () {
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 14:30'), sentToday: 3),
+          const NotificationSend());
+    });
+
+    test('testSuppressesAtTheDailyCap', () {
+      // A heavy UPI day must not turn into 40 notifications.
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 14:30'),
+              sentToday: NotificationPolicy.dailyCap),
+          const NotificationSuppress());
+    });
+
+    test('testHoldsLateNightUntilMorning', () {
+      // Hisab must never wake anyone. 23:10 -> 08:00 next day.
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 23:10'), sentToday: 0),
+          NotificationHold(_at('2026-09-23 08:00')));
+    });
+
+    test('testHoldsEarlyMorningUntilSameDayEight', () {
+      // 02:30 is still "last night" -> 08:00 the SAME day, not the next.
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 02:30'), sentToday: 0),
+          NotificationHold(_at('2026-09-22 08:00')));
+    });
+
+    test('testSendsExactlyAtEightAndHoldsExactlyAtTwentyTwo', () {
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 08:00'), sentToday: 0),
+          const NotificationSend());
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 22:00'), sentToday: 0),
+          NotificationHold(_at('2026-09-23 08:00')));
+    });
+
+    test('testTheConstantsAreWhatTheyClaim', () {
+      // Asserted literally, because the behavioural tests cannot see a change
+      // in either value on their own: the cap test is self-referential and no
+      // test exercises the 15:00-21:00 gap.
+      expect(NotificationPolicy.dailyCap, 10);
+      expect(NotificationPolicy.quietStartHour, 22);
+      expect(NotificationPolicy.quietEndHour, 8);
+    });
+
+    test('testSendsJustUnderTheCapAndSuppressesAtIt', () {
+      // Literal 9 and 10, NOT NotificationPolicy.dailyCap — using the
+      // constant here is what made the original test tautological.
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 14:30'), sentToday: 9),
+          const NotificationSend());
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 14:30'), sentToday: 10),
+          const NotificationSuppress());
+    });
+
+    test('testSendsThroughTheEveningUntilTwentyTwo', () {
+      // Closes the 15:00-21:00 blind spot: without this, quietStartHour could
+      // be any value from 15 to 22 and the suite would not notice.
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 20:00'), sentToday: 0),
+          const NotificationSend());
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 21:59'), sentToday: 0),
+          const NotificationSend());
+    });
+
+    test('the cap is checked before quiet hours', () {
+      // Swift checks `sentToday >= dailyCap` FIRST, so a past-the-cap alert at
+      // 23:10 is dropped rather than scheduled for 08:00. Swapping the two
+      // checks would leave every other case in this group green.
+      expect(
+          NotificationPolicy.decide(
+              now: _at('2026-09-22 23:10'), sentToday: 10),
+          const NotificationSuppress());
+    });
+  });
+
+  group('CategoryRanker', () {
+    // Swift twin: CategoryRankerTests (inside NotificationPolicyTests.swift).
+    //
+    // The seed top-up derives from the SHIPPED india-default ruleset, not
+    // from Categorizer.seedRules. Swift reads its copy through Bundle.module;
+    // hisab_core is pure Dart with no asset loader, so the loaded Ruleset is
+    // passed in — the app holds one already (AppState.ruleset). The file here
+    // is the same bytes, kept in step by tool/sync_assets.sh.
+    final ruleset = Ruleset.fromJsonString(
+        File('../../assets/rulesets/india-default.json').readAsStringSync());
+
+    SpendRecord record(String category, String date,
+            [Direction direction = Direction.debit]) =>
+        SpendRecord(
+            merchant: 'm',
+            amountPaise: 100,
+            date: _day(date),
+            direction: direction,
+            effectiveCategory: category);
+
+    List<String> top(List<SpendRecord> records, DateTime now, int limit) =>
+        CategoryRanker.topCategories(
+            records: records, now: now, limit: limit, ruleset: ruleset);
+
+    test('testRanksByCountAndExcludesNonCategories', () {
+      final now = _day('2026-09-22');
+      final records = [
+        record('Food Delivery', '2026-09-20'),
+        record('Food Delivery', '2026-09-19'),
+        record('Food Delivery', '2026-09-18'),
+        record('Transport', '2026-09-20'),
+        record('Transport', '2026-09-19'),
+        record('Shopping', '2026-09-20'),
+        record('Groceries', '2026-09-20'),
+        // These three must never be offered as an answer.
+        record(Categorizer.uncategorized, '2026-09-20'),
+        record(Categorizer.miscellaneous, '2026-09-20'),
+        record(Categorizer.selfTransfer, '2026-09-20'),
+      ];
+      expect(top(records, now, 3), ['Food Delivery', 'Transport', 'Groceries'],
+          reason: 'count desc, then alphabetical: Groceries before Shopping');
+    });
+
+    test('testIgnoresRecordsOlderThanNinetyDaysAndCredits', () {
+      final now = _day('2026-09-22');
+      final records = [
+        record('Food Delivery', '2026-01-01'),
+        record('Transport', '2026-09-20', Direction.credit),
+        record('Shopping', '2026-09-20'),
+      ];
+      // Shopping is the ONLY history-derived entry and it leads; the trailing
+      // two come from the ruleset top-up. Without the window and credit
+      // filters the history part would read
+      // ['Food Delivery', 'Shopping', 'Transport'].
+      expect(top(records, now, 3),
+          ['Shopping', 'Food Delivery', 'Food & Dining']);
+    });
+
+    test('testRanksByCountNotBySpend', () {
+      // Count beats spend precisely so one large payment cannot outrank a
+      // habit. Every record in the tests above has the same amount, so a
+      // ranker that summed PAISE would pass them all.
+      final now = _day('2026-09-22');
+      final records = [
+        SpendRecord(
+            merchant: 'm',
+            amountPaise: 500000,
+            date: _day('2026-09-20'),
+            direction: Direction.debit,
+            effectiveCategory: 'Shopping'),
+        record('Transport', '2026-09-20'),
+        record('Transport', '2026-09-19'),
+        record('Transport', '2026-09-18'),
+      ];
+      expect(top(records, now, 2), ['Transport', 'Shopping'],
+          reason: '3 small debits must outrank 1 large one');
+    });
+
+    test('testWindowBoundaryIsNinetyDays', () {
+      final now = _day('2026-09-22');
+      final inside = now.subtract(const Duration(days: 89));
+      final outside = now.subtract(const Duration(days: 91));
+      final records = [
+        SpendRecord(
+            merchant: 'm',
+            amountPaise: 100,
+            date: inside,
+            direction: Direction.debit,
+            effectiveCategory: 'Transport'),
+        SpendRecord(
+            merchant: 'm',
+            amountPaise: 100,
+            date: outside,
+            direction: Direction.debit,
+            effectiveCategory: 'Shopping'),
+      ];
+      // A window wide enough to admit the 91-day row would put Shopping first
+      // (count tie, alphabetical), so this still discriminates.
+      expect(top(records, now, 3),
+          ['Transport', 'Food Delivery', 'Food & Dining'],
+          reason: '89 days old is inside the window, 91 days old is outside');
+    });
+
+    test('testEmptyHistoryFallsBackToSeedCategories', () {
+      // First-appearance order over the shipped ruleset begins Food Delivery,
+      // Food & Dining, Groceries. The compiled fallback list has no
+      // "Food & Dining" at all, so this fails against a seedRules-derived
+      // implementation.
+      expect(top([], _day('2026-09-22'), 3),
+          ['Food Delivery', 'Food & Dining', 'Groceries'],
+          reason: 'a user who has never imported must still get three buttons');
+    });
+
+    test('testPartialHistoryIsToppedUpWithoutBeingDisplacedOrDuplicated', () {
+      // At limit 3 the top-up stops long before it reaches "Shopping" again,
+      // so what this pins is that history keeps first place. The dedup is
+      // pinned by the case below.
+      final now = _day('2026-09-22');
+      expect(top([record('Shopping', '2026-09-20')], now, 3),
+          ['Shopping', 'Food Delivery', 'Food & Dining']);
+    });
+
+    test('testTheTopUpDoesNotOfferACategoryHistoryAlreadySupplied', () {
+      // "Shopping" is sixth in the ruleset's first-appearance order, so at
+      // limit 8 the walk reaches it: without the dedup, Shopping appears twice
+      // and Subscriptions — the eighth distinct entry — falls off the end.
+      final now = _day('2026-09-22');
+      expect(top([record('Shopping', '2026-09-20')], now, 8), [
+        'Shopping',
+        'Food Delivery',
+        'Food & Dining',
+        'Groceries',
+        'Transport',
+        'Travel',
+        'Recharges & Bills',
+        'Subscriptions',
+      ]);
+    });
+
+    test('testFullHistoryIsUntouchedByTheFallback', () {
+      // Three real categories fill the limit, so no seed category may appear.
+      final now = _day('2026-09-22');
+      final records = [
+        record('Rent', '2026-09-20'),
+        record('Rent', '2026-09-19'),
+        record('Tuition', '2026-09-20'),
+        record('Tuition', '2026-09-19'),
+        record('Gifts', '2026-09-20'),
+      ];
+      expect(top(records, now, 3), ['Rent', 'Tuition', 'Gifts']);
+    });
+
+    test('testFallbackNeverOffersTheThreeNonAnswers', () {
+      // The first three assertions cannot fail against today's data — no
+      // category in the ruleset is one of the reserved names. They stay
+      // because the list is derived from an editable data file: someone adding
+      // a rule categorised "Miscellaneous" to that JSON is a realistic edit
+      // that would put a non-answer on a notification button.
+      final all = top([], _day('2026-09-22'), 50);
+      expect(all.contains(Categorizer.uncategorized), isFalse);
+      expect(all.contains(Categorizer.miscellaneous), isFalse);
+      expect(all.contains(Categorizer.selfTransfer), isFalse);
+      expect(all.toSet().length, all.length, reason: 'no duplicates');
+      expect(all, isNotEmpty);
+    });
+
+    test('testAZeroLimitAsksForNothingAndGetsNothing', () {
+      expect(top([], _day('2026-09-22'), 0), <String>[]);
+    });
+  });
+
+  group('RuleImpact', () {
+    // Swift twin: RuleImpactTests.swift. Ported from the CURRENT Swift source
+    // (two verdicts compared, both skips carried as row flags), NOT from the
+    // plan document's earlier sketch.
+
+    CategoryRule rule(String pattern, String category) =>
+        CategoryRule(id: _newId(), pattern: pattern, category: category);
+
+    /// A transcription of Queries.effectiveCategory minus self transfers
+    /// (which reconciliation decides, never a rule). Used ONLY to state what a
+    /// row displays; every expected count below is a hand-computed literal.
+    String effectiveCategory(String text, List<CategoryRule> rules,
+        {String? override, bool isBankRow = false}) {
+      if (override != null) return override;
+      final auto = CategoryMatcher(rules).category(text);
+      if (auto == Categorizer.uncategorized && isBankRow) {
+        return Categorizer.miscellaneous;
+      }
+      return auto;
+    }
+
+    RuleImpactRow row(String text,
+            {bool hasOverride = false, bool isSelfTransfer = false}) =>
+        RuleImpactRow(
+            text: text,
+            hasOverride: hasOverride,
+            isSelfTransfer: isSelfTransfer);
+
+    int count(String pattern, String category, List<RuleImpactRow> rows,
+            List<CategoryRule> rules) =>
+        RuleImpact.affectedCount(
+            pattern: pattern, category: category, rows: rows, rules: rules);
+
+    test('testCountsARowAShorterExistingPatternAlreadyClaims', () {
+      // THE case: seed rule `ola` -> Transport matches inside "COCA COLA", so
+      // the row is not un-categorized and a substring count would miss it,
+      // while the longer proposed `coca cola` rule takes it anyway.
+      final existing = [rule('ola', 'Transport')];
+      const text = 'UPI-COCA COLA INDIA PVT';
+      expect(effectiveCategory(text, existing), 'Transport');
+      expect(count('coca cola', 'Groceries', [row(text)], existing), 1,
+          reason: 'the longer proposed pattern takes the row from `ola`');
+    });
+
+    test('testCountsARowAProposedRuleMovesIntoAReservedCategory', () {
+      // Skipping rows whose simulated verdict is `Uncategorized` cannot tell
+      // "no rule matched" from "a rule matched and its category IS
+      // Uncategorized". Comparing two verdicts leaves no such distinction.
+      final existing = [rule('ola', 'Transport')];
+      const text = 'UPI-COCA COLA INDIA PVT';
+      expect(effectiveCategory(text, existing), 'Transport');
+      expect(
+          count(
+              'coca cola', Categorizer.uncategorized, [row(text)], existing),
+          1,
+          reason: 'the row really does stop showing Transport');
+    });
+
+    test('testMiscellaneousRowsDoChangeSoCountingThemIsCorrect', () {
+      // Miscellaneous is the DISPLAY fallback for a bank row the matcher
+      // returned Uncategorized for, so a matching rule replaces it outright.
+      const text = 'POS ZOMATO LTD GURGAON';
+      final proposed = rule('zomato', 'Food Delivery');
+      expect(effectiveCategory(text, [], isBankRow: true),
+          Categorizer.miscellaneous);
+      expect(effectiveCategory(text, [proposed], isBankRow: true),
+          'Food Delivery');
+      expect(count(proposed.pattern, proposed.category, [row(text)], []), 1);
+    });
+
+    test('testDoesNotCountAMiscellaneousBankRowTheRuleDoesNotMatch', () {
+      // Comparing a matcher verdict against the DISPLAYED category would count
+      // every unmatched bank row as affected by any rule at all.
+      const text = 'ATM WDL 22SEP';
+      expect(effectiveCategory(text, [], isBankRow: true),
+          Categorizer.miscellaneous);
+      expect(count('zomato', 'Food Delivery', [row(text)], []), 0);
+    });
+
+    test('testLongerCompetingPatternKeepsTheRowAndIsNotCounted', () {
+      final existing = [rule('zomato hyperpure', 'Business Supplies')];
+      final proposed = rule('zomato', 'Food Delivery');
+      const text = 'UPI-ZOMATO HYPERPURE-XYZ';
+      expect(effectiveCategory(text, [...existing, proposed]),
+          'Business Supplies');
+      expect(
+          count(proposed.pattern, proposed.category, [row(text)], existing), 0);
+    });
+
+    test('testAnEqualLengthExistingPatternWinsBecauseTheProposedRuleIsAppended',
+        () {
+      // CategoryMatcher breaks an equal-length tie on the lowest rule index,
+      // and a rule accepted from an offer is stored at the END of the list.
+      final existing = [rule('zomato', 'Food Delivery')];
+      const text = 'UPI-ZOMATO-SWIGGY SETTLEMENT'; // both patterns, length 6
+      expect(effectiveCategory(text, existing), 'Food Delivery');
+      expect(count('swiggy', 'Groceries', [row(text)], existing), 0,
+          reason: 'appended, so the existing equal-length rule keeps the tie');
+    });
+
+    test('testCountsAnUncategorizedMatch', () {
+      expect(
+          count('zomato', 'Food Delivery', [row('UPI-ZOMATO LTD')], []), 1);
+    });
+
+    test('testExcludesARowTheUserCategorizedByHand', () {
+      expect(
+          count('zomato', 'Food Delivery',
+              [row('UPI-ZOMATO LTD', hasOverride: true)], []),
+          0,
+          reason: 'a rule must never override an explicit choice');
+    });
+
+    test('testDoesNotCountARowAlreadyInTheCategoryTheRuleAssigns', () {
+      final rows = [row('UPI-ZOMATO LTD')];
+
+      // The existing pattern is the longer one and carries a DIFFERENT
+      // category, so 0 can only mean the existing rule kept the row.
+      expect(
+          count('zomato', 'Groceries', rows,
+              [rule('upi-zomato', 'Food Delivery')]),
+          0,
+          reason: 'the shorter proposed pattern loses to the longer existing '
+              'rule');
+
+      // The proposed pattern is the longer one, so it really does take the row
+      // — but it assigns the category the row already shows.
+      expect(
+          count('upi-zomato', 'Food Delivery', rows,
+              [rule('zomato', 'Food Delivery')]),
+          0,
+          reason: 'the row matches, but it already shows that category');
+    });
+
+    test('testExcludesASelfTransfer', () {
+      // The exclusion is the row's isSelfTransfer FLAG, not a comparison of a
+      // displayed category against the literal "Self Transfer". The control
+      // assertion is the point: the identical row without the flag counts.
+      expect(
+          count('zomato', 'Food Delivery',
+              [row('UPI-ZOMATO LTD', isSelfTransfer: true)], []),
+          0);
+      expect(count('zomato', 'Food Delivery', [row('UPI-ZOMATO LTD')], []), 1,
+          reason: 'same text and same rule: only the flag separates the two');
+    });
+
+    test('testAUserRuleAssigningSelfTransferSkipsOnlyRealSelfTransfers', () {
+      // A user may legitimately author a rule that assigns "Self Transfer".
+      // It still must not move a reconciled self transfer, and it must still
+      // be free to move an ordinary row. Comparing against the display label
+      // could only ever have got one of these two right.
+      final rows = [
+        row('IMPS-TO-SELF HDFC', isSelfTransfer: true),
+        row('IMPS-TO-SELF ICICI'),
+      ];
+      expect(count('imps-to-self', Categorizer.selfTransfer, rows, []), 1,
+          reason: 'the reconciled row is skipped; the unreconciled one '
+              'changes');
+    });
+
+    test('testEmptyPatternAffectsNothing', () {
+      // Documents an OPTIMISATION, not a behaviour: CategoryMatcher skips
+      // empty patterns outright, so removing the guard leaves the result
+      // identical. Kept because "an empty pattern is a no-op" is a promise of
+      // public core API.
+      final rows = [row('UPI-ZOMATO LTD'), row('ANYTHING')];
+      expect(count('', 'Food Delivery', rows, []), 0);
+    });
+
+    test('testMatchingIsCaseInsensitiveOnBothSides', () {
+      expect(
+          count('ZOMATO', 'Food Delivery', [row('upi-ZoMaTo ltd')], []), 1);
+    });
+
+    test('testCountsAcrossAMixedSetOfRows', () {
+      final existing = [
+        rule('swiggy', 'Food Delivery'),
+        rule('zomato hyperpure', 'Business Supplies'),
+        rule('ola', 'Transport'),
+      ];
+      final rows = [
+        // Uncategorized and matches: counted.
+        row('UPI-ZOMATO LTD MUMBAI'),
+        // Matches, but the user chose by hand: never touched.
+        row('Zomato Gold membership', hasOverride: true),
+        // Categorized by another rule and does not match anyway.
+        row('SWIGGY INSTAMART'),
+        // Miscellaneous bank row that matches: counted.
+        row('POS ZOMATO LTD GURGAON'),
+        // Matches the proposed pattern AND a longer existing one, which wins.
+        row('UPI-ZOMATO HYPERPURE-XYZ'),
+        // Miscellaneous but no match: unchanged.
+        row('ATM WDL 22SEP'),
+      ];
+      expect(count('zomato', 'Food Delivery', rows, existing), 2,
+          reason: 'the UPI row and the Miscellaneous bank row');
+    });
+  });
+
   group('Alert parity', () {
     // Swift twin: AlertParityTests.swift. Same fixture (copied here by
     // tool/sync_assets.sh) pins AlertParser.parse and MemoMerger.merge so
@@ -846,6 +1309,87 @@ void main() {
         final expected =
             (m['expected'] as Map<String, dynamic>).cast<String, String>();
         expect(result, expected);
+      });
+    }
+
+    // The three blocks below pin NotificationPolicy.decide,
+    // CategoryRanker.topCategories and RuleImpact.affectedCount across the two
+    // cores. A fixture can only ever detect DISAGREEMENT, never a shared
+    // error, and it cannot detect a dropped skip unless a row exercises it —
+    // so `ruleImpact` deliberately carries an override row, a self-transfer
+    // row, and a row a SHORTER existing pattern already claims
+    // (`ola` inside "UPI-COCA COLA INDIA PVT", proposed `coca cola`).
+
+    for (final p in (fixture['policy'] as List).cast<Map<String, dynamic>>()) {
+      test('${p['name']} decides identically to Swift', () {
+        final decision = NotificationPolicy.decide(
+            now: DateTime.parse(p['now'] as String),
+            sentToday: p['sentToday'] as int);
+        switch (p['decision'] as String) {
+          case 'send':
+            expect(decision, const NotificationSend());
+          case 'suppress':
+            expect(decision, const NotificationSuppress());
+          case 'hold':
+            expect(decision,
+                NotificationHold(DateTime.parse(p['until'] as String)));
+          default:
+            fail('bad decision in fixture: ${p['decision']}');
+        }
+      });
+    }
+
+    final parityRuleset = Ruleset.fromJsonString(
+        File('../../assets/rulesets/india-default.json').readAsStringSync());
+
+    for (final r
+        in (fixture['ranking'] as List).cast<Map<String, dynamic>>()) {
+      test('${r['name']} ranks identically to Swift', () {
+        final records = [
+          for (final rec in (r['records'] as List).cast<Map<String, dynamic>>())
+            SpendRecord(
+              merchant: 'm',
+              amountPaise: rec['amountPaise'] as int,
+              date: DateTime.parse(rec['at'] as String),
+              direction: directionOf(rec['direction'] as String),
+              effectiveCategory: rec['category'] as String,
+            ),
+        ];
+        expect(
+            CategoryRanker.topCategories(
+                records: records,
+                now: DateTime.parse(r['now'] as String),
+                limit: r['limit'] as int,
+                ruleset: parityRuleset),
+            (r['expected'] as List).cast<String>());
+      });
+    }
+
+    for (final c
+        in (fixture['ruleImpact'] as List).cast<Map<String, dynamic>>()) {
+      test('${c['name']} counts identically to Swift', () {
+        final rules = [
+          for (final rule
+              in (c['rules'] as List).cast<Map<String, dynamic>>())
+            CategoryRule(
+                id: _newId(),
+                pattern: rule['pattern'] as String,
+                category: rule['category'] as String),
+        ];
+        final rows = [
+          for (final row in (c['rows'] as List).cast<Map<String, dynamic>>())
+            RuleImpactRow(
+                text: row['text'] as String,
+                hasOverride: row['hasOverride'] as bool,
+                isSelfTransfer: row['isSelfTransfer'] as bool),
+        ];
+        expect(
+            RuleImpact.affectedCount(
+                pattern: c['pattern'] as String,
+                category: c['category'] as String,
+                rows: rows,
+                rules: rules),
+            c['expected'] as int);
       });
     }
   });

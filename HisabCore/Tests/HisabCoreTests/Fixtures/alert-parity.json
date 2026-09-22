@@ -253,5 +253,252 @@
       ],
       "expected": {}
     }
+  ],
+  "policy": [
+    {
+      "name": "waking-hours-under-the-cap",
+      "now": "2026-09-22T14:30:00+05:30",
+      "sentToday": 3,
+      "decision": "send",
+      "until": null
+    },
+    {
+      "name": "just-under-the-cap",
+      "now": "2026-09-22T14:30:00+05:30",
+      "sentToday": 9,
+      "decision": "send",
+      "until": null
+    },
+    {
+      "name": "at-the-daily-cap",
+      "now": "2026-09-22T14:30:00+05:30",
+      "sentToday": 10,
+      "decision": "suppress",
+      "until": null
+    },
+    {
+      "name": "exactly-at-eight-sends",
+      "now": "2026-09-22T08:00:00+05:30",
+      "sentToday": 0,
+      "decision": "send",
+      "until": null
+    },
+    {
+      "name": "evening-still-sends-at-2159",
+      "now": "2026-09-22T21:59:00+05:30",
+      "sentToday": 0,
+      "decision": "send",
+      "until": null
+    },
+    {
+      "name": "exactly-at-twentytwo-holds-until-tomorrow",
+      "now": "2026-09-22T22:00:00+05:30",
+      "sentToday": 0,
+      "decision": "hold",
+      "until": "2026-09-23T08:00:00+05:30"
+    },
+    {
+      "name": "late-night-holds-until-tomorrow",
+      "now": "2026-09-22T23:10:00+05:30",
+      "sentToday": 0,
+      "decision": "hold",
+      "until": "2026-09-23T08:00:00+05:30"
+    },
+    {
+      "name": "early-morning-holds-until-the-same-day",
+      "now": "2026-09-22T02:30:00+05:30",
+      "sentToday": 0,
+      "decision": "hold",
+      "until": "2026-09-22T08:00:00+05:30"
+    },
+    {
+      "name": "the-cap-is-checked-before-quiet-hours",
+      "now": "2026-09-22T23:10:00+05:30",
+      "sentToday": 10,
+      "decision": "suppress",
+      "until": null
+    },
+    {
+      "name": "a-hold-crosses-a-month-boundary",
+      "now": "2026-09-30T23:30:00+05:30",
+      "sentToday": 0,
+      "decision": "hold",
+      "until": "2026-10-01T08:00:00+05:30"
+    }
+  ],
+  "ranking": [
+    {
+      "name": "count-descending-then-alphabetical-excluding-non-answers",
+      "now": "2026-09-22T12:00:00+05:30",
+      "limit": 3,
+      "records": [
+        { "category": "Food Delivery", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Food Delivery", "at": "2026-09-19T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Food Delivery", "at": "2026-09-18T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Transport", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Transport", "at": "2026-09-19T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Shopping", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Groceries", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Uncategorized", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Miscellaneous", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Self Transfer", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 }
+      ],
+      "expected": ["Food Delivery", "Transport", "Groceries"]
+    },
+    {
+      "name": "count-not-spend",
+      "now": "2026-09-22T12:00:00+05:30",
+      "limit": 2,
+      "records": [
+        { "category": "Shopping", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 500000 },
+        { "category": "Transport", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Transport", "at": "2026-09-19T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Transport", "at": "2026-09-18T12:00:00+05:30", "direction": "debit", "amountPaise": 100 }
+      ],
+      "expected": ["Transport", "Shopping"]
+    },
+    {
+      "name": "the-window-is-ninety-days-and-credits-never-count",
+      "now": "2026-09-22T12:00:00+05:30",
+      "limit": 3,
+      "records": [
+        { "category": "Transport", "at": "2026-06-25T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Shopping", "at": "2026-06-23T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Groceries", "at": "2026-09-20T12:00:00+05:30", "direction": "credit", "amountPaise": 100 }
+      ],
+      "expected": ["Transport", "Food Delivery", "Food & Dining"]
+    },
+    {
+      "name": "empty-history-is-topped-up-entirely-from-the-shipped-ruleset",
+      "now": "2026-09-22T12:00:00+05:30",
+      "limit": 3,
+      "records": [],
+      "expected": ["Food Delivery", "Food & Dining", "Groceries"]
+    },
+    {
+      "name": "the-top-up-walks-past-a-category-history-already-supplied",
+      "now": "2026-09-22T12:00:00+05:30",
+      "limit": 8,
+      "records": [
+        { "category": "Shopping", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 }
+      ],
+      "expected": ["Shopping", "Food Delivery", "Food & Dining", "Groceries", "Transport", "Travel", "Recharges & Bills", "Subscriptions"]
+    },
+    {
+      "name": "full-history-is-untouched-by-the-top-up",
+      "now": "2026-09-22T12:00:00+05:30",
+      "limit": 3,
+      "records": [
+        { "category": "Rent", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Rent", "at": "2026-09-19T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Tuition", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Tuition", "at": "2026-09-19T12:00:00+05:30", "direction": "debit", "amountPaise": 100 },
+        { "category": "Gifts", "at": "2026-09-20T12:00:00+05:30", "direction": "debit", "amountPaise": 100 }
+      ],
+      "expected": ["Rent", "Tuition", "Gifts"]
+    },
+    {
+      "name": "a-zero-limit-asks-for-nothing",
+      "now": "2026-09-22T12:00:00+05:30",
+      "limit": 0,
+      "records": [],
+      "expected": []
+    }
+  ],
+  "ruleImpact": [
+    {
+      "name": "a-shorter-existing-pattern-already-claims-the-row",
+      "pattern": "coca cola",
+      "category": "Groceries",
+      "rules": [{ "pattern": "ola", "category": "Transport" }],
+      "rows": [
+        { "text": "UPI-COCA COLA INDIA PVT", "hasOverride": false, "isSelfTransfer": false }
+      ],
+      "expected": 1
+    },
+    {
+      "name": "the-proposed-rule-assigns-a-reserved-category",
+      "pattern": "coca cola",
+      "category": "Uncategorized",
+      "rules": [{ "pattern": "ola", "category": "Transport" }],
+      "rows": [
+        { "text": "UPI-COCA COLA INDIA PVT", "hasOverride": false, "isSelfTransfer": false }
+      ],
+      "expected": 1
+    },
+    {
+      "name": "an-override-row-and-a-self-transfer-row-are-both-skipped",
+      "pattern": "zomato",
+      "category": "Food Delivery",
+      "rules": [],
+      "rows": [
+        { "text": "UPI-ZOMATO LTD", "hasOverride": false, "isSelfTransfer": false },
+        { "text": "Zomato Gold membership", "hasOverride": true, "isSelfTransfer": false },
+        { "text": "UPI-ZOMATO LTD", "hasOverride": false, "isSelfTransfer": true }
+      ],
+      "expected": 1
+    },
+    {
+      "name": "a-user-rule-assigning-self-transfer-skips-only-reconciled-rows",
+      "pattern": "imps-to-self",
+      "category": "Self Transfer",
+      "rules": [],
+      "rows": [
+        { "text": "IMPS-TO-SELF HDFC", "hasOverride": false, "isSelfTransfer": true },
+        { "text": "IMPS-TO-SELF ICICI", "hasOverride": false, "isSelfTransfer": false }
+      ],
+      "expected": 1
+    },
+    {
+      "name": "a-longer-existing-pattern-keeps-its-row",
+      "pattern": "zomato",
+      "category": "Food Delivery",
+      "rules": [{ "pattern": "zomato hyperpure", "category": "Business Supplies" }],
+      "rows": [
+        { "text": "UPI-ZOMATO HYPERPURE-XYZ", "hasOverride": false, "isSelfTransfer": false }
+      ],
+      "expected": 0
+    },
+    {
+      "name": "an-equal-length-existing-pattern-wins-because-the-proposal-is-appended",
+      "pattern": "swiggy",
+      "category": "Groceries",
+      "rules": [{ "pattern": "zomato", "category": "Food Delivery" }],
+      "rows": [
+        { "text": "UPI-ZOMATO-SWIGGY SETTLEMENT", "hasOverride": false, "isSelfTransfer": false }
+      ],
+      "expected": 0
+    },
+    {
+      "name": "an-empty-pattern-affects-nothing",
+      "pattern": "",
+      "category": "Food Delivery",
+      "rules": [],
+      "rows": [
+        { "text": "UPI-ZOMATO LTD", "hasOverride": false, "isSelfTransfer": false },
+        { "text": "ANYTHING", "hasOverride": false, "isSelfTransfer": false }
+      ],
+      "expected": 0
+    },
+    {
+      "name": "a-mixed-set-of-rows-counted-as-a-count",
+      "pattern": "zomato",
+      "category": "Food Delivery",
+      "rules": [
+        { "pattern": "swiggy", "category": "Food Delivery" },
+        { "pattern": "zomato hyperpure", "category": "Business Supplies" },
+        { "pattern": "ola", "category": "Transport" }
+      ],
+      "rows": [
+        { "text": "UPI-ZOMATO LTD MUMBAI", "hasOverride": false, "isSelfTransfer": false },
+        { "text": "Zomato Gold membership", "hasOverride": true, "isSelfTransfer": false },
+        { "text": "SWIGGY INSTAMART", "hasOverride": false, "isSelfTransfer": false },
+        { "text": "POS ZOMATO LTD GURGAON", "hasOverride": false, "isSelfTransfer": false },
+        { "text": "UPI-ZOMATO HYPERPURE-XYZ", "hasOverride": false, "isSelfTransfer": false },
+        { "text": "ATM WDL 22SEP", "hasOverride": false, "isSelfTransfer": false },
+        { "text": "UPI-ZOMATO SELF TOPUP", "hasOverride": false, "isSelfTransfer": true }
+      ],
+      "expected": 2
+    }
   ]
 }
