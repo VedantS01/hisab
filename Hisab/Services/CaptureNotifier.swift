@@ -293,6 +293,37 @@ enum CaptureNotifier {
         pendingRuleOffers = pendingRuleOffers.filter { $0.captureHash != captureHash }
     }
 
+    /// Everything capture leaves outside the store that carries the user's own
+    /// data. Called by "Erase all data", which otherwise reaches only
+    /// SwiftData.
+    ///
+    /// The queued rule offers are the obvious half: an offer is a payee
+    /// pattern and a category the user chose, and one surviving an erase would
+    /// invite them, days later, to write a rule about a merchant whose
+    /// transactions are gone.
+    ///
+    /// The notification queues are the half that is easy to miss. A banner's
+    /// body is `"₹450 to Chaiwala Junction"` — the amount and the payee, in
+    /// plain text, sitting in Notification Center. `setEnabled(false)`
+    /// deliberately does NOT withdraw delivered banners, because switching a
+    /// feature off is not a reason to erase what the user has already been
+    /// shown. An explicit "erase everything" is exactly that reason, so the
+    /// same call that is wrong there is right here.
+    ///
+    /// Deliberately NOT cleared: `isEnabled`, the two health timestamps and
+    /// the daily notification counter. None of them is data ABOUT the user's
+    /// money — they describe this device's automation, which the erase did not
+    /// touch and which still works. Silently switching capture off would
+    /// undo a setting the user never asked to change, and clearing
+    /// `lastAttemptAt` would throw away the one signal that distinguishes "the
+    /// Shortcuts automation never fires" from "it fires and nothing parses".
+    static func eraseUserData() {
+        pendingRuleOffers = []
+        let center = UNUserNotificationCenter.current()
+        center.removeAllPendingNotificationRequests()
+        center.removeAllDeliveredNotifications()
+    }
+
     /// Applies one notification response: a category button assigns and queues
     /// the rule offer; anything else routes the user to the memo.
     static func respond(actionID: String, captureHash: String?,

@@ -184,10 +184,19 @@ struct SettingsView: View {
         try? context.delete(model: StoredDocument.self)
         try? context.delete(model: PinnedMonth.self)
         try? context.delete(model: StoredCategoryRule.self)
+        // A memo carries a payee, an amount and a date. It is not a ledger
+        // entry, which is exactly why it was easy to forget here — and exactly
+        // why leaving it behind would mean an erase that left the user's
+        // spending in the store.
+        try? context.delete(model: StoredPendingMemo.self)
         try? context.save()
         // Suppressions are keyed by insight id and merchant key; surviving an
         // erase would silently hide cards about data the user no longer has.
         InsightStore.clearAll()
+        // The same reasoning, one layer out: queued rule offers and any banner
+        // still in Notification Center carry the payee and the amount. See
+        // `CaptureNotifier.eraseUserData` for what it deliberately keeps.
+        CaptureNotifier.eraseUserData()
         let imports = URL.documentsDirectory.appending(path: "imports")
         try? FileManager.default.removeItem(at: imports)
     }
