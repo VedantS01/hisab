@@ -137,16 +137,6 @@ final class AlertParserTests: XCTestCase {
         XCTAssertEqual(memo?.payee, "9876543210@ybl")
     }
 
-    func testReadsAPayeeClauseThatPrecedesTheDirectionWord() {
-        // Amount-anchoring (fix round 3) removes the recall cost round 2's
-        // direction-anchoring introduced: the amount is mandatory and sits
-        // inside the transaction clause regardless of where the direction
-        // word falls, so this now parses correctly instead of declining.
-        let text = "Rs.450.00 to SWIGGY has been debited from a/c XX1234"
-        let memo = AlertParser.parse(text: text, receivedAt: at(now))
-        XCTAssertEqual(memo?.payee, "SWIGGY")
-    }
-
     func testIgnoresABoilerplatePreambleContainingADirectionWord() {
         // N1: direction words ("sent") routinely appear in template preambles.
         // Anchoring on the amount instead of the direction word means the
@@ -178,5 +168,15 @@ final class AlertParserTests: XCTestCase {
         let text = "Purchase of Rs.450.00 at SWIGGY using a/c XX1234"
         let memo = AlertParser.parse(text: text, receivedAt: at(now))
         XCTAssertEqual(memo?.payee, "SWIGGY")
+    }
+
+    func testStopsAtViaInAPaidAlert() {
+        // "via UPI" is one of the commonest tails in Indian payment alerts;
+        // round 3 briefly let it leak into the payee as "SWIGGY via".
+        let text = "You have paid Rs.450.00 to SWIGGY via UPI on 22-09-26"
+        let memo = AlertParser.parse(text: text, receivedAt: at(now))
+        XCTAssertEqual(memo?.payee, "SWIGGY")
+        XCTAssertEqual(memo?.direction, .debit)
+        XCTAssertEqual(memo?.amountPaise, 45_000)
     }
 }

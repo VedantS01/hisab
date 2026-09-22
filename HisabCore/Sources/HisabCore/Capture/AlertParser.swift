@@ -86,7 +86,11 @@ public enum AlertParser {
     /// fragment attached.
     private static let payeeStopTokens: Set<String> = [
         "ref", "refno", "utr", "txn", "upi", "a/c", "acct", "account",
-        "avl", "dated", "using", "thru", "through", "vide",
+        "avl", "dated", "using", "thru", "through", "vide", "via",
+        // A direction verb is never part of a merchant's name, and its presence
+        // means extraction has run past the payee into the sentence's predicate.
+        "debited", "credited", "spent", "paid", "withdrawn", "sent",
+        "purchase", "received", "refund", "deposited",
     ]
 
     /// `"on"` cannot be dropped — `"on <date>"` is the commonest alert tail —
