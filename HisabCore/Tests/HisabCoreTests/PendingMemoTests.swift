@@ -12,19 +12,69 @@ final class PendingMemoTests: XCTestCase {
     }
 
     func testCaptureHashIgnoresTimeOfDay() {
-        // An Android notification *update* arrives seconds later. It must not
-        // produce a second memo, so the hash keys on the day, not the instant.
+        // Two captures of the same underlying payment, with `date` values
+        // minutes (or hours) apart but on the same IST calendar day — e.g. an
+        // alert with no date in its text, where AlertParser falls back to
+        // receivedAt, and a second capture lands later. The hash must key on
+        // the day, not the instant, so these collapse to one memo.
         let morning = PendingMemo(amountPaise: 45_000, direction: .debit,
                                   payee: "VEDANT SABOO", vpa: "vedant@okaxis",
                                   accountTail: "1234",
                                   date: date("2026-09-22 09:15"),
                                   capturedAt: date("2026-09-22 09:15"))
-        let seconds_later = PendingMemo(amountPaise: 45_000, direction: .debit,
+        let sameDayLater = PendingMemo(amountPaise: 45_000, direction: .debit,
+                                       payee: "VEDANT SABOO", vpa: "vedant@okaxis",
+                                       accountTail: "1234",
+                                       date: date("2026-09-22 23:50"),
+                                       capturedAt: date("2026-09-22 23:50"))
+        XCTAssertEqual(morning.captureHash, sameDayLater.captureHash)
+    }
+
+    func testCaptureHashSeparatesAcrossISTMidnight() {
+        // The other half of day granularity: `date` values only minutes apart
+        // but on different IST calendar days must NOT collapse.
+        let beforeMidnight = PendingMemo(amountPaise: 45_000, direction: .debit,
+                                         payee: "VEDANT SABOO", vpa: "vedant@okaxis",
+                                         accountTail: "1234",
+                                         date: date("2026-09-22 23:55"),
+                                         capturedAt: date("2026-09-22 23:55"))
+        let afterMidnight = PendingMemo(amountPaise: 45_000, direction: .debit,
                                         payee: "VEDANT SABOO", vpa: "vedant@okaxis",
                                         accountTail: "1234",
-                                        date: date("2026-09-22 09:15"),
-                                        capturedAt: date("2026-09-22 09:16"))
-        XCTAssertEqual(morning.captureHash, seconds_later.captureHash)
+                                        date: date("2026-09-23 00:05"),
+                                        capturedAt: date("2026-09-23 00:05"))
+        XCTAssertNotEqual(beforeMidnight.captureHash, afterMidnight.captureHash)
+    }
+
+    func testCaptureHashSeparatesAmountPayeeAndVPA() {
+        // captureHash IS the dedup identity — each field that feeds it must
+        // move the hash when it changes.
+        let baseline = PendingMemo(amountPaise: 45_000, direction: .debit,
+                                   payee: "SWIGGY", vpa: "swiggy@icici",
+                                   accountTail: "1234",
+                                   date: date("2026-09-22 09:15"),
+                                   capturedAt: date("2026-09-22 09:15"))
+
+        let differentAmount = PendingMemo(amountPaise: 45_001, direction: .debit,
+                                          payee: "SWIGGY", vpa: "swiggy@icici",
+                                          accountTail: "1234",
+                                          date: date("2026-09-22 09:15"),
+                                          capturedAt: date("2026-09-22 09:15"))
+        XCTAssertNotEqual(baseline.captureHash, differentAmount.captureHash)
+
+        let differentPayee = PendingMemo(amountPaise: 45_000, direction: .debit,
+                                         payee: "ZOMATO", vpa: "swiggy@icici",
+                                         accountTail: "1234",
+                                         date: date("2026-09-22 09:15"),
+                                         capturedAt: date("2026-09-22 09:15"))
+        XCTAssertNotEqual(baseline.captureHash, differentPayee.captureHash)
+
+        let differentVPA = PendingMemo(amountPaise: 45_000, direction: .debit,
+                                       payee: "SWIGGY", vpa: "swiggy@hdfcbank",
+                                       accountTail: "1234",
+                                       date: date("2026-09-22 09:15"),
+                                       capturedAt: date("2026-09-22 09:15"))
+        XCTAssertNotEqual(baseline.captureHash, differentVPA.captureHash)
     }
 
     func testCaptureHashSeparatesDirection() {
