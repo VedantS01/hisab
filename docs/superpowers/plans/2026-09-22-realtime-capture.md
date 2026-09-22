@@ -703,7 +703,11 @@ public enum MemoMerger {
         var result: [String: UUID] = [:]
 
         for memo in ordered {
-            let matches = candidates
+            // Named `matching`, not `matches`: a local named `matches` shadows
+            // the static `matches(memo:candidate:)` below, and Swift resolves
+            // the closure's call against the half-initialised local, failing
+            // with "cannot reference invalid declaration 'matches'".
+            let matching = candidates
                 .filter { !claimed.contains($0.id) && matches(memo: memo, candidate: $0) }
                 .sorted { lhs, rhs in
                     let l = abs(lhs.date.timeIntervalSince(memo.date))
