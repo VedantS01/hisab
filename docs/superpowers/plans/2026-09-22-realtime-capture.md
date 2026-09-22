@@ -241,6 +241,19 @@ git commit -m "feat(capture): PendingMemo with day-granular capture hash and VPA
 
 Turns alert text into a memo, and — more importantly — declines to guess. A false memo is worse than a missed one: it trains a rule on a payment that never happened.
 
+> **STALE CODE WARNING — read before porting.** The code blocks below are the
+> plan as originally written. `AlertParser` then went through **four fix
+> rounds** (commits `0c83d89` → `1a754ad` → `90bbf9e` → `054a6c3` →
+> `48d70dd`), which changed the VPA regex, rewrote `payee(in:)` twice, moved
+> the extraction anchor from the direction keyword to the amount, and revised
+> the stop-token set three times. **The committed source is authoritative for
+> this task, not this plan text.** Task 4's Dart port must read
+> `HisabCore/Sources/HisabCore/Capture/AlertParser.swift` and its 21 tests —
+> porting from the blocks below would reintroduce four separate defects, two
+> of which produced wrong categorization rules on common Indian alert shapes.
+> The ledger at `.superpowers/sdd/2026-09-22-realtime-capture/progress.md`
+> records why each change was made.
+
 **Files:**
 - Create: `HisabCore/Sources/HisabCore/Capture/AlertParser.swift`
 - Test: `HisabCore/Tests/HisabCoreTests/AlertParserTests.swift`
@@ -520,7 +533,7 @@ public enum AlertParser {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test --package-path HisabCore --filter AlertParserTests`
-Expected: PASS, 11 tests.
+Expected: PASS — 11 tests as originally planned; the committed suite reached 21 after four fix rounds.
 
 - [ ] **Step 5: Run the whole Swift suite for regressions**
 
@@ -766,7 +779,7 @@ Use whatever those print. Do not assume the Swift spelling carries over.
 
 - [ ] **Step 3: Write the failing Dart tests**
 
-Port every test case from `PendingMemoTests`, `AlertParserTests` and `MemoMergerTests` into `capture_test.dart`, same names and same expectations. All 22 cases.
+Port every test case from `PendingMemoTests`, `AlertParserTests` and `MemoMergerTests` into `capture_test.dart`, same names and same expectations. All 34 cases (6 PendingMemo + 21 AlertParser + 7 MemoMerger) — count them in the committed test files, not here.
 
 **The two regex engines are the likeliest source of divergence in this whole feature.** Two patterns need explicit verification, not assumption:
 - the VPA pattern's two trailing lookaheads `(?![a-z0-9-])(?!\.[a-z])`, against **all three** of its cases: a VPA ending a sentence with a period, an email mid-sentence, and an email ending a sentence. The first form of this pattern was wrong in Swift and would have been wrong identically in Dart — both lookaheads earn their place, so do not "simplify" either one;
@@ -784,7 +797,7 @@ Expected: FAIL — the capture library does not exist.
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run: `cd hisab_flutter/packages/hisab_core && dart test test/capture_test.dart`
-Expected: PASS, 22 tests.
+Expected: PASS, 34 tests.
 
 - [ ] **Step 7: Run the whole Dart core suite**
 
