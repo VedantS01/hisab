@@ -119,6 +119,7 @@ def date_text(rng: random.Random) -> str:
     fmt = rng.choice([
         "%d-%m-%y", "%d-%m-%Y", "%d/%m/%y", "%d/%m/%Y", "%d-%b-%y", "%d-%b-%Y",
         "%d%b%y", "%d %b %Y", "%Y-%m-%d", "%d.%m.%Y", "%d-%b-%Y", "%b %d, %Y",
+        "%d-%m",  # year-less, as HDFC's older alerts write it
     ])
     s = d.strftime(fmt)
     return s.upper() if rng.random() < 0.3 else s
@@ -146,7 +147,13 @@ def rrn(rng: random.Random) -> str:
 
 
 def neft_utr(rng: random.Random, ifsc: str) -> str:
-    return ifsc + rng.choice("NH") + "".join(rng.choice("0123456789") for _ in range(11))
+    digits = lambda n: "".join(rng.choice("0123456789") for _ in range(n))
+    r = rng.random()
+    if r < 0.15:
+        return "N" + digits(15)                                  # no bank code
+    if r < 0.3:
+        return ifsc + digits(4) + rng.choice("ABCDEFGHJKLMNPQRSTUVWXYZ") + digits(7)  # IDFB6220M8743447
+    return ifsc + rng.choice("NH") + digits(11)
 
 
 def rtgs_utr(rng: random.Random, ifsc: str) -> str:

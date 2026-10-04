@@ -110,6 +110,10 @@ def decode(text: str, offsets, tag_logits: np.ndarray, seq_logits: np.ndarray) -
         if value is not None:
             fields[key] = value
             fields["conf"][key] = round(p, 4)
+    # Admission rule: a movement with no readable amount cannot be booked, so
+    # it is not a transaction — whatever the class head says.
+    if not fields.get("amount_paise"):
+        return {"is_txn": False, "conf": {"class": fields["conf"]["class"]}}
     return fields
 
 

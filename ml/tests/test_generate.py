@@ -82,6 +82,7 @@ def test_amount(text, paise):
 @pytest.mark.parametrize("text,iso", [
     ("22-Sep-26", "2026-09-22"), ("22SEP26", "2026-09-22"), ("22/09/2026", "2026-09-22"),
     ("2026-09-22", "2026-09-22"), ("SEP 22, 2026", "2026-09-22"), ("31-02-26", None),
+    ("31st Oct' 2024", "2024-10-31"), ("14-08", "--08-14"), ("29/02", "--02-29"), ("1450", None),
 ])
 def test_date(text, iso):
     assert normalize.date_iso(text) == iso
@@ -100,6 +101,11 @@ def test_ref_shapes():
     assert normalize.ref("hdfcn52026092212") == "HDFCN52026092212"
     assert normalize.ref("HDFCR520260922123456789") is None  # 23 chars
     assert normalize.ref("12345") is None
+    assert normalize.ref("IDFB6220M8743447") == "IDFB6220M8743447"      # letter mid-UTR
+    assert normalize.ref("HDFCN52026092212345678") == "HDFCN52026092212345678"  # 22-char NEFT
+    assert normalize.ref("INFURNIATECHNOLOG") is None                # a word, not a ref
+    assert normalize.ref("HDFC7020902210002459") is None             # 20-char UMRN
+    assert normalize.ref("N244243236394874") == "N244243236394874"   # UTR without bank code
 
 
 def test_idfc_pair_labels_both_accounts():

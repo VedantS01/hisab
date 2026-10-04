@@ -21,6 +21,16 @@ Each message gets a `kind` and `labels`. Labels are substrings; the checker
   - refunds *initiated* but not yet credited; cashback that "will be credited"
   - orders placed with no payment confirmation; mandates created or set up
 
+Decisions made while labelling:
+- Transfers between the user's own accounts are labelled by direction on each
+  side: the debit alert is `debit`, the credit alert is `credit`.
+- Settlements that "will be credited by 9 PM" are `none`, like any future
+  credit.
+- An FD "account created" notice is `none`. The debit that funds it is a
+  `debit`, with the FD account as CPTY_ACCT.
+- Scam or phishing messages ("credited, tap to claim", from a phone number)
+  are `none`.
+
 Any sender counts: banks, card issuers, UPI apps, wallets, merchants, payment
 gateways, mutual funds, insurers. What matters is whether the message confirms
 a completed movement of the user's money. Two messages for the same payment
@@ -36,7 +46,7 @@ A `none` message has `"labels": {}`.
 | Label | What | Examples |
 |---|---|---|
 | AMOUNT | transaction amount; number only, no currency or `/-` | `1,23,456.78`, `5000.00`, `980` |
-| REF | payment-rail reference ONLY: UPI RRN/UPI Ref/IMPS ref (12 digits), NEFT/RTGS UTR | `626523840940`, `HDFCH01294551929` |
+| REF | payment-rail reference ONLY: UPI RRN/UPI Ref/IMPS ref (12 digits), NEFT/RTGS UTR (16 or 22 chars, may contain letters) | `626523840940`, `HDFCH01294551929`, `IDFB6220M8743447` |
 | OWN_ACCT | the user's account, card or wallet as written, mask included | `XX3293`, `*3293`, `XXXXX308816`, `3293`, `0787` |
 | CPTY_ACCT | the other party's account as written | `XXXXXXXXXXX293` |
 | PAYEE | counterparty name as written: who was paid (debit), who paid (credit); merchant, person, company, fund | `MUNCHMART TECHNOLOGIES PR`, `Mr MO ALAM` |

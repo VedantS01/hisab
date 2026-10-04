@@ -47,7 +47,8 @@ def test_span_that_fails_normalization_is_dropped():
     # A model tagging "Rs." as the amount yields nothing rather than a guess.
     tags = ["O", "B-AMOUNT", "I-AMOUNT"] + ["O"] * (len(OFFSETS) - 3)
     f = decode(TEXT, OFFSETS, _logits(tags), _seq("debit"))
-    assert "amount_paise" not in f
+    # ...and with no readable amount the alert is not admitted at all.
+    assert f["is_txn"] is False and "amount_paise" not in f
 
 
 def test_orphan_inside_tag_opens_a_span():
