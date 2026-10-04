@@ -5,6 +5,27 @@ rules to Swift and Dart, so keep them small and free of heuristics."""
 from __future__ import annotations
 
 import re
+import string
+
+# ASCII-only on purpose: Python, Swift and Dart disagree on Unicode case
+# mapping (İ, ß, final sigma) and on what counts as whitespace, and every value
+# normalized here is ASCII anyway. The ports implement exactly these helpers.
+WS = " \t\n\r\x0b\x0c"
+_WS_RUN = re.compile("[" + WS + "]+")
+_LOWER = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+_UPPER = str.maketrans(string.ascii_lowercase, string.ascii_uppercase)
+
+
+def lower(s: str) -> str:
+    return s.translate(_LOWER)
+
+
+def upper(s: str) -> str:
+    return s.translate(_UPPER)
+
+
+def trim(s: str) -> str:
+    return s.strip(WS)
 
 # Plain digits, Indian grouping (1,23,456) or Western grouping (123,456);
 # a grouped number always ends in a 3-digit group.
@@ -26,7 +47,7 @@ def _digits(s: str) -> int:
 
 
 def amount_paise(text: str) -> int | None:
-    s = text.strip().removesuffix("/-")
+    s = trim(text).removesuffix("/-")
     if not _AMOUNT.match(s):
         return None
     rupees, _, frac = s.replace(",", "").partition(".")
@@ -36,12 +57,12 @@ def amount_paise(text: str) -> int | None:
 def acct_tail(text: str) -> str | None:
     # Last 4 at most: one account shows as XX8816, XXXXXXX8816 and XXXXX308816
     # across alerts from the same bank, and they must normalize alike.
-    m = _TAIL.search(text.strip())
+    m = _TAIL.search(trim(text))
     return m.group(1)[-4:] if m else None
 
 
 def ref(text: str) -> str | None:
-    s = text.strip().upper()
+    s = upper(trim(text))
     # At least 8 digits: a reference is mostly number, never a word.
     return s if _digits(s) >= 8 and any(p.match(s) for p in _REF_PATTERNS) else None
 
@@ -85,23 +106,23 @@ def _ymd(kind: str, g: tuple[str, ...]) -> tuple[int, int, int] | None:
         case "d_m_y":
             return _year(g[3]), int(g[2]), int(g[0])
         case "dby":
-            m = _MONTHS.get(g[1].lower())
+            m = _MONTHS.get(lower(g[1]))
             return (_year(g[2]), m, int(g[0])) if m else None
         case "d_By":
-            m = _FULL_MONTHS.get(g[2].lower())
+            m = _FULL_MONTHS.get(lower(g[2]))
             return (int(g[3]), m, int(g[0])) if m else None
         case "bdy":
-            m = _MONTHS.get(g[0].lower())
+            m = _MONTHS.get(lower(g[0]))
             return (int(g[2]), m, int(g[1])) if m else None
         case "ymd":
             return int(g[0]), int(g[1]), int(g[2])
         case "dm":
             return 2000, int(g[1]), int(g[0])
         case "db":
-            m = _MONTHS.get(g[1].lower())
+            m = _MONTHS.get(lower(g[1]))
             return (2000, m, int(g[0])) if m else None
         case "bd":
-            m = _MONTHS.get(g[0].lower())
+            m = _MONTHS.get(lower(g[0]))
             return (2000, m, int(g[1])) if m else None
     raise ValueError(kind)
 
@@ -115,8 +136,8 @@ def _valid(y: int, m: int, d: int) -> bool:
 
 def date_iso(text: str) -> str | None:
     """ISO date, or `--MM-DD` when the alert names no year."""
-    s = re.sub(r"(\d)(?:st|nd|rd|th)\b", r"\1", text.strip(), flags=re.I | re.A)   # 31st -> 31
-    s = re.sub(r"\s+", " ", s.replace("'", " ")).strip()                           # Oct' 2024 -> Oct 2024
+    s = re.sub(r"(\d)(?:st|nd|rd|th)\b", r"\1", trim(text), flags=re.I | re.A)    # 31st -> 31
+    s = trim(_WS_RUN.sub(" ", s.replace("'", " ")))                                  # Oct' 2024 -> Oct 2024
     for patterns, yearless in ((_DATE_RE, False), (_YEARLESS_RE, True)):
         for rx, kind in patterns:
             m = rx.fullmatch(s)
@@ -127,9 +148,9 @@ def date_iso(text: str) -> str | None:
     return None
 
 
-_HONORIFIC = re.compile(r"^(?:mr|mrs|ms|miss|dr|shri|smt|m/s)\.?\s+")
+_HONORIFIC = re.compile(r"^(?:mr|mrs|ms|miss|dr|shri|smt|m/s)\.? +")
 
 
 def name(text: str) -> str | None:
-    s = re.sub(r"\s+", " ", text).strip(" .,:;-").lower()
+    s = lower(_WS_RUN.sub(" ", text).strip(" .,:;-"))
     return _HONORIFIC.sub("", s) or None

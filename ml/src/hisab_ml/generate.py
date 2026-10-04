@@ -136,7 +136,7 @@ def fields_from_spans(text: str, spans: list[Span], t: Template) -> Fields:
         amount_paise=normalize.amount_paise(first["AMOUNT"]) if "AMOUNT" in first else None,
         ref=normalize.ref(first["REF"]) if "REF" in first else None,
         payee=normalize.name(first["PAYEE"]) if "PAYEE" in first else None,
-        vpa=vpa.lower() if vpa else None,
+        vpa=normalize.lower(vpa) if vpa else None,
         own_acct_tail=normalize.acct_tail(first["OWN_ACCT"]) if "OWN_ACCT" in first else None,
         cpty_acct_tail=normalize.acct_tail(first["CPTY_ACCT"]) if "CPTY_ACCT" in first else None,
         date_iso=normalize.date_iso(first["DATE"]) if "DATE" in first else None,

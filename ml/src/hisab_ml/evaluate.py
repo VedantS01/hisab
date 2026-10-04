@@ -33,7 +33,7 @@ def _counterparty(f: dict) -> set[str]:
     if f.get("payee"):
         out.add(normalize.name(f["payee"]))
     if f.get("vpa"):
-        out.add(f["vpa"].lower())
+        out.add(normalize.lower(f["vpa"]))
     return out
 
 

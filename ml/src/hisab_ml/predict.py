@@ -61,8 +61,8 @@ _NORMALIZE = {
     "OWN_ACCT": ("own_acct_tail", normalize.acct_tail),
     "CPTY_ACCT": ("cpty_acct_tail", normalize.acct_tail),
     "DATE": ("date_iso", normalize.date_iso),
-    "PAYEE": ("payee", lambda s: s.strip() or None),
-    "VPA": ("vpa", lambda s: s.strip().lower() or None),
+    "PAYEE": ("payee", lambda s: normalize.trim(s) or None),
+    "VPA": ("vpa", lambda s: normalize.lower(normalize.trim(s)) or None),
 }
 
 
@@ -70,24 +70,35 @@ def clean_edges(text: str, start: int, end: int) -> bool:
     """A value is a whole run of digits or letters, never a slice of one. The
     model can otherwise tag the last 12 digits of a 20-character mandate id
     (HDFC7020902210002459) as a UPI reference — every digit verbatim, and
-    still invented."""
+    still invented.
+
+    Character classes are ASCII on purpose: the Swift and Dart ports must agree
+    exactly, and every value this guards (amounts, references, accounts) is
+    ASCII."""
     n = len(text)
+
+    def digit(c: str) -> bool:
+        return "0" <= c <= "9"
+
+    def letter(c: str) -> bool:
+        return "a" <= c <= "z" or "A" <= c <= "Z"
 
     def splits_run(i: int) -> bool:
         if i <= 0 or i >= n:
             return False
         a, b = text[i - 1], text[i]
-        return (a.isdigit() and b.isdigit()) or (a.isalpha() and b.isalpha())
+        return (digit(a) and digit(b)) or (letter(a) and letter(b))
 
     def splits_number(i: int) -> bool:
         # 3,13,938.00 is one number: no edge next to a separator between digits.
-        if 2 <= i < n and text[i - 1] in ",." and text[i - 2].isdigit() and text[i].isdigit():
+        if 2 <= i < n and text[i - 1] in ",." and digit(text[i - 2]) and digit(text[i]):
             return True
-        return 1 <= i < n - 1 and text[i] in ",." and text[i - 1].isdigit() and text[i + 1].isdigit()
+        return 1 <= i < n - 1 and text[i] in ",." and digit(text[i - 1]) and digit(text[i + 1])
 
     # A value may START at a letter->digit edge (INR450) but may not END
     # inside a word: the 984 of a masked PAN "XXXXXX984D" is not an account.
-    ends_inside_word = 0 < end < n and text[end - 1].isalnum() and text[end].isalnum()
+    ends_inside_word = (0 < end < n and (digit(text[end - 1]) or letter(text[end - 1]))
+                        and (digit(text[end]) or letter(text[end])))
     return not (splits_run(start) or splits_number(start) or splits_number(end) or ends_inside_word)
 
 
