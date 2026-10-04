@@ -1,0 +1,4 @@
+# Generated (reproducible from the seed) and private (real alerts) — never commit.
+data/
+__pycache__/
+.venv/
