@@ -26,6 +26,8 @@ enum CaptureService {
 
     static func capture(_ text: String, note: String?, receivedAt: Date,
                         in ctx: ModelContext) -> Outcome {
+        // An Email automation passes the body, usually HTML; SMS is unchanged.
+        let text = EmailText.plain(text)
         // Without the extractor this is exactly 1.3.0: the regex parser, a
         // memo, nothing in the ledger. A throw is treated the same way.
         guard let alert = try? extractor?.extract(text) else {

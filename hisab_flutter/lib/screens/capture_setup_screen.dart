@@ -93,8 +93,10 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
             const SizedBox(height: 6),
             const Text(
                 'Only notifications from bank, UPI and SMS apps on a bundled '
-                'list are examined at all — a message from a friend is never '
-                'read. Nothing is sent anywhere, and the alert text itself is '
+                'list are examined at all — a WhatsApp from a friend is never '
+                'read. Within those apps, the on-device reader sets aside '
+                'anything that is not a payment: an OTP, an offer, a personal '
+                'SMS. Nothing is sent anywhere, and the alert text itself is '
                 'never stored: only the amount, payee, UPI ID, account '
                 'digits, date and bank reference survive the read.',
                 style: TextStyle(fontSize: 13, color: Colors.black54)),
@@ -189,6 +191,15 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'going quiet, set Hisab’s battery usage to '
                 '“Unrestricted” and enable Autostart where your '
                 'phone offers it.',
+                style: TextStyle(fontSize: 13, color: Colors.black54)),
+            const SizedBox(height: 6),
+            // The listener plugin forwards a notification's title and
+            // EXTRA_TEXT only; for Gmail that is the sender and the subject,
+            // so Gmail is deliberately not on the allowlist.
+            const Text(
+                'Bank emails are not captured on Android yet. Hisab sees only '
+                'a notification’s headline, and an email’s headline is its '
+                'subject, which rarely carries the amount.',
                 style: TextStyle(fontSize: 13, color: Colors.black54)),
             const SizedBox(height: 6),
             const Text(
