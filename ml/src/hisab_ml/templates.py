@@ -268,4 +268,50 @@ TEMPLATES: list[Template] = [
     _t("x_eml_offer", "email", X,
        "Hi {user},\n\nShop on {merchant} with your {bank} card and get up to {cur}{amt} off.\n\nOffer valid till "
        "{date}. T&C apply.\n\nTeam {bank}"),
+
+    # v2 negatives. Failed, pending and informational messages carry amounts,
+    # accounts and even references, but no money moved (or it moved in a
+    # separate bank alert that Hisab already counts).
+    _t("x_upi_pending", "sms", X,
+       "Your UPI transaction of {cur}{amt} to {vpa} is PENDING. UPI Ref {rrn}. Please do not retry; status will "
+       "be updated within 48 hours. -{bank}"),
+    _t("x_txn_failed", "sms", X,
+       "Transaction of Rs.{amt} from A/c {acct} to {payee} on {date} has failed[[ due to technical reasons| as the "
+       "beneficiary bank is unavailable|]]. Ref No {rrn}. Any amount debited will be reversed. -{bank}"),
+    _t("x_imps_failed", "sms", X, "IMPS transfer of Rs {amt} to A/c {acct} FAILED. Ref {rrn}. -{bank}"),
+    _t("x_ntf_declined", "notification", X, "Payment declined\n{cur}{amt} at {merchant} could not be processed"),
+    _t("x_eml_failed", "email", X,
+       "Dear {user},\n\nYour payment of INR {amt} to {merchant} on {date} was unsuccessful. If any amount was "
+       "debited, it will be refunded to your account {acct} within 5-7 working days.\n\nRegards,\n{bank}"),
+    _t("x_balance_ntf", "notification", X,
+       "Balance update\nYour {bank} A/c {acct} balance is {cur}{bal} as on {date} {time}"),
+    _t("x_balance_low", "sms", X,
+       "Your A/c {acct} balance has fallen below Rs.{amt}. Current balance: Rs.{bal}. -{bank}"),
+    # Completed investments ARE transactions (Vedant, 2026-10-04): the app
+    # de-duplicates by rail reference, and a confirmation without one becomes a
+    # memo rather than a ledger row, so a second message cannot double-count.
+    _t("sms_mf_sip", "sms", D,
+       "Your SIP of Rs.{amt:AMOUNT} in {fund:PAYEE} under folio {folio} has been processed at NAV {nav} for {units} "
+       "units on {date:DATE}. [[Team {amc}|Sincerely, {amc}|-{amc}]]"),
+    _t("sms_mf_purchase", "sms", D,
+       "Units allotted: {units} units of {fund:PAYEE} at NAV Rs.{nav} for your investment of Rs.{amt:AMOUNT} in folio "
+       "{folio}. -{amc}"),
+    _t("sms_sip_request", "sms", D,
+       "[[Success! |]]Your SIP [[request|instalment]] in {fund:PAYEE} has been processed for Rs. {amt:AMOUNT}. -{bank}"),
+    _t("x_mf_redemption", "sms", X,
+       "Your redemption request of {units} units in {fund} has been accepted. Amount will be credited to your bank "
+       "account in 2-3 working days. - {amc}"),
+    _t("x_refund_initiated", "notification", X,
+       "Refund of {cur}{amt} [[has been initiated|is initiated|processed from our end]] for your {merchant} order "
+       "{order}. It will reflect in [[2 hours|5-7 working days|3-5 business days]]."),
+    _t("x_reward_points", "sms", X,
+       "You have earned {points} reward points on your {bank} Credit Card {card} for the txn of Rs.{amt} at "
+       "{merchant}."),
+    _t("x_order_placed", "notification", X, "Your order of {cur}{amt} from {merchant} has been placed. Order ID {order}"),
+    _t("eml_merchant_receipt", "email", D,
+       "Dear {user},\n\nThank you for your order {order}.\nAmount paid: {cur}{amt:AMOUNT}\nPayment method: {bank} card "
+       "ending {tail:OWN_ACCT}\n\nTeam {merchant:PAYEE}"),
+    _t("x_predebit", "sms", X,
+       "Pre-debit notification: {cur}{amt} for {merchant} will be debited from your A/c {acct} on {date} via "
+       "AutoPay. UMN {umn}. -{bank}"),
 ]

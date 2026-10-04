@@ -10,7 +10,7 @@ from datetime import datetime
 # Plain digits, Indian grouping (1,23,456) or Western grouping (123,456);
 # a grouped number always ends in a 3-digit group.
 _AMOUNT = re.compile(r"^(?:\d+|\d{1,2}(?:,\d{2})*,\d{3}|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$")
-_TAIL = re.compile(r"(\d{3,6})$")
+_TAIL = re.compile(r"(\d{3,})$")
 _REF_PATTERNS = (
     re.compile(r"^\d{12}$"),                 # UPI RRN / IMPS ref
     re.compile(r"^[A-Z]{4}[A-Z0-9]\d{11}$"), # NEFT UTR, 16 chars
@@ -32,8 +32,10 @@ def amount_paise(text: str) -> int | None:
 
 
 def acct_tail(text: str) -> str | None:
+    # Last 4 at most: one account shows as XX8816, XXXXXXX8816 and XXXXX308816
+    # across alerts from the same bank, and they must normalize alike.
     m = _TAIL.search(text.strip())
-    return m.group(1) if m else None
+    return m.group(1)[-4:] if m else None
 
 
 def ref(text: str) -> str | None:
@@ -51,6 +53,9 @@ def date_iso(text: str) -> str | None:
     return None
 
 
+_HONORIFIC = re.compile(r"^(?:mr|mrs|ms|miss|dr|shri|smt|m/s)\.?\s+")
+
+
 def name(text: str) -> str | None:
     s = re.sub(r"\s+", " ", text).strip(" .,:;-").lower()
-    return s or None
+    return _HONORIFIC.sub("", s) or None

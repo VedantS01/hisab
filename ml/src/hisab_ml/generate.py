@@ -14,6 +14,7 @@ from collections import Counter
 from pathlib import Path
 
 from . import normalize, values
+from .compose import compose
 from .schema import LABELS, Fields, Record, Span
 from .templates import TEMPLATES, Template
 
@@ -73,6 +74,24 @@ def _slot(name: str, rng: random.Random, ifsc: str, bank: str) -> str:
             return f"{ifsc}{rng.randint(10**15, 10**16 - 1)}"
         case "chq":
             return f"{rng.randint(0, 999_999):06d}"
+        case "fund":
+            return rng.choice(values.FUNDS)
+        case "amc":
+            return rng.choice(values.AMCS)
+        case "folio":
+            return f"{rng.randint(10**6, 10**8)}/{rng.randint(10, 99)}"
+        case "nav":
+            return f"{rng.uniform(10, 900):.3f}"
+        case "units":
+            return f"{rng.uniform(1, 2000):.3f}"
+        case "order":
+            # Long digit runs that are NOT rail references.
+            return rng.choice([str(rng.randint(10**14, 10**15 - 1)), f"OD{rng.randint(10**15, 10**16 - 1)}",
+                               f"{rng.randint(100, 999)}-{rng.randint(10**6, 10**7 - 1)}-{rng.randint(10**6, 10**7 - 1)}"])
+        case "points":
+            return str(rng.randint(1, 2000))
+        case "umn":
+            return f"{rng.getrandbits(128):032x}@{rng.choice(values.HANDLES)}"
         case "vehicle":
             return f"{rng.choice(['MH12', 'KA05', 'DL3C', 'TN09', 'GJ01'])}{rng.choice('ABCDEFGH')}{rng.choice('JKLMNP')}{rng.randint(1000, 9999)}"
     raise KeyError(f"unknown slot {{{name}}}")
@@ -135,20 +154,11 @@ def make_record(t: Template, i: int, rng: random.Random) -> Record:
                   channel=t.channel, template_id=t.id, issuer=bank)
 
 
-def split_templates(templates: list[Template], test_every: int = 5) -> set[str]:
-    """Held-out template ids, stratified by (channel, kind) so the test set
-    contains unseen debits, credits and non-transactions on every channel
-    that has enough formats to spare one."""
-    groups: dict[tuple, list[Template]] = {}
-    for t in templates:
-        groups.setdefault((t.channel, t.direction or "none"), []).append(t)
-    held: set[str] = set()
-    for group in groups.values():
-        if len(group) < 3:
-            continue
-        ranked = sorted(group, key=lambda t: hashlib.sha1(t.id.encode()).hexdigest())
-        held.update(t.id for k, t in enumerate(ranked) if k % test_every == test_every // 2)
-    return held
+def split_templates(templates: list[Template], test_every: int = 4) -> set[str]:
+    """Held-out template ids. Each template's own hash decides, so adding a
+    template never moves an existing one between train and test."""
+    return {t.id for t in templates
+            if int(hashlib.sha1(f"split:{t.id}".encode()).hexdigest(), 16) % test_every == 0}
 
 
 def main() -> None:
@@ -158,6 +168,7 @@ def main() -> None:
     ap.add_argument("--test-per-template", type=int, default=200)
     ap.add_argument("--val-fraction", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--compose", type=int, default=0, help="compositional records added to train/val")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -171,6 +182,12 @@ def main() -> None:
                 splits["test"].append(r)
             else:
                 splits["val" if rng.random() < args.val_fraction else "train"].append(r)
+
+    # Compositional records train the model to read clauses rather than
+    # recognise templates. Never in test: the held-out hand templates are.
+    for i in range(args.compose):
+        r = make_record(compose(rng), i, rng)
+        splits["val" if rng.random() < args.val_fraction else "train"].append(r)
 
     args.out.mkdir(parents=True, exist_ok=True)
     for name, records in splits.items():

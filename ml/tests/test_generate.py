@@ -42,12 +42,33 @@ def test_template_contract(t):
         assert t.direction is None and not spans
 
 
+def test_compose_records_are_well_formed():
+    from hisab_ml.compose import compose
+
+    rng = random.Random(11)
+    kinds = set()
+    for i in range(3000):
+        r = make_record(compose(rng), i, rng)
+        kinds.add(r.fields.direction)
+        assert "[[" not in r.text and "{" not in r.text, r.text
+        if r.fields.is_txn:
+            assert r.fields.amount_paise, r.text
+        else:
+            assert not r.spans
+        for s in r.spans:
+            piece = r.text[s.start:s.end]
+            assert piece == piece.strip() and piece
+            if s.label in NORMALIZERS:
+                assert NORMALIZERS[s.label](piece) is not None, (s.label, piece, r.text)
+    assert kinds == {"debit", "credit", None}
+
+
 def test_ids_unique_and_split_covers_each_kind():
     assert len({t.id for t in TEMPLATES}) == len(TEMPLATES)
     held = split_templates(TEMPLATES)
     kinds = {(t.is_txn, t.direction) for t in TEMPLATES if t.id in held}
     assert kinds == {(True, "debit"), (True, "credit"), (False, None)}
-    assert 0.1 < len(held) / len(TEMPLATES) < 0.3
+    assert 0.15 < len(held) / len(TEMPLATES) < 0.35
 
 
 @pytest.mark.parametrize("text,paise", [
@@ -64,6 +85,14 @@ def test_amount(text, paise):
 ])
 def test_date(text, iso):
     assert normalize.date_iso(text) == iso
+
+
+@pytest.mark.parametrize("text,tail", [
+    ("XX8816", "8816"), ("XXXXXXX8816", "8816"), ("XXXXX308816", "8816"), ("XXXXXXXX816", "816"),
+    ("*3293", "3293"), ("3293", "3293"), ("XX12", None),
+])
+def test_acct_tail(text, tail):
+    assert normalize.acct_tail(text) == tail
 
 
 def test_ref_shapes():

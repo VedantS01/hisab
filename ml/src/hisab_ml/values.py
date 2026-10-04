@@ -31,7 +31,16 @@ Cult.fit|Decathlon|IKEA|Lenskart|Nykaa|Tanishq|Starbucks|Third Wave Coffee|
 BLUE TOKAI COFFEE|Chaayos|Haldirams|McDonalds|Dominos Pizza|KFC|Burger King|
 Paradise Biryani|Barbeque Nation|PVR INOX|Urban Company|Dunzo|Swiggy Instamart|
 LIC of India|HDFC Life|Groww|Zerodha|Upstox|CRED|Google Play|Apple Services|
-YouTube Premium|Microsoft|ACT Fibernet|Tata Play|Zoomcar|FASTag Recharge""".replace("\n", "").split("|")
+YouTube Premium|Microsoft|ACT Fibernet|Tata Play|Zoomcar|FASTag Recharge|
+Indian Clearing Corporation|BSE Limited|CAMS|KFintech|Star Health|ICICI Lombard""".replace("\n", "").split("|")
+
+FUNDS = """HDFC Flexi Cap Fund(G)|Parag Parikh Flexi Cap Fund-Reg(G)|Axis Bluechip Fund-Growth|
+Mirae Asset Large Cap Fund-Reg-G|SBI Small Cap Fund-Reg-Growth|ICICI Pru Nifty 50 Index Fund|
+Nippon India Small Cap Fund (G)|Kotak Emerging Equity Fund-Reg-G|UTI Nifty 50 Index Fund-Growth|
+Quant Active Fund-Growth|Motilal Oswal Midcap Fund-Reg(G)|DSP ELSS Tax Saver Fund-Reg-G""".replace("\n", "").split("|")
+
+AMCS = ["HDFCMF", "Axis MF", "SBI MF", "ICICI Prudential MF", "Mirae Asset MF", "Nippon India MF",
+        "PPFAS MF", "Kotak MF", "CAMS", "KFintech"]
 
 SHOP_KIND = """KIRANA STORE|GENERAL STORES|MEDICALS|SWEETS|BAKERY|TEA STALL|
 FRUITS AND VEGETABLES|ELECTRICALS|HARDWARE|TAILORS|DAIRY|CHICKEN CENTRE|
@@ -148,12 +157,16 @@ def person(rng: random.Random) -> str:
     first, last = rng.choice(FIRST), rng.choice(LAST)
     style = rng.random()
     if style < 0.4:
-        return f"{first} {last}".upper()
-    if style < 0.7:
-        return f"{first} {last}"
-    if style < 0.85:
-        return f"{first.upper()} {last[0]}"
-    return first.upper()
+        s = f"{first} {last}".upper()
+    elif style < 0.7:
+        s = f"{first} {last}"
+    elif style < 0.85:
+        s = f"{first.upper()} {last[0]}"
+    else:
+        s = first.upper()
+    if rng.random() < 0.12:
+        s = rng.choice(["Mr ", "Ms ", "Mrs ", "Dr ", "MR ", "Shri "]) + s
+    return s
 
 
 def merchant(rng: random.Random) -> str:
