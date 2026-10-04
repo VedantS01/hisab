@@ -30,4 +30,22 @@ public enum SelfTransfers {
         }
         return flagged
     }
+
+    /// Captured-alert rows (`Source.alert`) that are legs of a transfer between
+    /// the user's own accounts. Alert rows are payment-app side, so `detect`
+    /// never sees them; without this, one transfer alerted on both accounts
+    /// would count as spending and as income.
+    ///
+    /// A row is a self transfer when another alert row has the same reference
+    /// and the opposite direction (one IMPS ref appears in the sending bank's
+    /// debit alert and the receiving bank's credit alert), or when its
+    /// reference is on a bank row `detect` already flagged.
+    public static func alerts(_ rows: [(id: UUID, reference: String, direction: Direction)],
+                              bankSelfTransferRefs: Set<String>) -> Set<UUID> {
+        var directions: [String: Set<Direction>] = [:]
+        for row in rows { directions[row.reference, default: []].insert(row.direction) }
+        return Set(rows.filter { row in
+            directions[row.reference]?.count == 2 || bankSelfTransferRefs.contains(row.reference)
+        }.map(\.id))
+    }
 }
