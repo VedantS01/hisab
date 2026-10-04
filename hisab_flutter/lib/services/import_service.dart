@@ -3,6 +3,8 @@
 /// insert → reconciliation recompute for every covered month.
 library;
 
+import 'dart:math';
+
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:hisab_core/hisab_core.dart';
@@ -122,10 +124,15 @@ class ImportService {
           periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
         ));
     final inserted = <MemoMergeCandidate>[];
+    final insertedRefs = <String>{};
     await db.batch((batch) {
       for (final index in newIndices) {
         final txn = parsed.transactions[index];
         final uuid = newId();
+        final ref = txn.reference;
+        if (ref != null && ref.isNotEmpty) {
+          insertedRefs.add(_paymentKey(ref, txn.direction.name));
+        }
         inserted.add(MemoMergeCandidate(
           id: uuid,
           date: txn.date,
@@ -153,7 +160,12 @@ class ImportService {
     });
 
     final months = period.months;
-    for (final month in months) {
+    final recompute = {
+      ...months,
+      if (_supersedesAlerts(source))
+        ...await _dropSupersededAlerts(insertedRefs),
+    };
+    for (final month in recompute) {
       await Queries.recomputeMatches(db, month);
     }
 
@@ -166,6 +178,123 @@ class ImportService {
         newCount: newIndices.length,
         monthsTouched: months,
         duplicateOfExistingFile: false);
+  }
+
+  /// An app export (GPay, Paytm, BHIM, `upi:*`) is the fuller record of a
+  /// payment than the alert for it, and both sit on the payment-app side, so
+  /// only one of them could reconcile against the bank row — keeping both
+  /// would count the payment twice. The export wins, whichever lands first:
+  /// [insertCapturedAlert] skips a row an export already holds, and an export
+  /// import drops the alert rows it covers.
+  static bool _supersedesAlerts(Source source) =>
+      source.kind == SourceKind.paymentApp && source != Source.alert;
+
+  /// One payment's identity across sources: its reference and direction (a
+  /// refund reuses the payment's reference the other way).
+  static String _paymentKey(String reference, String direction) =>
+      '$reference|$direction';
+
+  /// Deletes the captured-alert rows whose payment an export just inserted,
+  /// with their matches, and returns their months for reconciling again.
+  Future<Set<YearMonth>> _dropSupersededAlerts(Set<String> refs) async {
+    if (refs.isEmpty) return const {};
+    final superseded = [
+      for (final txn in await (db.select(db.storedTransactions)
+            ..where((t) => t.sourceRaw.equals(Source.alert.rawValue)))
+          .get())
+        if (txn.reference != null &&
+            refs.contains(_paymentKey(txn.reference!, txn.direction)))
+          txn
+    ];
+    if (superseded.isEmpty) return const {};
+    final uuids = [for (final txn in superseded) txn.uuid];
+    await (db.delete(db.storedMatches)..where((m) => m.appUuid.isIn(uuids)))
+        .go();
+    await (db.delete(db.storedTransactions)..where((t) => t.uuid.isIn(uuids)))
+        .go();
+    return {for (final txn in superseded) YearMonth.fromDate(dateOf(txn))};
+  }
+
+  /// The one document every captured-alert row hangs off (`documentId` is NOT
+  /// NULL). A fixed key rather than a file's bytes: there is no file, and the
+  /// key can never equal a real SHA-256, so [_alreadyImported] never trips.
+  static const capturedAlertsFileHash = 'capture:alert';
+
+  /// A captured alert's ledger row ([AlertCapture.ledgerRow]) into the ledger
+  /// as a [Source.alert] row. False when a row with its content hash is
+  /// already there — the same payment alerted twice, or a re-posted alert —
+  /// or when an app export already holds the payment ([_supersedesAlerts]).
+  ///
+  /// The row joins the persistent "Captured alerts" document, created on first
+  /// use and widened to cover it, and its month is reconciled again so a
+  /// statement row already imported confirms it at once. No memo is retired
+  /// here: the memo from the same alert would claim its own row.
+  static Future<bool> insertCapturedAlert(ParsedTransaction row,
+      {required AppDatabase db}) async {
+    final hash = row.contentHash(Source.alert);
+    final dateMs = row.date.toUtc().millisecondsSinceEpoch;
+    final inserted = await db.transaction(() async {
+      final existing = await (db.select(db.storedTransactions)
+            ..where((t) => t.contentHash.equals(hash)))
+          .getSingleOrNull();
+      if (existing != null) return false;
+
+      final ref = row.reference;
+      if (ref != null) {
+        final samePayment = await (db.select(db.storedTransactions)
+              ..where((t) =>
+                  t.reference.equals(ref) &
+                  t.direction.equals(row.direction.name)))
+            .get();
+        if (samePayment.any((t) => _supersedesAlerts(Source(t.sourceRaw)))) {
+          return false;
+        }
+      }
+
+      final doc = await (db.select(db.storedDocuments)
+            ..where((d) => d.fileSha256.equals(capturedAlertsFileHash)))
+          .getSingleOrNull();
+      final String documentId;
+      if (doc == null) {
+        documentId = newId();
+        await db.into(db.storedDocuments).insert(StoredDocumentsCompanion.insert(
+              id: documentId,
+              sourceRaw: Source.alert.rawValue,
+              filename: Source.alert.displayName,
+              fileSha256: capturedAlertsFileHash,
+              periodStartMs: dateMs,
+              periodEndMs: dateMs,
+            ));
+      } else {
+        documentId = doc.id;
+        if (dateMs < doc.periodStartMs || dateMs > doc.periodEndMs) {
+          await (db.update(db.storedDocuments)
+                ..where((d) => d.id.equals(doc.id)))
+              .write(StoredDocumentsCompanion(
+            periodStartMs: Value(min(doc.periodStartMs, dateMs)),
+            periodEndMs: Value(max(doc.periodEndMs, dateMs)),
+          ));
+        }
+      }
+      await db.into(db.storedTransactions).insert(
+          StoredTransactionsCompanion.insert(
+            uuid: newId(),
+            contentHash: hash,
+            sourceRaw: Source.alert.rawValue,
+            dateMs: dateMs,
+            amountPaise: row.amountPaise,
+            direction: row.direction.name,
+            counterparty: row.counterparty,
+            reference: Value(row.reference),
+            narration: row.narration,
+            documentId: documentId,
+          ));
+      return true;
+    });
+    if (inserted) {
+      await Queries.recomputeMatches(db, YearMonth.fromDate(row.date));
+    }
+    return inserted;
   }
 
   /// Retires pending memos against statement rows that have now arrived, and

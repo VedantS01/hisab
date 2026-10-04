@@ -3,6 +3,7 @@
 library;
 
 export 'src/analytics.dart';
+export 'src/capture/alert_capture.dart';
 export 'src/capture/alert_parser.dart';
 export 'src/capture/category_ranker.dart';
 export 'src/capture/memo_merger.dart';

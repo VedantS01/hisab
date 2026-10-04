@@ -21,11 +21,19 @@ class Source {
   /// Sources with first-party parsers; drives pickers, filters, and copy.
   static const builtIn = [gpay, paytm, bhim, hdfc, idfc];
 
+  /// Rows captured from transaction alerts that carry a payment-rail
+  /// reference. Payment-app kind: like a GPay export row, an alert is the
+  /// payer's record of a payment, counted at once and confirmed when the bank
+  /// statement's row reconciles against it. Not in [builtIn]: nothing imports
+  /// it from a file.
+  static const alert = Source('alert');
+
   SourceKind get kind {
     switch (rawValue) {
       case 'gpay':
       case 'paytm':
       case 'bhim':
+      case 'alert':
         return SourceKind.paymentApp;
       default:
         return rawValue.startsWith('upi:')
@@ -46,6 +54,8 @@ class Source {
         return 'HDFC Bank';
       case 'idfc':
         return 'IDFC First Bank';
+      case 'alert':
+        return 'Captured alerts';
       default:
         final slug = rawValue.split(':').last;
         if (slug.length <= 4) return slug.toUpperCase();

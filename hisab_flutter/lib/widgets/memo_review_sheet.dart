@@ -245,7 +245,10 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
         const Text(
             'The first few are what you spend on most; the rest are every '
             'category your rules already use. Nothing here touches your '
-            'statements — a memo is a label, not a ledger entry.',
+            'statements. An alert that carried a bank reference (a UPI or '
+            'IMPS ref, a NEFT UTR) is already in your ledger and is confirmed '
+            'when the statement arrives; any other memo is a label, not a '
+            'ledger entry, until then.',
             style: TextStyle(fontSize: 12, color: Colors.black54)),
         const SizedBox(height: 8),
         Card(

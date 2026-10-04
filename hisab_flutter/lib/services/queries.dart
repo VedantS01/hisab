@@ -42,6 +42,10 @@ class Queries {
   static Set<String> matchedBankUuids(List<StoredMatche> matches) =>
       matches.map((m) => m.bankUuid).toSet();
 
+  /// Bank→bank self transfers ([SelfTransfers.detect]) plus the captured-alert
+  /// rows that are legs of one ([SelfTransfers.alerts]): alert rows are
+  /// payment-app side, so `detect` never sees them, and one transfer alerted
+  /// on both accounts would otherwise count as spending and as income.
   static Set<String> selfTransferUuids(List<StoredTransaction> txns) {
     final bank = [
       for (final txn in txns)
@@ -55,7 +59,22 @@ class Queries {
                   reference: txn.reference),
               sourceOf(txn))
     ];
-    return SelfTransfers.detect(bank);
+    final flagged = SelfTransfers.detect(bank);
+    final bankRefs = {
+      for (final txn in txns)
+        if (flagged.contains(txn.uuid) && (txn.reference ?? '').isNotEmpty)
+          txn.reference!
+    };
+    final alerts = [
+      for (final txn in txns)
+        if (txn.sourceRaw == Source.alert.rawValue &&
+            (txn.reference ?? '').isNotEmpty)
+          (id: txn.uuid, reference: txn.reference!, direction: directionOf(txn))
+    ];
+    return {
+      ...flagged,
+      ...SelfTransfers.alerts(alerts, bankSelfTransferRefs: bankRefs),
+    };
   }
 
   /// Matched bank rows are reconciliation evidence — hidden from history.
@@ -128,6 +147,14 @@ class Queries {
           )
     ];
   }
+
+  /// Statement documents: all but the one "Captured alerts" document, whose
+  /// period spans only the alerts it holds. Coverage — the grid, and which
+  /// months a statement covers end to end — counts statements alone.
+  static List<StoredDocument> statements(List<StoredDocument> documents) => [
+        for (final doc in documents)
+          if (doc.sourceRaw != Source.alert.rawValue) doc
+      ];
 
   static List<DatePeriod> insightPeriods(List<StoredDocument> documents) => [
         for (final doc in documents)

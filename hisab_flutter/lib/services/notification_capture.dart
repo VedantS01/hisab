@@ -1,5 +1,6 @@
 /// Android's half of near-real-time capture: bank and UPI alerts read off the
-/// notification shade, parsed, and filed as pending memos.
+/// notification shade, read by the on-device extractor, and filed as pending
+/// memos — plus, when the alert carries a bank reference, a ledger row.
 ///
 /// The iOS twin is `Hisab/Intents/AddTransactionAlertIntent.swift`, and the
 /// order of operations here is a deliberate transcription of it: stamp the
@@ -19,10 +20,12 @@
 /// ## The raw alert text is never persisted
 ///
 /// The concatenated title+content exists only as a local `String` for the
-/// duration of one `AlertParser.parse` call. It is never written to the
-/// database (the memo table has no column that could hold it), never put in
-/// SharedPreferences, and never logged. What survives is the parsed fields:
-/// amount in integer paise, direction, payee, VPA, account tail, date.
+/// duration of one read (the extractor's, or `AlertParser.parse` while the
+/// model is unavailable). It is never written to the database (neither the
+/// memo table nor the ledger has a column that could hold it), never put in
+/// SharedPreferences, and never logged. What survives is the read fields:
+/// amount in integer paise, direction, payee, VPA, account tails, date, and
+/// the bank reference.
 ///
 /// ## Zero network
 ///
@@ -42,7 +45,9 @@ import 'package:notification_listener_service/notification_listener_service.dart
 
 import '../storage/database.dart';
 import 'capture_prefs.dart';
+import 'import_service.dart';
 import 'memo_store.dart';
+import 'onnx_extractor_model.dart';
 
 /// Senders whose notifications are examined at all.
 ///
@@ -88,10 +93,11 @@ enum CaptureOutcome {
   /// Allowlisted, but no transaction could be read out of the text.
   unparsed,
 
-  /// Parsed, but this alert had already been captured.
+  /// Parsed, but this alert had already been captured — its memo and its
+  /// ledger row, whichever it has.
   duplicate,
 
-  /// Parsed and filed.
+  /// Parsed and filed: a new memo, a new ledger row, or both.
   captured,
 }
 
@@ -101,6 +107,25 @@ class NotificationCapture {
   static StreamSubscription<ServiceNotificationEvent>? _subscription;
 
   static bool get isRunning => _subscription != null;
+
+  /// The loaded extractor. Null while it loads and for good if it cannot
+  /// (no ONNX Runtime on this platform, a missing asset): capture then reads
+  /// alerts with [AlertParser], exactly as before the extractor existed.
+  static AlertExtractor? _extractor;
+  static Future<AlertExtractor?>? _extractorLoad;
+
+  /// The on-device extractor, loaded once per process; every caller shares
+  /// the first load. Resolves null when it cannot be loaded.
+  static Future<AlertExtractor?> extractor() =>
+      _extractorLoad ??= () async {
+        try {
+          return _extractor = await loadAlertExtractor();
+        } catch (error) {
+          debugPrint('capture: extractor unavailable, reading alerts with the '
+              'parser (${error.runtimeType})');
+          return null;
+        }
+      }();
 
   /// Whether the user has granted notification access in system settings.
   static Future<bool> isGranted() =>
@@ -140,6 +165,8 @@ class NotificationCapture {
   }) async {
     if (_subscription != null) return;
     final list = allowlist ?? await CaptureAllowlist.load();
+    // Not awaited: capture is live at once, on the parser, until it lands.
+    unawaited(extractor());
     _subscription =
         NotificationListenerService.notificationsStream.listen((event) {
       // Fire-and-forget: the stream is not awaited by the platform, and an
@@ -152,6 +179,7 @@ class NotificationCapture {
         hasRemoved: event.hasRemoved,
         db: db,
         allowlist: list,
+        extractor: _extractor,
         onCaptured: onCaptured,
         now: (clock ?? DateTime.now)(),
       ).catchError((Object error, StackTrace stack) {
@@ -186,6 +214,7 @@ class NotificationCapture {
     required AppDatabase db,
     required CaptureAllowlist allowlist,
     required DateTime now,
+    AlertExtractor? extractor,
     Future<void> Function(PendingMemo memo)? onCaptured,
   }) async {
     // Ahead of everything, including the health stamp: a message from a friend
@@ -211,19 +240,46 @@ class NotificationCapture {
     // The only place the raw text exists. It is not stored, not logged, and
     // goes out of scope with this call.
     final text = '$title $content'.trim();
-    final memo = AlertParser.parse(text, now);
-    if (memo == null) return CaptureOutcome.unparsed;
+    final (memo, row) = await _read(text, now, extractor);
+    if (memo == null && row == null) return CaptureOutcome.unparsed;
 
-    final inserted = await MemoStore.insert(memo, db: db);
+    final memoInserted = memo != null && await MemoStore.insert(memo, db: db);
+    // Only an alert carrying a bank reference has a row; the content hash
+    // (source + reference + direction) is its dedup guard.
+    final rowInserted =
+        row != null && await ImportService.insertCapturedAlert(row, db: db);
     // On a PARSED alert, whether or not it was new — a duplicate is still
     // proof the pipeline works, and the health indicator is about the
     // pipeline. Set on every parse, never on every notification.
     await CapturePrefs.setLastCaptureAt(now);
-    if (!inserted) return CaptureOutcome.duplicate;
+    if (!memoInserted && !rowInserted) return CaptureOutcome.duplicate;
 
-    // Task 16's CaptureNotifier goes here, and only on a true insert: a
-    // re-posted alert must not produce a second banner.
-    await onCaptured?.call(memo);
+    // Task 16's CaptureNotifier goes here, and only on a newly inserted memo:
+    // a re-posted alert must not produce a second banner, and a ledger row
+    // alone (an account-to-account transfer) has nobody to label.
+    if (memo != null && memoInserted) await onCaptured?.call(memo);
     return CaptureOutcome.captured;
+  }
+
+  /// The extractor's memo and ledger row ([AlertCapture]) when it is loaded;
+  /// the parser's memo and no row while it loads, if it never does, and if
+  /// one extraction throws. An alert the extractor reads as no transaction is
+  /// an answer, not a failure — it does not go to the parser.
+  static Future<(PendingMemo?, ParsedTransaction?)> _read(
+      String text, DateTime now, AlertExtractor? extractor) async {
+    if (extractor != null) {
+      try {
+        final alert = await extractor.extract(text);
+        return (
+          AlertCapture.memo(alert, receivedAt: now),
+          AlertCapture.ledgerRow(alert, receivedAt: now),
+        );
+      } catch (error) {
+        // The type only: an error's message could quote the text.
+        debugPrint('capture: extraction failed, reading the alert with the '
+            'parser (${error.runtimeType})');
+      }
+    }
+    return (AlertParser.parse(text, now), null);
   }
 }
