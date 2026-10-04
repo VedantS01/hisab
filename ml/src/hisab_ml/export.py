@@ -35,6 +35,67 @@ def export(model_dir: Path) -> tuple[Path, Path]:
     return fp32, int8
 
 
+class _Traceable(torch.nn.Module):
+    """The Extractor with a plain additive attention mask. transformers 5
+    builds its mask with ops coremltools cannot convert (`new_ones`); the
+    layers themselves are unchanged, and export checks the outputs agree."""
+
+    def __init__(self, m):
+        super().__init__()
+        self.m = m
+
+    def forward(self, input_ids, attention_mask):
+        enc = self.m.encoder
+        h = enc.embeddings(input_ids=input_ids)
+        if hasattr(enc, "embeddings_project"):
+            h = enc.embeddings_project(h)
+        # -1e4 rather than -inf or finfo.min: the iOS model runs in float16.
+        mask = (1.0 - attention_mask[:, None, None, :].to(h.dtype)) * -1e4
+        for layer in enc.encoder.layer:
+            out = layer(h, attention_mask=mask)
+            h = out[0] if isinstance(out, tuple) else out
+        return self.m.tag_head(h), self.m.seq_head(h[:, 0])
+
+
+def export_coreml(model_dir: Path) -> Path:
+    """Core ML for iOS: int8 weights, compiled to .mlmodelc so it loads with no
+    Xcode build step (SwiftPM on the command line does not compile models)."""
+    import subprocess
+
+    import coremltools as ct
+    import numpy as np
+    from coremltools.optimize.coreml import OpLinearQuantizerConfig, OptimizationConfig, linear_quantize_weights
+
+    model, tok, meta = load(model_dir)
+    model.encoder.config._attn_implementation = "eager"
+    wrapped = _Traceable(model).eval()
+    sample = tok(["Rs.450.00 debited from a/c XX1234 to VPA a@okaxis", "Sent Rs.239.00\nTo SWIGGY"],
+                 return_tensors="pt", padding=True)
+    with torch.no_grad():
+        want, got = model(sample["input_ids"], sample["attention_mask"]), wrapped(sample["input_ids"],
+                                                                                  sample["attention_mask"])
+    gap = max((a - b).abs().max().item() for a, b in zip(want, got))
+    assert gap < 1e-3, f"wrapper disagrees with the model by {gap}"
+    one = {k: v[:1] for k, v in sample.items()}
+    traced = torch.jit.trace(wrapped, (one["input_ids"], one["attention_mask"]), strict=False)
+    seq = ct.RangeDim(lower_bound=2, upper_bound=meta["max_len"], default=64)
+    ml = ct.convert(
+        traced,
+        inputs=[ct.TensorType(name="input_ids", shape=(1, seq), dtype=np.int32),
+                ct.TensorType(name="attention_mask", shape=(1, seq), dtype=np.int32)],
+        outputs=[ct.TensorType(name="tag_logits"), ct.TensorType(name="seq_logits")],
+        minimum_deployment_target=ct.target.iOS18,
+        compute_precision=ct.precision.FLOAT16,
+    )
+    ml = linear_quantize_weights(ml, OptimizationConfig(global_config=OpLinearQuantizerConfig(
+        mode="linear_symmetric", weight_threshold=512)))
+    package = model_dir / "Extractor.mlpackage"
+    ml.save(str(package))
+    subprocess.run(["xcrun", "coremlcompiler", "compile", str(package), str(model_dir)], check=True,
+                   capture_output=True)
+    return model_dir / "Extractor.mlmodelc"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", type=Path, required=True)

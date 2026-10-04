@@ -1,0 +1,38 @@
+{
+  "version": "v4",
+  "max_len": 192,
+  "tags": [
+    "O",
+    "B-AMOUNT",
+    "I-AMOUNT",
+    "B-REF",
+    "I-REF",
+    "B-PAYEE",
+    "I-PAYEE",
+    "B-VPA",
+    "I-VPA",
+    "B-OWN_ACCT",
+    "I-OWN_ACCT",
+    "B-CPTY_ACCT",
+    "I-CPTY_ACCT",
+    "B-DATE",
+    "I-DATE",
+    "B-BALANCE",
+    "I-BALANCE"
+  ],
+  "seq_classes": [
+    "none",
+    "debit",
+    "credit"
+  ],
+  "char_map": {
+    "₹": "$",
+    "•": "*"
+  },
+  "special": {
+    "[PAD]": 0,
+    "[UNK]": 100,
+    "[CLS]": 101,
+    "[SEP]": 102
+  }
+}

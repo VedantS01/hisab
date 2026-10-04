@@ -146,6 +146,34 @@ class OnnxBackend:
         return enc["offset_mapping"].tolist(), tags, seq
 
 
+class CoreMLBackend:
+    """The .mlpackage via coremltools, one text at a time, as the app runs it."""
+
+    def __init__(self, path: Path, tok, max_len: int):
+        import coremltools as ct
+        self.model = ct.models.MLModel(str(path))
+        self.tok, self.max_len = tok, max_len
+
+    def __call__(self, texts: list[str]):
+        offsets, tags, seqs = [], [], []
+        width = 0
+        for t in texts:
+            enc = self.tok([prepare(t)], return_offsets_mapping=True, truncation=True, max_length=self.max_len,
+                           return_tensors="np")
+            out = self.model.predict({"input_ids": enc["input_ids"].astype(np.int32),
+                                      "attention_mask": enc["attention_mask"].astype(np.int32)})
+            offsets.append(enc["offset_mapping"][0].tolist())
+            tags.append(out["tag_logits"][0].astype(np.float32))
+            seqs.append(out["seq_logits"][0].astype(np.float32))
+            width = max(width, len(offsets[-1]))
+        # Pad to one width so the result looks like a batched backend's.
+        for i in range(len(texts)):
+            pad = width - len(offsets[i])
+            offsets[i] += [[0, 0]] * pad
+            tags[i] = np.pad(tags[i], ((0, pad), (0, 0)))
+        return offsets, np.stack(tags), np.stack(seqs)
+
+
 def predict_texts(backend, texts: list[str], batch: int = 64) -> list[dict]:
     out = []
     for i in range(0, len(texts), batch):
@@ -168,8 +196,12 @@ def main() -> None:
     args = ap.parse_args()
 
     model, tok, meta = load(args.model)
-    backend = (OnnxBackend(args.model / args.onnx, tok, meta["max_len"]) if args.onnx
-               else TorchBackend(model, tok, meta["max_len"]))
+    if args.onnx and args.onnx.endswith(".mlpackage"):
+        backend = CoreMLBackend(args.model / args.onnx, tok, meta["max_len"])
+    elif args.onnx:
+        backend = OnnxBackend(args.model / args.onnx, tok, meta["max_len"])
+    else:
+        backend = TorchBackend(model, tok, meta["max_len"])
     if args.text:
         print(json.dumps(predict_texts(backend, [args.text])[0], indent=2, ensure_ascii=False))
         return
