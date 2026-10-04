@@ -1,0 +1,454 @@
+{
+ "cases": [
+  {
+   "name": "upi debit, payee + vpa + ref",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 23900,
+    "ref": "627775786529",
+    "payee": "MUNCHMART TECHNOLOGIES PR",
+    "own_acct_tail": "3293",
+    "date_iso": "2026-10-04"
+   },
+   "memo": {
+    "amountPaise": 23900,
+    "direction": "debit",
+    "payee": "MUNCHMART TECHNOLOGIES PR",
+    "vpa": null,
+    "accountTail": "3293",
+    "dateISO": "2026-10-04",
+    "captureHash": "1ec85df22136505cf01d60978dfa57bf0a9cf4f6c07cf7e68fa4644144348c72"
+   },
+   "ledger": {
+    "amountPaise": 23900,
+    "direction": "debit",
+    "counterparty": "MUNCHMART TECHNOLOGIES PR",
+    "reference": "627775786529",
+    "narration": "",
+    "dateISO": "2026-10-04",
+    "contentHash": "99f98d021313a145f1ee9c93238e331ddda1b47316c53aeed8a60bf823ef8d7d"
+   }
+  },
+  {
+   "name": "imps self-transfer leg: account only, ref",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 3000000,
+    "ref": "626523840940",
+    "own_acct_tail": "816",
+    "cpty_acct_tail": "293",
+    "date_iso": "2026-09-22"
+   },
+   "memo": null,
+   "ledger": {
+    "amountPaise": 3000000,
+    "direction": "debit",
+    "counterparty": "A/c 293",
+    "reference": "626523840940",
+    "narration": "",
+    "dateISO": "2026-09-22",
+    "contentHash": "c89ab2666faab47e5eea88ac523799e010adf42cfe0bab42053345a1e5929d24"
+   }
+  },
+  {
+   "name": "credit with vpa only",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "credit",
+    "amount_paise": 27000,
+    "ref": "834772752192",
+    "vpa": "8498954794@axl",
+    "own_acct_tail": "3293",
+    "date_iso": "2026-09-13"
+   },
+   "memo": {
+    "amountPaise": 27000,
+    "direction": "credit",
+    "payee": "8498954794@axl",
+    "vpa": "8498954794@axl",
+    "accountTail": "3293",
+    "dateISO": "2026-09-13",
+    "captureHash": "cb8a2875211015d5929ab2c31f461765c3d248b2a931c8d261ef249c58351592"
+   },
+   "ledger": {
+    "amountPaise": 27000,
+    "direction": "credit",
+    "counterparty": "8498954794@axl",
+    "reference": "834772752192",
+    "narration": "8498954794@axl",
+    "dateISO": "2026-09-13",
+    "contentHash": "aca08138a19578acff53a0a5fe86d3160616f978407b1632dd41e988f168963c"
+   }
+  },
+  {
+   "name": "neft salary credit",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "credit",
+    "amount_paise": 31393800,
+    "ref": "HDFCH01294551929",
+    "payee": "INFURNIA TECHNOLOGIES PRIVATE LIMIT",
+    "own_acct_tail": "8816",
+    "date_iso": "2026-10-01"
+   },
+   "memo": {
+    "amountPaise": 31393800,
+    "direction": "credit",
+    "payee": "INFURNIA TECHNOLOGIES PRIVATE LIMIT",
+    "vpa": null,
+    "accountTail": "8816",
+    "dateISO": "2026-10-01",
+    "captureHash": "a9dadb685d969d7f22326152124681b64feafa6491c3da7ddf0310d34ea328a5"
+   },
+   "ledger": {
+    "amountPaise": 31393800,
+    "direction": "credit",
+    "counterparty": "INFURNIA TECHNOLOGIES PRIVATE LIMIT",
+    "reference": "HDFCH01294551929",
+    "narration": "",
+    "dateISO": "2026-10-01",
+    "contentHash": "a9ae5fc48f87b4408dcb2f8b22e3845751123bd3d81aac4ea123d0472ab10c0a"
+   }
+  },
+  {
+   "name": "payee, no ref: memo only",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 500000,
+    "payee": "NSE Clearing Limited",
+    "own_acct_tail": "3293"
+   },
+   "memo": {
+    "amountPaise": 500000,
+    "direction": "debit",
+    "payee": "NSE Clearing Limited",
+    "vpa": null,
+    "accountTail": "3293",
+    "dateISO": "2026-10-04",
+    "captureHash": "0c934e03a256a6b08f3a62c645a4d1d0fc06305d693200fd2eb0d40babff0a39"
+   },
+   "ledger": null
+  },
+  {
+   "name": "no counterparty, no ref: nothing",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 250000,
+    "own_acct_tail": "8816",
+    "date_iso": "2026-10-01"
+   },
+   "memo": null,
+   "ledger": null
+  },
+  {
+   "name": "not a transaction",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": false
+   },
+   "memo": null,
+   "ledger": null
+  },
+  {
+   "name": "transaction without amount",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "ref": "627775786529",
+    "payee": "X"
+   },
+   "memo": null,
+   "ledger": null
+  },
+  {
+   "name": "zero amount",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 0,
+    "ref": "627775786529",
+    "payee": "X"
+   },
+   "memo": null,
+   "ledger": null
+  },
+  {
+   "name": "yearless date earlier in the year",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 19800,
+    "ref": "625533739003",
+    "payee": "Mr MO ALAM",
+    "date_iso": "--09-22"
+   },
+   "memo": {
+    "amountPaise": 19800,
+    "direction": "debit",
+    "payee": "Mr MO ALAM",
+    "vpa": null,
+    "accountTail": null,
+    "dateISO": "2026-09-22",
+    "captureHash": "8eea584fa7720bf03070bcc32a088e94ddb4a613fd33f7a06707aab9d6ca2a40"
+   },
+   "ledger": {
+    "amountPaise": 19800,
+    "direction": "debit",
+    "counterparty": "Mr MO ALAM",
+    "reference": "625533739003",
+    "narration": "",
+    "dateISO": "2026-09-22",
+    "contentHash": "223d5979cd5298a90aca3d26ae29ae6e09a236fe499882d012f056034bfc4300"
+   }
+  },
+  {
+   "name": "yearless date after arrival day -> last year",
+   "receivedAt": "2027-01-02T09:00:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 19900,
+    "ref": "103744592190",
+    "payee": "NETFLIX COM",
+    "date_iso": "--12-31"
+   },
+   "memo": {
+    "amountPaise": 19900,
+    "direction": "debit",
+    "payee": "NETFLIX COM",
+    "vpa": null,
+    "accountTail": null,
+    "dateISO": "2026-12-31",
+    "captureHash": "1ee98b1b4bcb4e392fc789daa159b95f4d0487eab75b6597b9b994bf1d34675b"
+   },
+   "ledger": {
+    "amountPaise": 19900,
+    "direction": "debit",
+    "counterparty": "NETFLIX COM",
+    "reference": "103744592190",
+    "narration": "",
+    "dateISO": "2026-12-31",
+    "contentHash": "75149de0643f4384ea2b093be5828aab1aff38e54d35319de287eb38e3aad4cf"
+   }
+  },
+  {
+   "name": "yearless 29 Feb in a common year -> arrival day",
+   "receivedAt": "2026-03-01T10:00:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "credit",
+    "amount_paise": 98000,
+    "ref": "625346019624",
+    "payee": "SWISH",
+    "date_iso": "--02-29"
+   },
+   "memo": {
+    "amountPaise": 98000,
+    "direction": "credit",
+    "payee": "SWISH",
+    "vpa": null,
+    "accountTail": null,
+    "dateISO": "2026-03-01",
+    "captureHash": "59246b49cc17eac805c8542771955b56f8099520914a4abad35cd36f2b7cdad2"
+   },
+   "ledger": {
+    "amountPaise": 98000,
+    "direction": "credit",
+    "counterparty": "SWISH",
+    "reference": "625346019624",
+    "narration": "",
+    "dateISO": "2026-03-01",
+    "contentHash": "3eae7187a182cdaa8064ea3d634ddc1629bdcf0ff6be845e09efec499786d3da"
+   }
+  },
+  {
+   "name": "impossible full date -> arrival day",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 100,
+    "ref": "625335529320",
+    "payee": "Zepto",
+    "date_iso": "2026-02-30"
+   },
+   "memo": {
+    "amountPaise": 100,
+    "direction": "debit",
+    "payee": "Zepto",
+    "vpa": null,
+    "accountTail": null,
+    "dateISO": "2026-10-04",
+    "captureHash": "b3c994ec90a2d7242da672de71235be5523469ee466898c6001d5044c74a4dea"
+   },
+   "ledger": {
+    "amountPaise": 100,
+    "direction": "debit",
+    "counterparty": "Zepto",
+    "reference": "625335529320",
+    "narration": "",
+    "dateISO": "2026-10-04",
+    "contentHash": "630249e7de619c6c89054158e4aef85982dbcdd3a3377d4f416b6b86bf0fc713"
+   }
+  },
+  {
+   "name": "no date -> arrival day (IST, after midnight UTC+5:30)",
+   "receivedAt": "2026-10-04T23:50:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 7900,
+    "ref": "624315223806",
+    "payee": "AMAZON INDIA CYBS SI"
+   },
+   "memo": {
+    "amountPaise": 7900,
+    "direction": "debit",
+    "payee": "AMAZON INDIA CYBS SI",
+    "vpa": null,
+    "accountTail": null,
+    "dateISO": "2026-10-04",
+    "captureHash": "51159c4d3343bda3cc93e2f6cd62b116224671ec3334e385dfc5e68e22ad5eba"
+   },
+   "ledger": {
+    "amountPaise": 7900,
+    "direction": "debit",
+    "counterparty": "AMAZON INDIA CYBS SI",
+    "reference": "624315223806",
+    "narration": "",
+    "dateISO": "2026-10-04",
+    "contentHash": "092f3c195d123ec677fe6f757f0ec261d3b168998efd66966192adb011401514"
+   }
+  },
+  {
+   "name": "same day in IST, previous day in UTC",
+   "receivedAt": "2026-10-05T01:00:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "debit",
+    "amount_paise": 7900,
+    "ref": "621778790001",
+    "payee": "Amazon"
+   },
+   "memo": {
+    "amountPaise": 7900,
+    "direction": "debit",
+    "payee": "Amazon",
+    "vpa": null,
+    "accountTail": null,
+    "dateISO": "2026-10-05",
+    "captureHash": "ae5eb3c51149466adfdb661e2fe21049c19c331c46d71b2b55f0a7c97547ce8b"
+   },
+   "ledger": {
+    "amountPaise": 7900,
+    "direction": "debit",
+    "counterparty": "Amazon",
+    "reference": "621778790001",
+    "narration": "",
+    "dateISO": "2026-10-05",
+    "contentHash": "43b9acd797bdeae8b8016e4232cb5275f3d3391358dfb1d2d90a2643bff895a4"
+   }
+  },
+  {
+   "name": "empty strings are absent",
+   "receivedAt": "2026-10-04T18:30:00+05:30",
+   "alert": {
+    "is_txn": true,
+    "direction": "credit",
+    "amount_paise": 5000,
+    "ref": "",
+    "payee": "",
+    "vpa": "",
+    "own_acct_tail": ""
+   },
+   "memo": null,
+   "ledger": null
+  }
+ ],
+ "selfTransfers": [
+  {
+   "name": "imps pair on both accounts",
+   "bankRefs": [],
+   "rows": [
+    [
+     "a",
+     "626523840940",
+     "debit"
+    ],
+    [
+     "b",
+     "626523840940",
+     "credit"
+    ],
+    [
+     "c",
+     "627775786529",
+     "debit"
+    ]
+   ],
+   "expected": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "one leg alerted, statement flagged the pair",
+   "bankRefs": [
+    "626523840940"
+   ],
+   "rows": [
+    [
+     "a",
+     "626523840940",
+     "debit"
+    ],
+    [
+     "c",
+     "627775786529",
+     "debit"
+    ]
+   ],
+   "expected": [
+    "a"
+   ]
+  },
+  {
+   "name": "same direction twice is not a pair",
+   "bankRefs": [],
+   "rows": [
+    [
+     "a",
+     "626523840940",
+     "debit"
+    ],
+    [
+     "b",
+     "626523840940",
+     "debit"
+    ]
+   ],
+   "expected": []
+  },
+  {
+   "name": "no alerts",
+   "bankRefs": [
+    "626523840940"
+   ],
+   "rows": [],
+   "expected": []
+  }
+ ]
+}

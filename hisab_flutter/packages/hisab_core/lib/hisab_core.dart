@@ -3,6 +3,7 @@
 library;
 
 export 'src/analytics.dart';
+export 'src/capture/alert_capture.dart';
 export 'src/capture/alert_parser.dart';
 export 'src/capture/category_ranker.dart';
 export 'src/capture/memo_merger.dart';
@@ -10,6 +11,11 @@ export 'src/capture/notification_policy.dart';
 export 'src/capture/pending_memo.dart';
 export 'src/capture/rule_impact.dart';
 export 'src/categories.dart';
+export 'src/extractor/alert_extractor.dart';
+export 'src/extractor/extracted_alert.dart';
+export 'src/extractor/extractor_decode.dart';
+export 'src/extractor/extractor_normalize.dart';
+export 'src/extractor/extractor_tokenizer.dart';
 export 'src/generic_bank/chain_interpreter.dart';
 export 'src/generic_bank/column_inference.dart';
 export 'src/generic_bank/format_fingerprint.dart';

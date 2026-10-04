@@ -110,6 +110,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    // Every document, the captured-alerts one included: here the grid only
+    // supplies the month picker and bank verification (bank sources alone), and
+    // a month with captured rows but no statement yet has to be pickable.
     final grid = Queries.grid(data.documents, data.pins);
     final months = grid.months.isEmpty
         ? [YearMonth.fromDate(DateTime.now())]
@@ -129,7 +132,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       input: InsightsInput(
         records: Queries.insightRecords(data.txns, data.matches, matcher,
             selfTransfers: selfTransfers),
-        documentPeriods: Queries.insightPeriods(data.documents),
+        documentPeriods:
+            Queries.insightPeriods(Queries.statements(data.documents)),
         now: DateTime.now(),
       ),
       config: state.insightsConfig,

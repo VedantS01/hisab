@@ -1,0 +1,30 @@
+[project]
+name = "hisab-ml"
+version = "0.1.0"
+description = "Synthetic data and evaluation for Hisab's on-device alert extractor"
+readme = "README.md"
+authors = [
+    { name = "VedantS01", email = "vedantsaboo2001@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "onnx>=1.23.1",
+    "onnxruntime>=1.30.0",
+    "onnxscript>=0.7.2",
+    "torch>=2.14.1",
+    "transformers>=5.18.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "coremltools>=9.0",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+markers = ["model: downloads a Hugging Face model or tokenizer"]
+addopts = "-m 'not model'"

@@ -1424,4 +1424,105 @@ void main() {
       });
     }
   });
+
+  // Twin of AlertCaptureTests.swift: extractor output -> memo / ledger row,
+  // and SelfTransfers.alerts, both pinned by alert-capture.json. Expected
+  // hashes were computed from the documented canonical strings, independently
+  // of either core.
+  group('AlertCapture', () {
+    final fixture = jsonDecode(
+            File('test/fixtures/alert-capture.json').readAsStringSync())
+        as Map<String, dynamic>;
+
+    Map<String, Object?>? pick(Object? json, List<String> keys) {
+      if (json == null) return null;
+      final map = json as Map<String, dynamic>;
+      return {for (final key in keys) key: map[key]};
+    }
+
+    const memoKeys = ['amountPaise', 'direction', 'payee', 'vpa',
+      'accountTail', 'dateISO', 'captureHash'];
+    const ledgerKeys = ['amountPaise', 'direction', 'counterparty',
+      'reference', 'narration', 'dateISO', 'contentHash'];
+
+    for (final c in fixture['cases'] as List) {
+      final name = c['name'] as String;
+      test('testMemoAndLedgerRowMatchFixture: $name', () {
+        final received = DateTime.parse(c['receivedAt'] as String);
+        final a = c['alert'] as Map<String, dynamic>;
+        final direction = a['direction'] as String?;
+        final alert = ExtractedAlert(
+          isTransaction: a['is_txn'] as bool,
+          direction:
+              direction == null ? null : Direction.values.byName(direction),
+          amountPaise: a['amount_paise'] as int?,
+          ref: a['ref'] as String?,
+          payee: a['payee'] as String?,
+          vpa: a['vpa'] as String?,
+          ownAccountTail: a['own_acct_tail'] as String?,
+          counterpartyAccountTail: a['cpty_acct_tail'] as String?,
+          dateIso: a['date_iso'] as String?,
+          classConfidence: 1,
+        );
+
+        final memo = AlertCapture.memo(alert, receivedAt: received);
+        expect(
+            memo == null
+                ? null
+                : {
+                    'amountPaise': memo.amountPaise,
+                    'direction': memo.direction.name,
+                    'payee': memo.payee,
+                    'vpa': memo.vpa,
+                    'accountTail': memo.accountTail,
+                    'dateISO': istDayString(memo.date),
+                    'captureHash': memo.captureHash,
+                  },
+            pick(c['memo'], memoKeys),
+            reason: 'memo: $name');
+
+        final row = AlertCapture.ledgerRow(alert, receivedAt: received);
+        expect(
+            row == null
+                ? null
+                : {
+                    'amountPaise': row.amountPaise,
+                    'direction': row.direction.name,
+                    'counterparty': row.counterparty,
+                    'reference': row.reference ?? '',
+                    'narration': row.narration,
+                    'dateISO': istDayString(row.date),
+                    'contentHash': row.contentHash(Source.alert),
+                  },
+            pick(c['ledger'], ledgerKeys),
+            reason: 'ledger: $name');
+      });
+    }
+
+    for (final c in fixture['selfTransfers'] as List) {
+      final name = c['name'] as String;
+      test('testAlertSelfTransfersMatchFixture: $name', () {
+        final rows = [
+          for (final r in c['rows'] as List)
+            (
+              id: r[0] as String,
+              reference: r[1] as String,
+              direction: Direction.values.byName(r[2] as String),
+            )
+        ];
+        final flagged = SelfTransfers.alerts(rows,
+            bankSelfTransferRefs: {
+              for (final ref in c['bankRefs'] as List) ref as String
+            });
+        expect(flagged, {for (final id in c['expected'] as List) id as String},
+            reason: name);
+      });
+    }
+
+    test('testAlertSourceIsPaymentAppSide', () {
+      expect(Source.alert.kind, SourceKind.paymentApp);
+      expect(Source.alert.displayName, 'Captured alerts');
+      expect(Source.builtIn.contains(Source.alert), isFalse);
+    });
+  });
 }

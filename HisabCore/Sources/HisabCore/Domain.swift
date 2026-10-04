@@ -18,10 +18,15 @@ public struct Source: RawRepresentable, Codable, Hashable, Sendable, Identifiabl
     public static let idfc = Source(rawValue: "idfc")
     /// Sources with first-party parsers; drives pickers, filters, and capability copy.
     public static let builtIn: [Source] = [.gpay, .paytm, .bhim, .hdfc, .idfc]
+    /// Rows captured from transaction alerts that carry a payment-rail reference.
+    /// Payment-app kind: like a GPay export row, an alert is the payer's record
+    /// of a payment, counted at once and confirmed when the bank statement's row
+    /// reconciles against it. Not in `builtIn`: nothing imports it from a file.
+    public static let alert = Source(rawValue: "alert")
 
     public var kind: SourceKind {
         switch rawValue {
-        case "gpay", "paytm", "bhim": return .paymentApp
+        case "gpay", "paytm", "bhim", "alert": return .paymentApp
         default: return rawValue.hasPrefix("upi:") ? .paymentApp : .bank
         }
     }
@@ -33,6 +38,7 @@ public struct Source: RawRepresentable, Codable, Hashable, Sendable, Identifiabl
         case "bhim": return "BHIM UPI"
         case "hdfc": return "HDFC Bank"
         case "idfc": return "IDFC First Bank"
+        case "alert": return "Captured alerts"
         default:
             let slug = rawValue.split(separator: ":").last.map(String.init) ?? rawValue
             return slug.count <= 4 ? slug.uppercased() : slug.capitalized

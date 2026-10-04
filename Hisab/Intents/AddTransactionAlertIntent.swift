@@ -50,27 +50,37 @@ struct AddTransactionAlertIntent: AppIntent {
             return .result(dialog: "Capture is off. Turn it on in Hisab's settings.")
         }
 
-        guard var memo = AlertParser.parse(text: text, receivedAt: Date()) else {
+        let outcome = CaptureService.capture(text, note: note, receivedAt: Date(), in: ctx)
+        let results = [outcome.memo?.result, outcome.row?.result].compactMap { $0 }
+        guard !results.isEmpty else {
             return .result(dialog: "No transaction found in that text.")
         }
-        memo.note = note
+        // Memo and row carry the same amount; the memo's payee is the name the
+        // user knows, the row's counterparty the fallback when there is no memo.
+        let amount = Money.formatPaise(outcome.memo?.memo.amountPaise ?? outcome.row?.row.amountPaise ?? 0)
+        let payee = outcome.memo?.memo.payee ?? outcome.row?.row.counterparty ?? ""
 
-        switch MemoStore.insert(memo, into: ctx) {
-        case .failed:
+        if results.contains(.inserted) {
+            CapturePrefs.lastCaptureAt = Date()
+            if let captured = outcome.memo, captured.result == .inserted {
+                await CaptureNotifier.considerNotifying(memo: captured.memo, in: ctx)
+            }
+            let logged = payee.isEmpty ? "Logged \(amount)" : "Logged \(amount) to \(payee)"
+            if outcome.row?.result == .inserted {
+                return .result(dialog: "\(logged) and added it to your ledger.")
+            }
+            return .result(dialog: "\(logged).")
+        }
+        if results.contains(.failed) {
             // M-6: a store that could not be read or written is NOT a
             // duplicate. Saying "already logged" here would promise the user
             // their spend is filed when nothing was written, and refreshing
             // `lastCaptureAt` would paint the broken store healthy in Settings
             // — the one place that would otherwise show something is wrong.
             return .result(dialog: "Hisab couldn't save that alert. Nothing was stored.")
-        case .duplicate:
-            // A recognized repeat still proves the pipeline works end to end.
-            CapturePrefs.lastCaptureAt = Date()
-            return .result(dialog: "Already logged \(Money.formatPaise(memo.amountPaise)).")
-        case .inserted:
-            CapturePrefs.lastCaptureAt = Date()
-            await CaptureNotifier.considerNotifying(memo: memo, in: ctx)
-            return .result(dialog: "Logged \(Money.formatPaise(memo.amountPaise)) to \(memo.payee).")
         }
+        // A recognized repeat still proves the pipeline works end to end.
+        CapturePrefs.lastCaptureAt = Date()
+        return .result(dialog: "Already logged \(amount).")
     }
 }

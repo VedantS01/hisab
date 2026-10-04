@@ -37,7 +37,7 @@ class BucketsScreen extends StatelessWidget {
   }
 
   Widget _grid(BuildContext context, Snapshot data) {
-    final grid = Queries.grid(data.documents, data.pins);
+    final grid = Queries.grid(Queries.statements(data.documents), data.pins);
     if (grid.months.isEmpty) {
       return const Center(
         child: Padding(

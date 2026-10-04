@@ -163,7 +163,7 @@ struct SettingsView: View {
         } header: {
             Text("Alert capture")
         } footer: {
-            Text("Hands a bank or UPI alert to Hisab through a Shortcuts automation you build yourself. Captured alerts are memos, not ledger entries — your statements stay the source of truth. Nothing leaves this phone.")
+            Text("Hands a bank or UPI alert to Hisab through a Shortcuts automation you build yourself. Alerts with a bank reference go into your ledger right away and are confirmed when the statement arrives; the rest stay memos until then. Nothing leaves this phone.")
         }
     }
 

@@ -168,8 +168,13 @@ struct DashboardView: View {
         .padding(.horizontal, 24)
     }
 
+    /// The grid's months plus every month a captured alert falls in: the grid
+    /// is statement coverage only, and the current month has to be selectable
+    /// before its statement exists. Gap-filled, newest first, like the grid.
     private func monthOptions(grid: CoverageGrid) -> [YearMonth] {
-        grid.months.isEmpty ? [YearMonth(date: Date())] : grid.months
+        let months = Set(grid.months).union(storedTxns.filter { $0.source == .alert }.map(\.month))
+        guard let lo = months.min(), let hi = months.max() else { return [YearMonth(date: Date())] }
+        return YearMonth.months(from: lo, through: hi).reversed()
     }
 }
 

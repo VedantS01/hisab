@@ -215,7 +215,7 @@ struct MemoReviewContent: View {
             } header: {
                 Text("Category")
             } footer: {
-                Text("The first few are what you spend on most; the rest are every category your rules already use. Nothing here touches your statements — a memo is a label, not a ledger entry.")
+                Text("The first few are what you spend on most; the rest are every category your rules already use. Nothing here touches your statements — a memo is a label. If its alert carried a bank reference, the payment is already in your ledger; if not, the memo stays a label until the statement arrives.")
             }
 
             if let offer {

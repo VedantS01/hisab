@@ -7,7 +7,15 @@ import HisabCore
 enum Queries {
     static func documents(_ ctx: ModelContext) -> [DocumentSummary] {
         let docs = (try? ctx.fetch(FetchDescriptor<StoredDocument>())) ?? []
-        return docs.map { DocumentSummary(id: $0.uuid, source: $0.source, period: $0.period) }
+        return statements(docs).map { DocumentSummary(id: $0.uuid, source: $0.source, period: $0.period) }
+    }
+
+    /// Documents that say which months are covered: every one but the
+    /// captured-alerts document, whose period only spans the alerts that
+    /// happened to arrive. Reading it as a statement would mark a month
+    /// covered, or complete, on the strength of a few SMSes.
+    static func statements(_ documents: [StoredDocument]) -> [StoredDocument] {
+        documents.filter { $0.source != .alert }
     }
 
     static func allTransactions(_ ctx: ModelContext) -> [StoredTransaction] {
@@ -61,13 +69,20 @@ enum Queries {
         Set(matches.map(\.bankUUID))
     }
 
-    /// UUIDs of cross-bank self-transfer pairs (HDFC↔IDFC internal movements).
+    /// UUIDs of cross-bank self-transfer pairs (HDFC↔IDFC internal movements),
+    /// plus the captured-alert rows that are legs of one — see
+    /// `SelfTransfers.alerts`.
     static func selfTransferUUIDs(in txns: [StoredTransaction]) -> Set<UUID> {
         let bank = txns.filter { $0.source.kind == .bank }
-        return SelfTransfers.detect(bank: bank.map {
+        let flagged = SelfTransfers.detect(bank: bank.map {
             (ReconTxn(id: $0.uuid, date: $0.date, amountPaise: $0.amountPaise,
                       direction: $0.direction, reference: $0.reference), $0.source)
         })
+        let bankRefs = Set(bank.filter { flagged.contains($0.uuid) }.compactMap(\.reference))
+        let alerts = txns.filter { $0.source == .alert }.compactMap { txn in
+            txn.reference.map { (id: txn.uuid, reference: $0, direction: txn.direction) }
+        }
+        return flagged.union(SelfTransfers.alerts(alerts, bankSelfTransferRefs: bankRefs))
     }
 
     /// The recorded history: every payment-app transaction, plus bank rows that have no
@@ -158,12 +173,12 @@ enum Queries {
     }
 
     static func insightPeriods(_ documents: [StoredDocument]) -> [DatePeriod] {
-        documents.map(\.period)
+        statements(documents).map(\.period)
     }
 
     static func grid(documents: [StoredDocument], pinned: [PinnedMonth]) -> CoverageGrid {
         CoverageGrid.derive(
-            documents: documents.map { DocumentSummary(id: $0.uuid, source: $0.source, period: $0.period) },
+            documents: statements(documents).map { DocumentSummary(id: $0.uuid, source: $0.source, period: $0.period) },
             pinnedMonths: Set(pinned.map(\.yearMonth)))
     }
 

@@ -36,10 +36,11 @@ class CaptureSetupScreen extends StatefulWidget {
 
 class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
   /// An inline sample, not a bundled resource. The point is for the user to
-  /// watch the real parser succeed before trusting it, and a constant serves
-  /// that exactly as well as a file would.
-  static const sample =
-      'Rs.450.00 debited from a/c XX1234 on 22-09-26 to VPA vedant@okaxis';
+  /// watch the real reader succeed before trusting it, and a constant serves
+  /// that exactly as well as a file would. It carries a UPI reference so the
+  /// result can show the ledger half of capture, not only the memo.
+  static const sample = 'Rs.450.00 debited from a/c XX1234 on 22-09-26 to VPA '
+      'vedant@okaxis. Ref 123456789012.';
 
   bool _enabled = false;
   bool _accessGranted = false;
@@ -92,16 +93,21 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
             const SizedBox(height: 6),
             const Text(
                 'Only notifications from bank, UPI and SMS apps on a bundled '
-                'list are examined at all — a message from a friend is never '
-                'read. Nothing is sent anywhere, and the alert text itself is '
-                'never stored: only the amount, payee, UPI ID, account tail '
-                'and date survive the parse.',
+                'list are examined at all — a WhatsApp from a friend is never '
+                'read. Within those apps, the on-device reader sets aside '
+                'anything that is not a payment: an OTP, an offer, a personal '
+                'SMS. Nothing is sent anywhere, and the alert text itself is '
+                'never stored: only the amount, payee, UPI ID, account '
+                'digits, date and bank reference survive the read.',
                 style: TextStyle(fontSize: 13, color: Colors.black54)),
             const SizedBox(height: 6),
             Text(
-                'A captured alert is a memo, not a ledger entry — your '
-                'statements stay the single source of truth, and a memo’s '
-                'real output is a categorization rule. A memo is deleted '
+                'An alert that carries a bank reference — a UPI or IMPS ref, '
+                'a NEFT UTR — is added to your ledger right away and '
+                'confirmed when the statement arrives. Any other alert stays '
+                'a memo, a label rather than a ledger entry, until the '
+                'statement does: a memo’s real output is a categorization '
+                'rule. A memo is deleted '
                 'after ${PendingMemo.expiryDays} days, unless it has been '
                 'matched to a row in an imported statement: that one is kept '
                 'so the same alert is never captured a second time. Erasing '
@@ -187,6 +193,15 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'phone offers it.',
                 style: TextStyle(fontSize: 13, color: Colors.black54)),
             const SizedBox(height: 6),
+            // The listener plugin forwards a notification's title and
+            // EXTRA_TEXT only; for Gmail that is the sender and the subject,
+            // so Gmail is deliberately not on the allowlist.
+            const Text(
+                'Bank emails are not captured on Android yet. Hisab sees only '
+                'a notification’s headline, and an email’s headline is its '
+                'subject, which rarely carries the amount.',
+                style: TextStyle(fontSize: 13, color: Colors.black54)),
+            const SizedBox(height: 6),
             const Text(
                 'The dashboard warns you after three days without an alert, '
                 'so this fails loudly rather than silently.',
@@ -259,13 +274,62 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
         ),
       );
 
-  void _runTest() {
-    final memo = AlertParser.parse(sample, DateTime.now());
-    if (memo == null) {
-      setState(() =>
-          _testResult = 'Could not read that alert. Nothing was stored.');
-      return;
+  /// Runs what capture runs — the on-device extractor, or the parser when the
+  /// extractor cannot load — and writes nothing.
+  Future<void> _runTest() async {
+    final now = DateTime.now();
+    final extractor = await NotificationCapture.extractor();
+    ExtractedAlert? alert;
+    if (extractor != null) {
+      try {
+        alert = await extractor.extract(sample);
+      } catch (_) {
+        // Falls through to the parser, as capture does.
+      }
     }
+    if (!mounted) return;
+    setState(() => _testResult = alert == null
+        ? 'The on-device reader is not available, so this used the pattern '
+            'parser. ${_parserResult(now)}'
+        : _extractorResult(alert, now));
+  }
+
+  String _extractorResult(ExtractedAlert alert, DateTime now) {
+    final amount = alert.amountPaise;
+    final direction = alert.direction;
+    if (!alert.isTransaction || amount == null || direction == null) {
+      return 'No transaction found in that alert. Nothing was stored.';
+    }
+    final parts = <String>[
+      '${Money.formatPaise(amount)} '
+          '${direction == Direction.debit ? 'out' : 'in'}',
+      if (alert.payee case final payee? when payee.isNotEmpty)
+        '${direction == Direction.debit ? 'to' : 'from'} $payee',
+      if (alert.vpa case final vpa? when vpa.isNotEmpty) 'UPI $vpa',
+      if (alert.ownAccountTail case final tail? when tail.isNotEmpty)
+        'a/c ••$tail',
+      if (alert.counterpartyAccountTail case final tail? when tail.isNotEmpty)
+        'their a/c ••$tail',
+      'on ${istDayLabel(AlertCapture.date(alert.dateIso, receivedAt: now))}',
+      if (alert.ref case final ref? when ref.isNotEmpty) 'ref $ref',
+    ];
+    final String fate;
+    if (AlertCapture.ledgerRow(alert, receivedAt: now) != null) {
+      fate = 'It carries a bank reference, so a real alert like this is added '
+          'to your ledger right away.';
+    } else if (AlertCapture.memo(alert, receivedAt: now) != null) {
+      fate = 'No bank reference, so a real alert like this is kept as a memo '
+          'until the statement arrives.';
+    } else {
+      fate = 'No bank reference and nobody to label, so a real alert like '
+          'this would not be kept.';
+    }
+    return 'Read: ${parts.join(', ')}. $fate Nothing was stored.';
+  }
+
+  String _parserResult(DateTime now) {
+    final memo = AlertParser.parse(sample, now);
+    if (memo == null) return 'Could not read that alert. Nothing was stored.';
     final parts = <String>[
       '${Money.formatPaise(memo.amountPaise)} '
           '${memo.direction == Direction.debit ? 'out' : 'in'}',
@@ -281,6 +345,7 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
     if (memo.accountTail != null) {
       parts.add('a/c ••${memo.accountTail}');
     }
-    setState(() => _testResult = 'Read: ${parts.join(', ')}.');
+    return 'Read: ${parts.join(', ')}. It would be kept as a memo until the '
+        'statement arrives. Nothing was stored.';
   }
 }
