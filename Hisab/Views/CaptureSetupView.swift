@@ -18,20 +18,21 @@ struct CaptureSetupView: View {
 
     /// B3: an inline sample, not a bundled resource. The point is for the user
     /// to watch the real parser succeed before trusting it, and a constant
-    /// serves that exactly as well as a file would.
+    /// serves that exactly as well as a file would. It carries a UPI ref so the
+    /// test shows the path most alerts now take: straight into the ledger.
     private static let sample =
-        "Rs.450.00 debited from a/c XX1234 on 22-09-26 to VPA vedant@okaxis"
+        "Rs.450.00 debited from a/c XX1234 on 22-09-26 to VPA vedant@okaxis. UPI Ref No 627775786529"
 
     var body: some View {
         List {
             Section {
-                Text("Hisab reads the text of a bank or UPI alert you hand it: the amount, who it went to, the UPI ID and the last digits of the account.")
+                Text("Hisab reads the text of a bank or UPI alert you hand it: the amount, who it went to, the UPI ID, the last digits of the account and the bank reference.")
                     .font(.subheadline)
                 // M-5: `MemoStore.expire` spares merged memos on purpose —
                 // their details are what stop the same alert being captured
                 // again — so a flat "deleted after 45 days" was a promise the
                 // app does not keep.
-                Text("It is kept on this phone, in Hisab's own store, and nothing is sent anywhere. A captured alert is a memo, not a ledger entry — your statements stay the single source of truth, and a memo's real output is a categorization rule. A memo Hisab never matched to a statement is deleted after \(PendingMemo.expiryDays) days; one it did match is kept, so the same alert is not captured twice.")
+                Text("It is kept on this phone, in Hisab's own store, and nothing is sent anywhere. An alert that carries a bank reference — a UPI or IMPS ref, a NEFT UTR — goes into your ledger right away and is confirmed when the statement arrives. One without stays a memo, a label rather than a ledger entry, until its statement arrives; a memo's real output is a categorization rule. A memo Hisab never matched to a statement is deleted after \(PendingMemo.expiryDays) days; one it did match is kept, so the same alert is not captured twice.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } header: {
@@ -120,19 +121,47 @@ struct CaptureSetupView: View {
         }
     }
 
+    /// The same decisions `CaptureService` makes, minus the writes.
     private func runTest() {
-        guard let memo = AlertParser.parse(text: Self.sample, receivedAt: Date()) else {
+        let now = Date()
+        guard let alert = try? CaptureService.extractor?.extract(Self.sample) else {
+            // What capture falls back to without the extractor: 1.3.0's
+            // parser, which never adds anything to the ledger.
+            guard let memo = AlertParser.parse(text: Self.sample, receivedAt: now) else {
+                testResult = "Could not read that alert. Nothing was stored."
+                return
+            }
+            testResult = "The on-device reader isn't available, so this is the basic parser's reading. "
+                + Self.reading(amountPaise: memo.amountPaise, direction: memo.direction, payee: memo.payee,
+                               vpa: memo.vpa, accountTail: memo.accountTail, date: memo.date, ref: nil)
+                + " It would be kept as a memo."
+            return
+        }
+        let memo = AlertCapture.memo(from: alert, receivedAt: now)
+        let row = AlertCapture.ledgerRow(from: alert, receivedAt: now)
+        guard memo != nil || row != nil, let amount = alert.amountPaise, let direction = alert.direction else {
             testResult = "Could not read that alert. Nothing was stored."
             return
         }
-        var parts = ["\(Money.formatPaise(memo.amountPaise)) \(memo.direction == .debit ? "out" : "in")",
-                     "to \(memo.payee)",
-                     "on \(ISTStamp.day(memo.date))"]
+        let payee = memo?.payee ?? row.flatMap { $0.counterparty.isEmpty ? nil : $0.counterparty }
+        testResult = Self.reading(amountPaise: amount, direction: direction, payee: payee, vpa: alert.vpa,
+                                  accountTail: alert.ownAccountTail,
+                                  date: AlertCapture.date(alert.dateISO, receivedAt: now), ref: alert.ref)
+            + (row != nil ? " It has a bank reference, so it would go into your ledger right away."
+                          : " It has no bank reference, so it would be kept as a memo until the statement arrives.")
+    }
+
+    private static func reading(amountPaise: Int64, direction: Direction, payee: String?, vpa: String?,
+                                accountTail: String?, date: Date, ref: String?) -> String {
+        var parts = ["\(Money.formatPaise(amountPaise)) \(direction == .debit ? "out" : "in")"]
+        if let payee { parts.append("\(direction == .debit ? "to" : "from") \(payee)") }
+        parts.append("on \(ISTStamp.day(date))")
         // Only when it adds something: this sample's payee IS its VPA, because
         // the alert names no merchant, and printing it twice reads like a bug.
-        if let vpa = memo.vpa, vpa != memo.payee.lowercased() { parts.append("UPI \(vpa)") }
-        if let tail = memo.accountTail { parts.append("a/c ••\(tail)") }
-        testResult = "Read: " + parts.joined(separator: ", ") + "."
+        if let vpa, vpa != payee?.lowercased() { parts.append("UPI \(vpa)") }
+        if let accountTail { parts.append("a/c ••\(accountTail)") }
+        if let ref { parts.append("ref \(ref)") }
+        return "Read: " + parts.joined(separator: ", ") + "."
     }
 
     private func refreshAuthorization() async {

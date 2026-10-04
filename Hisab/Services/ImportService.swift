@@ -137,9 +137,11 @@ final class ImportService {
         // that never landed would vanish from the inbox with nothing to show
         // for it.
         retireMemos(against: inserted)
+        let supersededMonths = source.kind == .paymentApp && source != .alert
+            ? retireAlertRows(supersededBy: inserted) : []
 
         let months = parsed.effectivePeriod.months
-        for month in months {
+        for month in Set(months).union(supersededMonths).sorted() {
             Queries.recomputeMatches(context, month: month)
         }
         try context.save()
@@ -159,10 +161,11 @@ final class ImportService {
 
     /// Attaches memos to the statement rows they turn out to have been about.
     ///
-    /// A memo is a note about a payment, never a ledger entry: an alert carries
-    /// no UTR, so it can join neither content-hash dedup nor balance-chain
-    /// validation. When the statement finally arrives, the payment enters the
-    /// ledger as an ordinary row and the memo's job is done — `mergedTxnUUID`
+    /// A memo is a note about a payment, never a ledger entry. (An alert that
+    /// carries a payment-rail reference also gets a ledger row of its own, via
+    /// `CaptureService`; the memo stays the labelling channel either way.) When
+    /// the statement finally arrives, the payment's statement row is in the
+    /// ledger and the memo's job is done — `mergedTxnUUID`
     /// is what takes it out of the needs-review inbox (see `MemoStore.pending`)
     /// without deleting the user's own note and category.
     ///
@@ -201,6 +204,29 @@ final class ImportService {
             guard let txnUUID = paired[memo.captureHash] else { continue }
             memo.mergedTxnUUID = txnUUID
         }
+    }
+
+    /// Deletes captured-alert rows for payments this app export just brought
+    /// in, returning the months they sat in so their matches are recomputed.
+    ///
+    /// Same reference and direction is the same payment (see `ContentHash`).
+    /// The export is the fuller record, and both rows are app-side: only one
+    /// can reconcile against the bank row, so keeping the alert's copy would
+    /// count the payment twice. `CaptureService` applies the same rule when
+    /// the alert arrives second.
+    private func retireAlertRows(supersededBy inserted: [StoredTransaction]) -> Set<YearMonth> {
+        let keys = Set(inserted.compactMap { txn in txn.reference.map { "\($0)|\(txn.directionRaw)" } })
+        guard !keys.isEmpty else { return [] }
+        let alertRaw = Source.alert.rawValue
+        let alertRows = (try? context.fetch(FetchDescriptor<StoredTransaction>(
+            predicate: #Predicate { $0.sourceRaw == alertRaw }))) ?? []
+        var months: Set<YearMonth> = []
+        for row in alertRows {
+            guard let reference = row.reference, keys.contains("\(reference)|\(row.directionRaw)") else { continue }
+            months.insert(row.month)
+            context.delete(row)
+        }
+        return months
     }
 
     /// Keeps the original bytes so a future parser fix can re-run over past uploads.
