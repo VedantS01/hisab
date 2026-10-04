@@ -32,6 +32,9 @@ dependencies:
   notification_listener_service: ^1.0.0
   flutter_local_notifications: ^22.3.1
   timezone: ^0.11.1
+  # On-device alert extractor: ONNX Runtime, CPU, in-process. Adds no
+  # Android permission (merged manifest checked); the model ships in assets.
+  flutter_onnxruntime: ^1.8.5
 
 dev_dependencies:
   flutter_test:
@@ -54,3 +57,4 @@ flutter:
     - assets/insights/
     - assets/demo/
     - assets/capture/
+    - assets/extractor/
