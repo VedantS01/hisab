@@ -58,8 +58,15 @@ class _Traceable(torch.nn.Module):
 
 
 def export_coreml(model_dir: Path) -> Path:
-    """Core ML for iOS: int8 weights, compiled to .mlmodelc so it loads with no
-    Xcode build step (SwiftPM on the command line does not compile models)."""
+    """Core ML for iOS: int8 weights, float32 compute, compiled to .mlmodelc so
+    it loads with no Xcode build step (SwiftPM on the command line does not
+    compile models).
+
+    Float32, not float16: on iOS/macOS 27 the CPU path (which the Neural
+    Engine configuration also falls back to for a flexible-shape model) returns
+    NaN logits for float16 compute at most lengths and segfaults in BNNS at
+    some — with int8 and with fp16 weights alike. Float32 compute matches the
+    GPU to 1e-5 on CPU, at the same 13 MB."""
     import subprocess
 
     import coremltools as ct
@@ -85,7 +92,7 @@ def export_coreml(model_dir: Path) -> Path:
                 ct.TensorType(name="attention_mask", shape=(1, seq), dtype=np.int32)],
         outputs=[ct.TensorType(name="tag_logits"), ct.TensorType(name="seq_logits")],
         minimum_deployment_target=ct.target.iOS18,
-        compute_precision=ct.precision.FLOAT16,
+        compute_precision=ct.precision.FLOAT32,
     )
     ml = linear_quantize_weights(ml, OptimizationConfig(global_config=OpLinearQuantizerConfig(
         mode="linear_symmetric", weight_threshold=512)))

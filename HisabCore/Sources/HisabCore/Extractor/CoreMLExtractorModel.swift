@@ -2,20 +2,23 @@
 import CoreML
 import Foundation
 
-/// The bundled `Extractor.mlmodelc`: int8 weights, float16 compute, flexible
-/// sequence length 2...192.
+/// The bundled `Extractor.mlmodelc`: int8 weights, float32 compute, flexible
+/// sequence length 2...192. Float32 because the iOS 27 CPU path returns NaN or
+/// segfaults on float16 compute for this model (see `hisab_ml.export`).
 public final class CoreMLExtractorModel: ExtractorModel {
     private let model: MLModel
 
-    /// CPU and Neural Engine only: an App Intent runs in the background, where
-    /// GPU work is not allowed.
+    /// CPU only. An App Intent runs in the background, where GPU work is not
+    /// allowed; and on iOS 27 the Neural Engine plan Core ML specializes for the
+    /// default shape (64 tokens) returns wrong logits, while the float32 CPU
+    /// path is correct at every length 2...192.
     public init() throws {
         guard let url = Bundle.module.url(forResource: "Extractor", withExtension: "mlmodelc",
                                           subdirectory: "Resources/extractor") else {
             throw ExtractorError.missingResource("Extractor.mlmodelc")
         }
         let configuration = MLModelConfiguration()
-        configuration.computeUnits = .cpuAndNeuralEngine
+        configuration.computeUnits = .cpuOnly
         model = try MLModel(contentsOf: url, configuration: configuration)
     }
 
@@ -30,7 +33,7 @@ public final class CoreMLExtractorModel: ExtractorModel {
               let seqArray = outputs.featureValue(for: "seq_logits")?.multiArrayValue else {
             throw ExtractorError.badOutput("missing tag_logits / seq_logits")
         }
-        // Float16 outputs, possibly with padded strides: converting through
+        // Outputs may have padded strides (and were float16 before): converting through
         // MLShapedArray honours both and yields dense row-major Float.
         let tagLogits = MLShapedArray<Float>(converting: tagArray)
         let seqLogits = MLShapedArray<Float>(converting: seqArray)
