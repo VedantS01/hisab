@@ -21,6 +21,12 @@ struct CaptureSetupView: View {
     @State private var enabled = CapturePrefs.isEnabled
     @State private var authorization: UNAuthorizationStatusBox = .unknown
     @State private var testResult: String?
+    @State private var testText = Self.sample
+    @State private var reader: ReaderCheck?
+    @State private var lastAttemptAt = CapturePrefs.lastAttemptAt
+    @State private var lastOutcome = CapturePrefs.lastOutcome
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     /// B3: an inline sample, not a bundled resource. The point is for the user
     /// to watch the real parser succeed before trusting it, and a constant
@@ -31,6 +37,24 @@ struct CaptureSetupView: View {
 
     var body: some View {
         List {
+            Section {
+                ForEach(checkItems) { CaptureCheckRow(item: $0) }
+                if case .crashed = reader {
+                    Button("Try the reader again") {
+                        ExtractorGuard.reenable()
+                        runCheck()
+                    }
+                    .tint(HisabTheme.khataRed)
+                }
+                Button("Report a problem") { report(subject: "Hisab capture problem", alertText: nil) }
+                    .tint(HisabTheme.khataRed)
+                    .accessibilityIdentifier("capture-report")
+            } header: {
+                Text("System check")
+            } footer: {
+                Text("Hisab can't see your Shortcuts automations, so it checks what it can: its reader, and what became of the last alert an automation handed over. It runs again whenever you come back to this screen. A report opens in Mail, and you see everything in it before sending.")
+            }
+
             Section {
                 Text("Hisab reads the text of a bank or UPI alert you hand it, by SMS or by email: the amount, who it went to, the UPI ID, the last digits of the account and the bank reference.")
                     .font(.subheadline)
@@ -101,20 +125,25 @@ struct CaptureSetupView: View {
             }
 
             Section {
+                TextField("Paste an alert", text: $testText, axis: .vertical)
+                    .font(.caption.monospaced())
+                    .lineLimit(2...8)
+                    .accessibilityIdentifier("capture-test-text")
                 Button("Test it") { runTest() }
                     .tint(HisabTheme.khataRed)
-                Text(Self.sample)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
                 if let testResult {
                     Text(testResult)
                         .font(.subheadline)
                         .accessibilityIdentifier("capture-test-result")
+                    Button("Report this reading") {
+                        report(subject: "Hisab misread an alert", alertText: testText, details: [testResult])
+                    }
+                    .tint(HisabTheme.khataRed)
                 }
             } header: {
                 Text("Check the parser")
             } footer: {
-                Text("Runs the reader on a sample alert and shows what it got out. Nothing is stored.")
+                Text("Runs the reader on the text above — a sample, or any alert you paste in — and shows what it got out. Nothing is stored. If it reads an alert wrong, Report this reading emails it to the developer from Mail, so the next update can read it.")
             }
         }
         .scrollContentBackground(.hidden)
@@ -125,7 +154,34 @@ struct CaptureSetupView: View {
         .task {
             enabled = CapturePrefs.isEnabled
             await refreshAuthorization()
+            runCheck()
         }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
+                await refreshAuthorization()
+                runCheck()
+            }
+        }
+    }
+
+    private var checkItems: [CaptureCheckItem] {
+        CaptureSystemCheck.items(enabled: enabled, notifications: authorization, reader: reader,
+                                 lastAttemptAt: lastAttemptAt, lastOutcome: lastOutcome, now: Date())
+    }
+
+    /// Re-reads what UserDefaults holds (not observable) and runs the sample.
+    private func runCheck() {
+        lastAttemptAt = CapturePrefs.lastAttemptAt
+        lastOutcome = CapturePrefs.lastOutcome
+        reader = CaptureSystemCheck.testReader(sample: Self.sample, amountPaise: 45_000, ref: "627775786529")
+    }
+
+    private func report(subject: String, alertText: String?, details: [String] = []) {
+        let check = checkItems.map { "[\($0.status)] \($0.title) — \($0.detail)" }
+        guard let url = CaptureReport.mailtoURL(subject: subject, details: details + check,
+                                                alertText: alertText) else { return }
+        openURL(url)
     }
 
     private func step(_ number: Int, _ text: String) -> some View {
@@ -141,10 +197,12 @@ struct CaptureSetupView: View {
     /// The same decisions `CaptureService` makes, minus the writes.
     private func runTest() {
         let now = Date()
-        guard let alert = try? CaptureService.extractor?.extract(Self.sample) else {
+        // As capture does: a pasted email body is read without its markup.
+        let testText = EmailText.plain(testText)
+        guard let alert = CaptureService.extract(testText) else {
             // What capture falls back to without the extractor: 1.3.0's
             // parser, which never adds anything to the ledger.
-            guard let memo = AlertParser.parse(text: Self.sample, receivedAt: now) else {
+            guard let memo = AlertParser.parse(text: testText, receivedAt: now) else {
                 testResult = "Could not read that alert. Nothing was stored."
                 return
             }

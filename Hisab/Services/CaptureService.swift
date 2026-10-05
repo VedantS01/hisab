@@ -18,7 +18,18 @@ enum CaptureService {
     /// The on-device extractor, loaded on first use and kept for the life of
     /// the process: loading costs far more than an extraction does. Nil when
     /// the model cannot load, and capture then runs on `AlertParser` alone.
-    static let extractor: AlertExtractor? = try? AlertExtractor.live()
+    private static let model: AlertExtractor? = try? AlertExtractor.live()
+
+    /// Whether reads go through the extractor: it loaded, and `ExtractorGuard`
+    /// has not switched it off after a crash.
+    static var readerAvailable: Bool { model != nil && ExtractorGuard.crashedAt == nil }
+
+    /// One read through the extractor, behind the crash marker. Nil when the
+    /// reader is unavailable or threw; callers then fall back to `AlertParser`.
+    static func extract(_ text: String) -> ExtractedAlert? {
+        guard readerAvailable, let model else { return nil }
+        return try? ExtractorGuard.guarded { try model.extract(text) }
+    }
 
     /// Fixed identity of the one document every captured row hangs off.
     /// Not a SHA-256, so it can never collide with an imported file's.
@@ -30,7 +41,7 @@ enum CaptureService {
         let text = EmailText.plain(text)
         // Without the extractor this is exactly 1.3.0: the regex parser, a
         // memo, nothing in the ledger. A throw is treated the same way.
-        guard let alert = try? extractor?.extract(text) else {
+        guard let alert = extract(text) else {
             guard var memo = AlertParser.parse(text: text, receivedAt: receivedAt) else { return Outcome() }
             memo.note = note
             return Outcome(memo: (memo, MemoStore.insert(memo, into: ctx)))

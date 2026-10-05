@@ -47,12 +47,21 @@ struct AddTransactionAlertIntent: AppIntent {
         // only silences the notification while memos keep accruing is worse
         // than no toggle — the user believes they switched the feature off.
         guard CapturePrefs.isEnabled else {
+            CapturePrefs.record(.captureOff)
             return .result(dialog: "Capture is off. Turn it on in Hisab's settings.")
+        }
+
+        // An automation whose Alert Text is not wired to Shortcut Input hands
+        // over nothing. Saying "no transaction found" would blame the alert.
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            CapturePrefs.record(.noText)
+            return .result(dialog: "The automation passed no text. In Shortcuts, set Hisab's Alert Text to Shortcut Input.")
         }
 
         let outcome = CaptureService.capture(text, note: note, receivedAt: Date(), in: ctx)
         let results = [outcome.memo?.result, outcome.row?.result].compactMap { $0 }
         guard !results.isEmpty else {
+            CapturePrefs.record(.notAPayment)
             return .result(dialog: "No transaction found in that text.")
         }
         // Memo and row carry the same amount; the memo's payee is the name the
@@ -62,6 +71,7 @@ struct AddTransactionAlertIntent: AppIntent {
 
         if results.contains(.inserted) {
             CapturePrefs.lastCaptureAt = Date()
+            CapturePrefs.record(.logged)
             if let captured = outcome.memo, captured.result == .inserted {
                 await CaptureNotifier.considerNotifying(memo: captured.memo, in: ctx)
             }
@@ -77,10 +87,12 @@ struct AddTransactionAlertIntent: AppIntent {
             // their spend is filed when nothing was written, and refreshing
             // `lastCaptureAt` would paint the broken store healthy in Settings
             // — the one place that would otherwise show something is wrong.
+            CapturePrefs.record(.saveFailed)
             return .result(dialog: "Hisab couldn't save that alert. Nothing was stored.")
         }
         // A recognized repeat still proves the pipeline works end to end.
         CapturePrefs.lastCaptureAt = Date()
+        CapturePrefs.record(.duplicate)
         return .result(dialog: "Already logged \(amount).")
     }
 }

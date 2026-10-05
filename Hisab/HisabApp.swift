@@ -179,6 +179,8 @@ struct RootView: View {
             // Settings with task 11, so there is otherwise no way to reach the
             // launch-time authorization request below.
             if args.contains("--capture-enable") { CapturePrefs.isEnabled = true }
+            // Simulator-only: stands in for a crash mid-read in the last run.
+            if args.contains("--reader-crash-marker") { ExtractorGuard.leaveMarkerForTesting() }
             // The other half of the pair, and the only way to observe P1: the
             // flag lives in UserDefaults and survives a reinstall-free relaunch,
             // so a run that wants capture OFF has to say so rather than assume
