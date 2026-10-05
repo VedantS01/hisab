@@ -129,6 +129,9 @@ struct CaptureSetupView: View {
                     .font(.caption.monospaced())
                     .lineLimit(2...8)
                     .accessibilityIdentifier("capture-test-text")
+                    // A reading belongs to the text it was made from; a
+                    // report must never pair new text with an old reading.
+                    .onChange(of: testText) { testResult = nil }
                 Button("Test it") { runTest() }
                     .tint(HisabTheme.khataRed)
                 if let testResult {

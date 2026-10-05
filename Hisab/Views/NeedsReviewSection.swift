@@ -33,12 +33,13 @@ enum CaptureHealth: Equatable {
     static func evaluate(enabled: Bool, lastAttemptAt: Date?, lastCaptureAt: Date?,
                          now: Date, readerCrashedAt: Date? = nil) -> CaptureHealth {
         guard enabled else { return .off }
-        // Ahead of the timestamps: after a crash every later alert still
-        // parses (on the fallback parser), so they would read as healthy.
-        if let readerCrashedAt { return .readerOff(since: readerCrashedAt) }
         guard let lastAttemptAt else { return .neverArrived }
         let sinceAttempt = ISTDay.daysBetween(lastAttemptAt, now)
         if sinceAttempt > staleDays { return .noAlerts(days: sinceAttempt) }
+        // After the automation checks, which the user must act on whatever
+        // the reader does; ahead of the parse checks, because after a crash
+        // later alerts still parse (on the fallback) and would read healthy.
+        if let readerCrashedAt { return .readerOff(since: readerCrashedAt) }
         guard let lastCaptureAt else { return .unreadable }
         return ISTDay.daysBetween(lastCaptureAt, now) > staleDays ? .unreadable : .healthy
     }

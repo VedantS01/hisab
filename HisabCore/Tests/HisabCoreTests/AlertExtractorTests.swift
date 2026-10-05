@@ -215,4 +215,19 @@ final class AlertExtractorTests: XCTestCase {
         XCTAssertGreaterThan(fixture.cases.count, 0)
     }
     #endif
+
+    // MARK: runtime faults
+
+    private struct NaNModel: ExtractorModel {
+        func logits(inputIDs: [Int32], attentionMask: [Int32]) throws -> (tags: [[Float]], seq: [Float]) {
+            (inputIDs.map { _ in [Float](repeating: 0, count: 17) }, [.nan, 0, 0])
+        }
+    }
+
+    /// NaN decodes to class 0, "none"; the extractor must throw instead, so
+    /// capture falls back to the parser rather than dropping the alert.
+    func testNonFiniteLogitsThrowInsteadOfDecodingToNone() throws {
+        let extractor = try AlertExtractor(model: NaNModel())
+        XCTAssertThrowsError(try extractor.extract("Rs.450.00 debited from a/c XX1234 UPI Ref 627775786529"))
+    }
 }

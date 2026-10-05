@@ -16,18 +16,27 @@ enum CaptureService {
     }
 
     /// The on-device extractor, loaded on first use and kept for the life of
-    /// the process: loading costs far more than an extraction does. Nil when
-    /// the model cannot load, and capture then runs on `AlertParser` alone.
-    private static let model: AlertExtractor? = try? AlertExtractor.live()
+    /// the process: loading costs far more than an extraction does. The load
+    /// builds Core ML's plan, so it sits behind the crash marker like a read.
+    /// `.some(nil)` once a load has failed: capture then runs on
+    /// `AlertParser` alone, without retrying the load on every alert.
+    private static var loaded: AlertExtractor??
 
-    /// Whether reads go through the extractor: it loaded, and `ExtractorGuard`
-    /// has not switched it off after a crash.
-    static var readerAvailable: Bool { model != nil && ExtractorGuard.crashedAt == nil }
+    /// Nil when `ExtractorGuard` has switched the reader off after a crash —
+    /// checked first, so a switched-off reader is never even loaded — or when
+    /// the model cannot load.
+    private static var model: AlertExtractor? {
+        guard ExtractorGuard.crashedAt == nil else { return nil }
+        if let loaded { return loaded }
+        let model = try? ExtractorGuard.guarded { try AlertExtractor.live() }
+        loaded = .some(model)
+        return model
+    }
 
     /// One read through the extractor, behind the crash marker. Nil when the
     /// reader is unavailable or threw; callers then fall back to `AlertParser`.
     static func extract(_ text: String) -> ExtractedAlert? {
-        guard readerAvailable, let model else { return nil }
+        guard let model else { return nil }
         return try? ExtractorGuard.guarded { try model.extract(text) }
     }
 

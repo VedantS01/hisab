@@ -35,29 +35,34 @@ enum ExtractorGuard {
         UserDefaults.standard.removeObject(forKey: crashedAtKey)
     }
 
-    /// Runs one extraction with the marker in place.
+    /// Runs one load or read with the marker in place.
     static func guarded<T>(_ read: () throws -> T) rethrows -> T {
-        try? FileManager.default.createDirectory(at: marker.deletingLastPathComponent(),
-                                                 withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: marker.path, contents: Data())
+        leaveMarker()
         defer { try? FileManager.default.removeItem(at: marker) }
         return try read()
     }
 
     #if DEBUG
     /// Leaves the marker a crash mid-read would have left, for the UI test.
-    static func leaveMarkerForTesting() {
+    static func leaveMarkerForTesting() { leaveMarker() }
+    #endif
+
+    /// The marker names the build that wrote it, so a crash is held against
+    /// that build only: one that crashed and was then updated before the next
+    /// read must not switch off the update's reader.
+    private static func leaveMarker() {
         try? FileManager.default.createDirectory(at: marker.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: marker.path, contents: Data())
+        FileManager.default.createFile(atPath: marker.path, contents: Data(build.utf8))
     }
-    #endif
 
     /// Turns a marker the previous process left behind into "switched off".
     private static func recoverFromCrash() {
         guard FileManager.default.fileExists(atPath: marker.path) else { return }
+        let writtenBy = (try? Data(contentsOf: marker)).map { String(decoding: $0, as: UTF8.self) }
         let diedAt = (try? FileManager.default.attributesOfItem(atPath: marker.path))?[.creationDate] as? Date
         try? FileManager.default.removeItem(at: marker)
+        guard writtenBy == build else { return }
         UserDefaults.standard.set(build, forKey: disabledBuildKey)
         UserDefaults.standard.set(diedAt ?? Date(), forKey: crashedAtKey)
     }

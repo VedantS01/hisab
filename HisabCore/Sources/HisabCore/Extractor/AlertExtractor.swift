@@ -63,6 +63,13 @@ public struct AlertExtractor {
         let encoding = tokenizer.encode(tokenizer.prepare(scalars), maxLen: resources.maxLen)
         let logits = try model.logits(inputIDs: encoding.ids,
                                       attentionMask: [Int32](repeating: 1, count: encoding.ids.count))
+        // A runtime fault can come back as NaN rather than a crash (iOS 27's
+        // float16 Core ML path did), and NaN decodes to class 0, "none": the
+        // alert would be dropped as not a transaction. Throwing sends it to
+        // the caller's parser fallback instead.
+        guard logits.seq.allSatisfy(\.isFinite), logits.tags.allSatisfy({ $0.allSatisfy(\.isFinite) }) else {
+            throw ExtractorError.badOutput("non-finite logits")
+        }
         return ExtractorDecode.decode(text: scalars, offsets: encoding.offsets,
                                       tagLogits: logits.tags.map { $0.map(Double.init) },
                                       seqLogits: logits.seq.map(Double.init),

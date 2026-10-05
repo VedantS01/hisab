@@ -23,7 +23,7 @@ final class CaptureSetupUITests: XCTestCase {
     }
 
     func testSystemCheckReportsAWorkingPipeline() {
-        let app = openSetup(["--capture-alert", sample])
+        let app = openSetup(["--reader-reset", "--capture-alert", sample])
         XCTAssertTrue(app.staticTexts["Capture is on"].exists)
         XCTAssertTrue(app.staticTexts["On-device reader works"].waitForExistence(timeout: 10))
         // The harness's alert is processed in a launch task that may finish

@@ -242,5 +242,16 @@ void main() {
       expect(got.isTransaction, isFalse);
       expect(got, ExtractedAlert.notTransaction(got.classConfidence));
     });
+
+    test('non-finite logits throw instead of decoding to "none"', () async {
+      final extractor = AlertExtractor.fromStrings(
+        vocab: _asset('vocab.txt'),
+        chartable: _asset('chartable.json'),
+        config: _asset('extractor.json'),
+        model: _FixedModel(const ExtractorLogits([], [double.nan, 0, 0])),
+      );
+      await expectLater(
+          extractor.extract('Rs.450.00 debited'), throwsA(isA<StateError>()));
+    });
   });
 }
