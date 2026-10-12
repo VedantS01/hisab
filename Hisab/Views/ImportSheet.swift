@@ -19,6 +19,9 @@ struct ImportSheet: View {
     @State private var errorMessage: String?
     @State private var showPicker: Bool
     @State private var requestTarget: RequestTarget?
+    /// The on-device model is reading the columns of a statement the rules
+    /// couldn't place.
+    @State private var readingColumns = false
     /// The handed-over file is imported once, on appear. Without this a
     /// re-render (a password typed, the keyboard opening) would re-run it.
     @State private var didImportIncoming = false
@@ -95,9 +98,22 @@ struct ImportSheet: View {
                         Text(errorMessage).foregroundStyle(HisabTheme.khataRed).font(.subheadline)
                     }
                 }
+                if readingColumns {
+                    Section {
+                        Label {
+                            Text("Hisab doesn't know this layout yet. Reading its columns on this iPhone…")
+                        } icon: {
+                            ProgressView()
+                        }
+                        .font(.subheadline)
+                    } footer: {
+                        Text("Nothing leaves your phone, and nothing is added unless every balance adds up.")
+                    }
+                }
                 Section {
                     Button("Import") { attemptImport() }
                         .tint(HisabTheme.khataRed)
+                        .disabled(readingColumns)
                 }
             } else {
                 Text("Choose a file to import.").foregroundStyle(.secondary)
@@ -158,11 +174,32 @@ struct ImportSheet: View {
         } catch ParseError.unrecognizedFormat {
             errorMessage = "Hisab couldn't recognize this file."
         } catch ImportServiceError.unsupportedFormat(let fingerprint) {
-            requestTarget = RequestTarget(fingerprint: fingerprint, verificationDetail: nil)
+            readColumnsOrRequest(url, RequestTarget(fingerprint: fingerprint, verificationDetail: nil))
         } catch ImportServiceError.unverifiedStatement(let fingerprint, let detail) {
-            requestTarget = RequestTarget(fingerprint: fingerprint, verificationDetail: detail)
+            readColumnsOrRequest(url, RequestTarget(fingerprint: fingerprint, verificationDetail: detail))
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// A statement the rules can't read gets one more look — the on-device
+    /// model naming its columns — before the user is asked to send it in.
+    private func readColumnsOrRequest(_ url: URL, _ target: RequestTarget) {
+        guard #available(iOS 26, *), OnDeviceColumnReader.isAvailable else {
+            requestTarget = target
+            return
+        }
+        readingColumns = true
+        Task {
+            defer { readingColumns = false }
+            do {
+                report = try await ImportService(context: context)
+                    .importFileReadingColumns(at: url, password: password.isEmpty ? nil : password)
+            } catch ImportServiceError.unsupportedFormat, ImportServiceError.unverifiedStatement {
+                requestTarget = target
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
