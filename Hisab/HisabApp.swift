@@ -310,6 +310,13 @@ struct RootView: View {
                 printCaptureState()
                 fflush(stdout)
             }
+            // Device check for the iOS 27 Core ML fault, which SwiftPM tests
+            // cannot reach on a phone. Read-only: nothing touches the store.
+            //   xcrun devicectl device process launch --console ... --reader-selftest
+            if args.contains("--reader-selftest") {
+                print(ReaderSelfTest.run())
+                fflush(stdout)
+            }
             // Simulator-only: the blast-radius measurement B2 asks for.
             //   --capture-rule-impact <pattern> <category>
             // Prints the number the offer WOULD show, then writes the rule

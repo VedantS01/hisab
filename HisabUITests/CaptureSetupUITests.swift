@@ -11,9 +11,11 @@ final class CaptureSetupUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func openSetup(_ arguments: [String]) -> XCUIApplication {
+    /// `enable: false` leaves the capture switch as the user set it, for a run
+    /// on a real phone.
+    private func openSetup(_ arguments: [String], enable: Bool = true) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["--capture-enable", "--tab", "settings"] + arguments
+        app.launchArguments = (enable ? ["--capture-enable"] : []) + ["--tab", "settings"] + arguments
         app.launch()
         let link = app.buttons["Capture setup"]
         XCTAssertTrue(link.waitForExistence(timeout: 30))
@@ -49,6 +51,20 @@ final class CaptureSetupUITests: XCTestCase {
         let reportReading = app.buttons["Report this reading"]
         for _ in 0..<3 where !reportReading.exists { app.swipeUp() }
         XCTAssertTrue(reportReading.exists)
+    }
+
+    /// Safe on a real phone: writes nothing to the store or the capture
+    /// prefs. `-only-testing` it there; the other tests inject an alert.
+    func testDeviceReaderOnTheSetupScreen() {
+        let app = openSetup([], enable: false)
+        XCTAssertTrue(app.staticTexts["On-device reader works"].waitForExistence(timeout: 15))
+        let testIt = app.buttons["Test it"].firstMatch
+        for _ in 0..<10 where !testIt.isHittable { app.swipeUp() }
+        testIt.tap()
+        let result = app.staticTexts["capture-test-result"]
+        XCTAssertTrue(result.waitForExistence(timeout: 10))
+        XCTAssertTrue(result.label.contains("₹450.00 out"), result.label)
+        XCTAssertTrue(result.label.contains("ref 627775786529"), result.label)
     }
 
     func testACrashMidReadSwitchesTheReaderOffUntilRetried() {
