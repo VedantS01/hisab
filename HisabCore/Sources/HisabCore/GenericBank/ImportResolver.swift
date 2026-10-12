@@ -86,10 +86,7 @@ public struct ImportResolver: Sendable {
         // 4. Conservative inference.
         let fingerprint = FormatFingerprint.make(table: table)
         if let result = ColumnInference.infer(table: table) {
-            let slug = fingerprint.bankNameGuess.map(Self.slugify) ?? "other"
-            let doc = ParsedDocument(source: Source(rawValue: "bank:\(slug)"),
-                                     declaredPeriod: nil, transactions: result.transactions)
-            return .parsed(doc)
+            return .parsed(Self.document(result.transactions, fingerprint: fingerprint))
         }
 
         // 5. Refuse honestly.
@@ -97,6 +94,31 @@ public struct ImportResolver: Sendable {
             return .unverified(fingerprint, detail: brokenDetail)
         }
         return .unsupported(fingerprint)
+    }
+
+    /// `resolve`, and then — for a table no rule could read — a proposer's
+    /// reading of its columns, accepted only when the balance chain closes
+    /// under it. A proposer that can't help leaves the refusal as it was.
+    public func resolve(data: Data, filename: String, password: String?,
+                        proposer: some ColumnRoleProposer) async -> Resolution {
+        let resolution = resolve(data: data, filename: filename, password: password)
+        switch resolution {
+        case .parsed, .passwordRequired:
+            return resolution
+        case .unsupported, .unverified:
+            guard let table = NormalizedTable.from(data: data, filename: filename, password: password),
+                  let result = await ProposedMapping.read(table: table, proposer: proposer) else {
+                return resolution
+            }
+            return .parsed(Self.document(result.transactions, fingerprint: FormatFingerprint.make(table: table)))
+        }
+    }
+
+    /// A generic read files under the bank its fingerprint names.
+    static func document(_ transactions: [ParsedTransaction], fingerprint: FormatFingerprint) -> ParsedDocument {
+        let slug = fingerprint.bankNameGuess.map(Self.slugify) ?? "other"
+        return ParsedDocument(source: Source(rawValue: "bank:\(slug)"),
+                              declaredPeriod: nil, transactions: transactions)
     }
 
     /// "Bank of Baroda" → "bankofbaroda". Deterministic so re-imports dedup.

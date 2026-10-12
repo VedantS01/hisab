@@ -11,7 +11,7 @@ final class GenericPDFSamplesTests: XCTestCase {
         "idfc/IDFCFIRSTBankstatement_10061308816.pdf": nil,
     ] as [String: String?]
 
-    func testGenericPathMatchesDedicatedParsers() throws {
+    func testGenericPathMatchesDedicatedParsers() async throws {
         guard let dir = ProcessInfo.processInfo.environment["SAMPLES_DIR"] else {
             throw XCTSkip("SAMPLES_DIR not set")
         }
@@ -44,6 +44,17 @@ final class GenericPDFSamplesTests: XCTestCase {
                 }
             }
             XCTAssert(differ.isEmpty, "\(file): narrations differ:\n" + differ.prefix(5).map(\.narration).joined(separator: "\n"))
+
+            // The on-device model, shown the same table, must name columns
+            // under which the chain closes on the same transactions.
+            #if canImport(FoundationModels)
+            if ProcessInfo.processInfo.environment["HISAB_LIVE_MODEL"] != nil, #available(macOS 26, iOS 26, *),
+               OnDeviceColumnReader.isAvailable,
+               let table = NormalizedTable.from(data: data, filename: name, password: password) {
+                let read = await ProposedMapping.read(table: table, proposer: OnDeviceColumnReader())
+                XCTAssertEqual(read?.transactions.map(key).sorted(), expected.transactions.map(key).sorted(), "\(file) via model")
+            }
+            #endif
         }
     }
 }

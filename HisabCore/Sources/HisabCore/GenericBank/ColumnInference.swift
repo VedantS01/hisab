@@ -15,13 +15,7 @@ public enum ColumnInference {
                                        "yyyy-MM-dd"]
 
     public static func infer(table: NormalizedTable) -> Result? {
-        let headerIndex = detectHeader(rows: table.rows)
-        let start = headerIndex.map { $0 + 1 } ?? 0
-        var body: [[String]] = []
-        for row in table.rows.dropFirst(start) {
-            let nonEmpty = row.filter { !$0.isEmpty }.count
-            if nonEmpty >= 3 { body.append(row) }
-        }
+        let body = body(of: table).rows
         guard body.count >= 2 else { return nil }
 
         let width = body.map(\.count).max() ?? 0
@@ -132,6 +126,15 @@ public enum ColumnInference {
         return Result(mapping: first.0, transactions: first.1)
     }
 
+    /// The header row, if any, and the rows below it that carry at least three
+    /// cells — the rows a mapping must account for.
+    static func body(of table: NormalizedTable) -> (header: [String]?, rows: [[String]]) {
+        let headerIndex = detectHeader(rows: table.rows)
+        let start = headerIndex.map { $0 + 1 } ?? 0
+        let rows = table.rows.dropFirst(start).filter { row in row.filter { !$0.isEmpty }.count >= 3 }
+        return (headerIndex.map { table.rows[$0] }, rows)
+    }
+
     /// The first row that names columns rather than containing data: ≥2 cells
     /// matching header vocabulary and no date-parseable cell.
     static func detectHeader(rows: [[String]]) -> Int? {
@@ -155,7 +158,7 @@ public enum ColumnInference {
     /// plausible year (and at least one value is non-empty). Nil when the
     /// column isn't dates. The year check matters: "yyyy" happily reads
     /// "01/04/25" as the year 25.
-    private static func dateFormat(parsingAll values: [String]) -> String? {
+    static func dateFormat(parsingAll values: [String]) -> String? {
         let formatter = DateFormatter()
         formatter.calendar = YearMonth.istCalendar
         formatter.timeZone = YearMonth.istCalendar.timeZone
