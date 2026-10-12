@@ -6,6 +6,7 @@ library;
 import 'dart:convert';
 
 import 'minimal_xls.dart';
+import 'statement_layout.dart';
 import 'xlsx_reader.dart';
 
 /// Injected by the parsers module: raw pdf bytes + password → lines of cells,
@@ -13,6 +14,13 @@ import 'xlsx_reader.dart';
 /// dependency-light and testable.
 List<List<String>>? Function(List<int> data, String? password)?
     pdfLinesExtractor;
+
+/// Injected by the parsers module: raw pdf bytes + password → every page's
+/// positioned text, or null when unreadable. Most statements print one cell
+/// per text run, so positions are what make the table ([StatementLayout]);
+/// [pdfLinesExtractor]'s plain lines are the fallback.
+List<List<TextFragment>>? Function(List<int> data, String? password)?
+    pdfFragmentsExtractor;
 
 class NormalizedTable {
   List<List<String>> rows;
@@ -73,6 +81,9 @@ class NormalizedTable {
           return null;
         }
       case 'pdf':
+        final pages = pdfFragmentsExtractor?.call(data, password);
+        final laidOut = pages == null ? null : StatementLayout.table(pages);
+        if (laidOut != null) return laidOut;
         final extractor = pdfLinesExtractor;
         if (extractor == null) return null;
         final rows = extractor(data, password);

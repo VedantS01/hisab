@@ -3,6 +3,7 @@
 /// parsers. The Android-side counterpart of PDFKit's text layer.
 library;
 
+import 'package:hisab_core/hisab_core.dart' show TextFragment;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PdfWordBox {
@@ -62,6 +63,46 @@ class PdfText {
     } finally {
       doc.dispose();
     }
+  }
+
+  /// One page's text runs for the layout reader, in PDF user space (y grows
+  /// up, as on iOS): the words of each text line, joined while they sit
+  /// within half a line height of each other — one run per cell, roughly
+  /// what PDFKit hands the iOS reader.
+  static List<TextFragment> pageFragments(PdfDocument doc, int pageIndex) {
+    final pageHeight = doc.pages[pageIndex].size.height;
+    final textLines = PdfTextExtractor(doc)
+        .extractTextLines(startPageIndex: pageIndex, endPageIndex: pageIndex);
+    final fragments = <TextFragment>[];
+    for (final line in textLines) {
+      final words = [
+        for (final word in line.wordCollection)
+          if (word.text.trim().isNotEmpty) word
+      ]..sort((a, b) => a.bounds.left.compareTo(b.bounds.left));
+      TextFragment? run;
+      for (final word in words) {
+        final b = word.bounds;
+        final next = TextFragment(
+            text: word.text.trim(),
+            minX: b.left,
+            maxX: b.right,
+            minY: pageHeight - b.bottom,
+            maxY: pageHeight - b.top);
+        if (run != null && b.left - run.maxX <= b.height / 2) {
+          run = TextFragment(
+              text: '${run.text} ${next.text}',
+              minX: run.minX,
+              maxX: next.maxX,
+              minY: run.minY < next.minY ? run.minY : next.minY,
+              maxY: run.maxY > next.maxY ? run.maxY : next.maxY);
+        } else {
+          if (run != null) fragments.add(run);
+          run = next;
+        }
+      }
+      if (run != null) fragments.add(run);
+    }
+    return fragments;
   }
 
   /// Visual lines for one page. Syncfusion may split one visual row into

@@ -25,6 +25,7 @@ export 'src/generic_bank/minimal_xls.dart';
 export 'src/generic_bank/normalized_table.dart';
 export 'src/generic_bank/spec_executor.dart';
 export 'src/generic_bank/statement_date.dart';
+export 'src/generic_bank/statement_layout.dart';
 export 'src/generic_bank/synthetic_ref.dart';
 export 'src/generic_bank/xlsx_reader.dart';
 export 'src/parsers/parsers.dart';
