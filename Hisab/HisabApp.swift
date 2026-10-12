@@ -317,6 +317,13 @@ struct RootView: View {
                 print(ReaderSelfTest.run())
                 fflush(stdout)
             }
+            // The same for the statement reader's on-device model.
+            if args.contains("--statement-selftest") {
+                Task {
+                    print(await StatementSelfTest.run())
+                    fflush(stdout)
+                }
+            }
             // Simulator-only: the blast-radius measurement B2 asks for.
             //   --capture-rule-impact <pattern> <category>
             // Prints the number the offer WOULD show, then writes the rule

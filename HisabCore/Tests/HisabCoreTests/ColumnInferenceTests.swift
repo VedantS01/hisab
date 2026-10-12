@@ -126,4 +126,16 @@ final class ColumnInferenceTests: XCTestCase {
             XCTAssertEqual(result.transactions.map(\.amountPaise), [10_000, 10_000])
         }
     }
+
+    func testTwoDigitYearsAreNotTheYear25() throws {
+        // "yyyy" reads "01/04/25" as the year 25; the year check skips to "yy".
+        let rows: [[String]] = [
+            ["Date", "Narration", "Withdrawal", "Deposit", "Balance"],
+            ["01/04/25", "UPI COFFEE", "100.00", "", "900.00"],
+            ["02/04/25", "SALARY", "", "50.00", "950.00"],
+        ]
+        let result = try XCTUnwrap(ColumnInference.infer(table: table(rows)))
+        XCTAssertEqual(result.mapping.dateFormat, "dd/MM/yy")
+        XCTAssertEqual(YearMonth.istCalendar.component(.year, from: result.transactions[0].date), 2025)
+    }
 }

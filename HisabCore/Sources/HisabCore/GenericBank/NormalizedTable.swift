@@ -40,6 +40,9 @@ public struct NormalizedTable: Sendable, Equatable {
             if doc.isLocked {
                 guard let password, doc.unlock(withPassword: password) else { return nil }
             }
+            // Most statements print one cell per text run, so positions are
+            // what make the table; plain lines are the fallback.
+            if let table = StatementLayout.table(pages: fragments(in: doc)) { return table }
             var rows: [[String]] = []
             for pageIndex in 0..<doc.pageCount {
                 guard let text = doc.page(at: pageIndex)?.string else { continue }
@@ -78,6 +81,51 @@ public struct NormalizedTable: Sendable, Equatable {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
     }
+
+    #if canImport(PDFKit)
+    /// Every page's text runs with their bounds, as PDFKit groups them by line.
+    static func fragments(in doc: PDFDocument) -> [[TextFragment]] {
+        (0..<doc.pageCount).map { index in
+            guard let page = doc.page(at: index),
+                  let selection = page.selection(for: page.bounds(for: .mediaBox)) else { return [] }
+            let text = (page.string ?? "") as NSString
+            return selection.selectionsByLine().flatMap { split(run: $0, on: page, text: text) }
+        }
+    }
+
+    /// PDFKit joins neighbouring runs on a line when the gap is narrow, so a
+    /// long narration can swallow the amount beside it ("…/06:23:34 5,97,803.00").
+    /// A run holding a number or a date is re-measured word by word — selections
+    /// of a character range are exact where `characterBounds` is not — and cut
+    /// wherever two words sit further apart than half the line height.
+    static func split(run: PDFSelection, on page: PDFPage, text: NSString) -> [TextFragment] {
+        let b = run.bounds(for: page)
+        let whole = TextFragment(text: run.string ?? "", minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.maxY)
+        guard run.numberOfTextRanges(on: page) == 1 else { return [whole] }
+        let range = run.range(at: 0, on: page)
+        guard range.location != NSNotFound, NSMaxRange(range) <= text.length else { return [whole] }
+        let words = text.substring(with: range).split(separator: " ", omittingEmptySubsequences: false)
+        guard words.count > 1, words.contains(where: {
+            Money.signedPaise(fromDecimalString: String($0)) != nil || DateShapes.looksLikeDate(String($0))
+        }) else { return [whole] }
+
+        var pieces: [TextFragment] = []
+        var offset = range.location
+        for word in words {
+            let length = (String(word) as NSString).length
+            defer { offset += length + 1 }
+            guard length > 0, let w = page.selection(for: NSRange(location: offset, length: length)) else { continue }
+            let wb = w.bounds(for: page)
+            if let last = pieces.last, wb.minX - last.maxX <= b.height / 2 {
+                pieces[pieces.count - 1].text += " " + word
+                pieces[pieces.count - 1].maxX = max(last.maxX, wb.maxX)
+            } else {
+                pieces.append(TextFragment(text: String(word), minX: wb.minX, maxX: wb.maxX, minY: b.minY, maxY: b.maxY))
+            }
+        }
+        return pieces.isEmpty ? [whole] : pieces
+    }
+    #endif
 
     /// XLSX rows arrive as [columnLetter: text]; lay them out densely, A=0.
     private static func densify(xlsxRows: [[String: String]]) -> [[String]] {

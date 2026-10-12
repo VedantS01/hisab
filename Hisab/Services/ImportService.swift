@@ -87,6 +87,29 @@ final class ImportService {
     /// twice. See DemoData.
     func importFile(at url: URL, password: String?, overrideSource: Source?,
                     fileHash fileHashOverride: String? = nil) throws -> ImportReport {
+        let file = try load(url, fileHash: fileHashOverride)
+        if let duplicate = file.duplicate { return duplicate }
+        let resolution = resolver.resolve(data: file.data, filename: url.lastPathComponent, password: password)
+        return try store(try parsed(resolution), data: file.data, fileHash: file.hash,
+                         filename: url.lastPathComponent, overrideSource: overrideSource)
+    }
+
+    /// The second attempt at a statement `importFile` refused as an unknown or
+    /// unverified format: Apple's on-device model names its columns, and the
+    /// import goes ahead only if the running balance closes under them. Throws
+    /// the same refusal when the model can't help.
+    @available(iOS 26, *)
+    func importFileReadingColumns(at url: URL, password: String?) async throws -> ImportReport {
+        let file = try load(url, fileHash: nil)
+        if let duplicate = file.duplicate { return duplicate }
+        let resolution = await resolver.resolve(data: file.data, filename: url.lastPathComponent,
+                                                password: password, proposer: OnDeviceColumnReader())
+        return try store(try parsed(resolution), data: file.data, fileHash: file.hash,
+                         filename: url.lastPathComponent, overrideSource: nil)
+    }
+
+    private func load(_ url: URL, fileHash fileHashOverride: String?) throws
+        -> (data: Data, hash: String, duplicate: ImportReport?) {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else { throw ImportServiceError.unreadable }
@@ -94,15 +117,17 @@ final class ImportService {
         let fileHash = fileHashOverride
             ?? SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         let existingDocs = (try? context.fetch(FetchDescriptor<StoredDocument>())) ?? []
-        if let dup = existingDocs.first(where: { $0.fileSHA256 == fileHash }) {
-            return ImportReport(source: dup.source, totalParsed: 0, newCount: 0,
-                                monthsTouched: [], duplicateOfExistingFile: true)
+        let duplicate = existingDocs.first { $0.fileSHA256 == fileHash }.map {
+            ImportReport(source: $0.source, totalParsed: 0, newCount: 0,
+                         monthsTouched: [], duplicateOfExistingFile: true)
         }
+        return (data, fileHash, duplicate)
+    }
 
-        let parsed: ParsedDocument
-        switch resolver.resolve(data: data, filename: url.lastPathComponent, password: password) {
+    private func parsed(_ resolution: Resolution) throws -> ParsedDocument {
+        switch resolution {
         case .parsed(let doc):
-            parsed = doc
+            return doc
         case .passwordRequired:
             throw ParseError.passwordRequired
         case .unsupported(let fingerprint):
@@ -110,6 +135,10 @@ final class ImportService {
         case .unverified(let fingerprint, let detail):
             throw ImportServiceError.unverifiedStatement(fingerprint, detail)
         }
+    }
+
+    private func store(_ parsed: ParsedDocument, data: Data, fileHash: String, filename: String,
+                       overrideSource: Source?) throws -> ImportReport {
         let source = overrideSource ?? parsed.source
 
         let existingHashes = Set(
@@ -119,10 +148,10 @@ final class ImportService {
         let newIndices = Dedup.newIndices(incoming: parsed.transactions, source: source,
                                           existingHashes: existingHashes)
 
-        let document = StoredDocument(source: source, filename: url.lastPathComponent,
+        let document = StoredDocument(source: source, filename: filename,
                                       fileSHA256: fileHash, period: parsed.effectivePeriod)
         context.insert(document)
-        copyIntoSandbox(data: data, hash: fileHash, filename: url.lastPathComponent)
+        copyIntoSandbox(data: data, hash: fileHash, filename: filename)
 
         var inserted: [StoredTransaction] = []
         for index in newIndices {

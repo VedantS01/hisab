@@ -15,13 +15,7 @@ public enum ColumnInference {
                                        "yyyy-MM-dd"]
 
     public static func infer(table: NormalizedTable) -> Result? {
-        let headerIndex = detectHeader(rows: table.rows)
-        let start = headerIndex.map { $0 + 1 } ?? 0
-        var body: [[String]] = []
-        for row in table.rows.dropFirst(start) {
-            let nonEmpty = row.filter { !$0.isEmpty }.count
-            if nonEmpty >= 3 { body.append(row) }
-        }
+        let body = body(of: table).rows
         guard body.count >= 2 else { return nil }
 
         let width = body.map(\.count).max() ?? 0
@@ -132,6 +126,15 @@ public enum ColumnInference {
         return Result(mapping: first.0, transactions: first.1)
     }
 
+    /// The header row, if any, and the rows below it that carry at least three
+    /// cells — the rows a mapping must account for.
+    static func body(of table: NormalizedTable) -> (header: [String]?, rows: [[String]]) {
+        let headerIndex = detectHeader(rows: table.rows)
+        let start = headerIndex.map { $0 + 1 } ?? 0
+        let rows = table.rows.dropFirst(start).filter { row in row.filter { !$0.isEmpty }.count >= 3 }
+        return (headerIndex.map { table.rows[$0] }, rows)
+    }
+
     /// The first row that names columns rather than containing data: ≥2 cells
     /// matching header vocabulary and no date-parseable cell.
     static func detectHeader(rows: [[String]]) -> Int? {
@@ -151,9 +154,11 @@ public enum ColumnInference {
         return nil
     }
 
-    /// First candidate format under which every non-empty value parses (and at
-    /// least one value is non-empty). Nil when the column isn't dates.
-    private static func dateFormat(parsingAll values: [String]) -> String? {
+    /// First candidate format under which every non-empty value parses to a
+    /// plausible year (and at least one value is non-empty). Nil when the
+    /// column isn't dates. The year check matters: "yyyy" happily reads
+    /// "01/04/25" as the year 25.
+    static func dateFormat(parsingAll values: [String]) -> String? {
         let formatter = DateFormatter()
         formatter.calendar = YearMonth.istCalendar
         formatter.timeZone = YearMonth.istCalendar.timeZone
@@ -163,9 +168,12 @@ public enum ColumnInference {
         for candidate in candidateDateFormats {
             formatter.dateFormat = candidate
             var allParse = true
-            for value in nonEmpty where formatter.date(from: value) == nil {
-                allParse = false
-                break
+            for value in nonEmpty {
+                guard let date = formatter.date(from: value),
+                      (1990...2100).contains(YearMonth.istCalendar.component(.year, from: date)) else {
+                    allParse = false
+                    break
+                }
             }
             if allParse { return candidate }
         }
