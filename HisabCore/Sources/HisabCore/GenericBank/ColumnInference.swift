@@ -151,8 +151,10 @@ public enum ColumnInference {
         return nil
     }
 
-    /// First candidate format under which every non-empty value parses (and at
-    /// least one value is non-empty). Nil when the column isn't dates.
+    /// First candidate format under which every non-empty value parses to a
+    /// plausible year (and at least one value is non-empty). Nil when the
+    /// column isn't dates. The year check matters: "yyyy" happily reads
+    /// "01/04/25" as the year 25.
     private static func dateFormat(parsingAll values: [String]) -> String? {
         let formatter = DateFormatter()
         formatter.calendar = YearMonth.istCalendar
@@ -163,9 +165,12 @@ public enum ColumnInference {
         for candidate in candidateDateFormats {
             formatter.dateFormat = candidate
             var allParse = true
-            for value in nonEmpty where formatter.date(from: value) == nil {
-                allParse = false
-                break
+            for value in nonEmpty {
+                guard let date = formatter.date(from: value),
+                      (1990...2100).contains(YearMonth.istCalendar.component(.year, from: date)) else {
+                    allParse = false
+                    break
+                }
             }
             if allParse { return candidate }
         }
