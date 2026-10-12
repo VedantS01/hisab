@@ -15,6 +15,7 @@ import 'services/demo_data.dart';
 import 'services/import_service.dart';
 import 'services/insight_store.dart';
 import 'services/queries.dart';
+import 'services/statement_self_test.dart';
 import 'state.dart';
 import 'storage/database.dart';
 import 'theme.dart';
@@ -56,6 +57,11 @@ Future<void> main() async {
   if (seedDemo) {
     final docs = await db.select(db.storedDocuments).get();
     if (docs.isEmpty) await DemoData.load(state.importService);
+  }
+  // Device check for the statement reader's Gemini Nano path (read-only):
+  //   --dart-define=STATEMENT_SELFTEST=true, then adb logcat | grep STATEMENT
+  if (const bool.fromEnvironment('STATEMENT_SELFTEST')) {
+    StatementSelfTest.run().then(debugPrint);
   }
 
   // Capture. `CaptureNotifier.init` owns the whole lifecycle: notification
