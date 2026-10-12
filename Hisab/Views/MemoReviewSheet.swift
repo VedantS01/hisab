@@ -129,6 +129,7 @@ struct MemoReviewContent: View {
     @State private var noteLoadedFor: String?
     @State private var offer: MeasuredOffer?
     @State private var ruleSaved = false
+    @Environment(\.openURL) private var openURL
 
     private var memo: StoredPendingMemo? {
         memoRows.first { $0.captureHash == captureHash }
@@ -167,6 +168,17 @@ struct MemoReviewContent: View {
 
     private static let offerAnchor = "memo-offer-anchor"
 
+    private func reportMisread(_ memo: StoredPendingMemo) {
+        var read = ["\(Money.formatPaise(memo.amountPaise)) \(memo.direction == .debit ? "out" : "in")",
+                    "payee \(memo.payee)"]
+        if let vpa = memo.vpa { read.append("UPI \(vpa)") }
+        if let tail = memo.accountTail { read.append("a/c ••\(tail)") }
+        read.append("captured \(ISTStamp.dayTime(memo.capturedAt))")
+        guard let url = CaptureReport.mailtoURL(subject: "Hisab misread an alert",
+                                                details: ["Hisab read: " + read.joined(separator: ", ")]) else { return }
+        openURL(url)
+    }
+
     @ViewBuilder
     private func formBody(_ memo: StoredPendingMemo) -> some View {
         Form {
@@ -180,6 +192,11 @@ struct MemoReviewContent: View {
                 if let vpa = memo.vpa { LabeledContent("UPI ID", value: vpa) }
                 if let tail = memo.accountTail { LabeledContent("Account", value: "••\(tail)") }
                 LabeledContent("Captured", value: ISTStamp.dayTime(memo.capturedAt))
+                // The alert text itself is never stored, so the report carries
+                // what was read and asks the user to paste the alert.
+                Button("Read this wrong? Report it") { reportMisread(memo) }
+                    .tint(HisabTheme.khataRed)
+                    .accessibilityIdentifier("memo-report-misread")
             }
 
             Section("Note") {

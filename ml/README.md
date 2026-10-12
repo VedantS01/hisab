@@ -55,6 +55,16 @@ uv run python -m hisab_ml.train --data data/synthetic-v4 --out data/models/v4 \
 uv run python -m hisab_ml.export --model data/models/v4 --gold data/real/real-test.jsonl
 ```
 
+`data/` (labelled real alerts, checkpoints) was lost on 2026-10-05. The
+shipped `Extractor.mlmodelc` is now the source of truth, and `recover` rebuilds
+a checkpoint from it that matches all 119 cases of `extractor-model.json`:
+
+```bash
+uv run python -m hisab_ml.recover --out data/models/recovered
+uv run python -c "from pathlib import Path; from hisab_ml.export import export_coreml; \
+    export_coreml(Path('data/models/recovered'))"
+```
+
 ### Results on real-test
 
 The test set is 1,192 of the maintainer's real alerts in 305 formats. It is
@@ -82,6 +92,11 @@ captured 27.5% of non-transactions.
   (`IDFB6220M8743447`) or no bank code (`N244…`), and HDFC writes dates with
   no year (`14-08`). The labellers found these, and the normalizers now accept
   them.
+- **Float16 Core ML on iOS 27:** 1.4.0 crashed on every alert on an iPhone
+  on iOS 27.0.1 (EXC_BAD_ACCESS in BNNS's AMX gemm). The 27 CPU path returns NaN
+  or segfaults for float16 compute; the Neural Engine plan for the default
+  64-token shape returns wrong logits. Fixed by float32 compute, CPU only:
+  correct at every length 2...192, no crash in 382 runs.
 - **Still open:** int8 differs from fp32 on borderline class calls; on
   real-test it happened to gain 3.6 points of detection. v4 also misses formats
   that real-train lacks, such as IDFC's "Monthly interest … earned … credited",

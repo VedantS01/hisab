@@ -16,9 +16,29 @@ enum CaptureService {
     }
 
     /// The on-device extractor, loaded on first use and kept for the life of
-    /// the process: loading costs far more than an extraction does. Nil when
-    /// the model cannot load, and capture then runs on `AlertParser` alone.
-    static let extractor: AlertExtractor? = try? AlertExtractor.live()
+    /// the process: loading costs far more than an extraction does. The load
+    /// builds Core ML's plan, so it sits behind the crash marker like a read.
+    /// `.some(nil)` once a load has failed: capture then runs on
+    /// `AlertParser` alone, without retrying the load on every alert.
+    private static var loaded: AlertExtractor??
+
+    /// Nil when `ExtractorGuard` has switched the reader off after a crash —
+    /// checked first, so a switched-off reader is never even loaded — or when
+    /// the model cannot load.
+    private static var model: AlertExtractor? {
+        guard ExtractorGuard.crashedAt == nil else { return nil }
+        if let loaded { return loaded }
+        let model = try? ExtractorGuard.guarded { try AlertExtractor.live() }
+        loaded = .some(model)
+        return model
+    }
+
+    /// One read through the extractor, behind the crash marker. Nil when the
+    /// reader is unavailable or threw; callers then fall back to `AlertParser`.
+    static func extract(_ text: String) -> ExtractedAlert? {
+        guard let model else { return nil }
+        return try? ExtractorGuard.guarded { try model.extract(text) }
+    }
 
     /// Fixed identity of the one document every captured row hangs off.
     /// Not a SHA-256, so it can never collide with an imported file's.
@@ -30,7 +50,7 @@ enum CaptureService {
         let text = EmailText.plain(text)
         // Without the extractor this is exactly 1.3.0: the regex parser, a
         // memo, nothing in the ledger. A throw is treated the same way.
-        guard let alert = try? extractor?.extract(text) else {
+        guard let alert = extract(text) else {
             guard var memo = AlertParser.parse(text: text, receivedAt: receivedAt) else { return Outcome() }
             memo.note = note
             return Outcome(memo: (memo, MemoStore.insert(memo, into: ctx)))

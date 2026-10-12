@@ -22,6 +22,8 @@ enum CaptureHealth: Equatable {
     case noAlerts(days: Int)
     /// Alerts are arriving and none of them parse. Their setup is fine.
     case unreadable
+    /// The on-device reader crashed and `ExtractorGuard` switched it off.
+    case readerOff(since: Date)
     case healthy
 
     /// Three IST days: a weekend without a single bank alert is ordinary, four
@@ -29,11 +31,15 @@ enum CaptureHealth: Equatable {
     static let staleDays = 3
 
     static func evaluate(enabled: Bool, lastAttemptAt: Date?, lastCaptureAt: Date?,
-                         now: Date) -> CaptureHealth {
+                         now: Date, readerCrashedAt: Date? = nil) -> CaptureHealth {
         guard enabled else { return .off }
         guard let lastAttemptAt else { return .neverArrived }
         let sinceAttempt = ISTDay.daysBetween(lastAttemptAt, now)
         if sinceAttempt > staleDays { return .noAlerts(days: sinceAttempt) }
+        // After the automation checks, which the user must act on whatever
+        // the reader does; ahead of the parse checks, because after a crash
+        // later alerts still parse (on the fallback) and would read healthy.
+        if let readerCrashedAt { return .readerOff(since: readerCrashedAt) }
         guard let lastCaptureAt else { return .unreadable }
         return ISTDay.daysBetween(lastCaptureAt, now) > staleDays ? .unreadable : .healthy
     }
@@ -47,16 +53,18 @@ enum CaptureHealth: Equatable {
         case .noAlerts(let days):
             return "No alerts received in \(days) days — the automation may have stopped."
         case .unreadable:
-            return "Alerts are arriving but Hisab could not read them. Nothing on your side is broken; a bank has probably changed its message wording."
+            return "Alerts are arriving but Hisab could not read them. Nothing on your side is broken; a bank has probably changed its message wording. Report it from Capture setup so an update can read it."
+        case .readerOff(let since):
+            return "Hisab's on-device reader crashed on \(ISTStamp.day(since)) and is off until the next update; alerts are kept as memos meanwhile. Report it from Capture setup."
         }
     }
 
-    /// Only the two states the user can actually act on link to the setup
-    /// screen. `.unreadable` deliberately does not: their setup is fine.
+    /// Every state the user can act on links to the setup screen: to fix the
+    /// automation, or — when their setup is fine — to report the problem.
     var offersSetup: Bool {
         switch self {
-        case .neverArrived, .noAlerts: return true
-        case .off, .unreadable, .healthy: return false
+        case .neverArrived, .noAlerts, .unreadable, .readerOff: return true
+        case .off, .healthy: return false
         }
     }
 
@@ -64,7 +72,8 @@ enum CaptureHealth: Equatable {
         evaluate(enabled: CapturePrefs.isEnabled,
                  lastAttemptAt: CapturePrefs.lastAttemptAt,
                  lastCaptureAt: CapturePrefs.lastCaptureAt,
-                 now: Date())
+                 now: Date(),
+                 readerCrashedAt: ExtractorGuard.crashedAt)
     }
 }
 

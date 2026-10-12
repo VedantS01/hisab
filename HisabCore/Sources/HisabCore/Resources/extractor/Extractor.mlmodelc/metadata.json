@@ -1,13 +1,13 @@
 [
   {
     "metadataOutputVersion" : "3.0",
-    "storagePrecision" : "Mixed (Float16, Int32, Int8, UInt16)",
+    "storagePrecision" : "Mixed (Float32, Int32, Int8)",
     "outputSchema" : [
       {
         "hasShapeFlexibility" : "0",
         "isOptional" : "0",
-        "dataType" : "Float16",
-        "formattedType" : "MultiArray (Float16)",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32)",
         "shortDescription" : "",
         "shape" : "[]",
         "name" : "tag_logits",
@@ -16,8 +16,8 @@
       {
         "hasShapeFlexibility" : "0",
         "isOptional" : "0",
-        "dataType" : "Float16",
-        "formattedType" : "MultiArray (Float16)",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32)",
         "shortDescription" : "",
         "shape" : "[]",
         "name" : "seq_logits",
@@ -36,10 +36,11 @@
       "Ios18.realDiv" : 1,
       "Ios18.equal" : 1,
       "Ios18.gatherAlongAxis" : 1,
-      "Select" : 1,
+      "Select" : 7,
+      "Ios18.greaterEqual" : 6,
       "Tile" : 1,
       "Ios18.gather" : 28,
-      "Ios18.add" : 38,
+      "Ios18.add" : 44,
       "Ios18.layerNorm" : 25,
       "Ios18.reshape" : 48,
       "Shape" : 14,
@@ -47,12 +48,12 @@
       "Ios18.transpose" : 48,
       "Ios18.concat" : 25,
       "Ios18.sub" : 1,
-      "Ios18.cast" : 43,
+      "Ios18.cast" : 1,
       "Ios18.gelu" : 12,
       "Ios18.sliceByIndex" : 2,
       "Ios18.constexprBlockwiseShiftScale" : 77
     },
-    "computePrecision" : "Mixed (Float16, Int16, Int32, UInt16)",
+    "computePrecision" : "Mixed (Float32, Int32)",
     "isUpdatable" : "0",
     "stateSchema" : [
 
@@ -69,7 +70,7 @@
       "name" : "MLModelType_mlProgram"
     },
     "userDefinedMetadata" : {
-      "com.github.apple.coremltools.conversion_date" : "2026-10-04",
+      "com.github.apple.coremltools.conversion_date" : "2026-10-05",
       "com.github.apple.coremltools.source" : "torch==2.14.1",
       "com.github.apple.coremltools.version" : "9.0",
       "com.github.apple.coremltools.source_dialect" : "TorchScript"

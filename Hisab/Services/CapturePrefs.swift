@@ -36,6 +36,27 @@ enum CapturePrefs {
         set { UserDefaults.standard.set(newValue, forKey: lastAttemptKey) }
     }
 
+    /// What became of the last alert the automation handed over, for the setup
+    /// screen's system check. The kind and the time only — never the text.
+    enum Outcome: String {
+        case logged, duplicate, notAPayment, noText, saveFailed, captureOff
+    }
+
+    private static let lastOutcomeKey = "capture.lastOutcome"
+    private static let lastOutcomeAtKey = "capture.lastOutcomeAt"
+
+    static var lastOutcome: (outcome: Outcome, at: Date)? {
+        guard let raw = UserDefaults.standard.string(forKey: lastOutcomeKey),
+              let outcome = Outcome(rawValue: raw),
+              let at = UserDefaults.standard.object(forKey: lastOutcomeAtKey) as? Date else { return nil }
+        return (outcome, at)
+    }
+
+    static func record(_ outcome: Outcome, at date: Date = Date()) {
+        UserDefaults.standard.set(outcome.rawValue, forKey: lastOutcomeKey)
+        UserDefaults.standard.set(date, forKey: lastOutcomeAtKey)
+    }
+
     /// Notifications sent today, so a heavy UPI day cannot spam. Resets when
     /// the IST day changes.
     static func notificationsSentToday(now: Date) -> Int {

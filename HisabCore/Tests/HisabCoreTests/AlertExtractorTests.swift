@@ -215,4 +215,36 @@ final class AlertExtractorTests: XCTestCase {
         XCTAssertGreaterThan(fixture.cases.count, 0)
     }
     #endif
+
+    // MARK: runtime faults
+
+    #if canImport(CoreML)
+    /// iOS/macOS 27 broke float16 Core ML on the CPU for this model: NaN at
+    /// most lengths, a segfault in BNNS at some, a different set each run.
+    /// Every length the extractor can feed, twice, must come back finite.
+    func testEveryLengthRunsCleanly() throws {
+        let model = try CoreMLExtractorModel()
+        for n in 2...192 {
+            let ids = [Int32(101)] + (1..<(n - 1)).map { Int32(2000 + ($0 * 37) % 3000) } + [102]
+            for _ in 0..<2 {
+                let out = try model.logits(inputIDs: ids, attentionMask: [Int32](repeating: 1, count: n))
+                XCTAssertTrue(out.seq.allSatisfy(\.isFinite) && out.tags.allSatisfy { $0.allSatisfy(\.isFinite) },
+                              "non-finite logits at \(n) tokens")
+            }
+        }
+    }
+    #endif
+
+    private struct NaNModel: ExtractorModel {
+        func logits(inputIDs: [Int32], attentionMask: [Int32]) throws -> (tags: [[Float]], seq: [Float]) {
+            (inputIDs.map { _ in [Float](repeating: 0, count: 17) }, [.nan, 0, 0])
+        }
+    }
+
+    /// NaN decodes to class 0, "none"; the extractor must throw instead, so
+    /// capture falls back to the parser rather than dropping the alert.
+    func testNonFiniteLogitsThrowInsteadOfDecodingToNone() throws {
+        let extractor = try AlertExtractor(model: NaNModel())
+        XCTAssertThrowsError(try extractor.extract("Rs.450.00 debited from a/c XX1234 UPI Ref 627775786529"))
+    }
 }

@@ -179,6 +179,10 @@ struct RootView: View {
             // Settings with task 11, so there is otherwise no way to reach the
             // launch-time authorization request below.
             if args.contains("--capture-enable") { CapturePrefs.isEnabled = true }
+            // Simulator-only: stands in for a crash mid-read in the last run.
+            if args.contains("--reader-crash-marker") { ExtractorGuard.leaveMarkerForTesting() }
+            // Simulator-only: a clean slate, whatever an earlier run left.
+            if args.contains("--reader-reset") { ExtractorGuard.reenable() }
             // The other half of the pair, and the only way to observe P1: the
             // flag lives in UserDefaults and survives a reinstall-free relaunch,
             // so a run that wants capture OFF has to say so rather than assume
@@ -304,6 +308,13 @@ struct RootView: View {
             // describes the end of the run rather than the middle of it.
             if args.contains("--capture-state") {
                 printCaptureState()
+                fflush(stdout)
+            }
+            // Device check for the iOS 27 Core ML fault, which SwiftPM tests
+            // cannot reach on a phone. Read-only: nothing touches the store.
+            //   xcrun devicectl device process launch --console ... --reader-selftest
+            if args.contains("--reader-selftest") {
+                print(ReaderSelfTest.run())
                 fflush(stdout)
             }
             // Simulator-only: the blast-radius measurement B2 asks for.
