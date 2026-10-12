@@ -58,21 +58,38 @@ class ImportService {
     final duplicate = await _alreadyImported(fileHash);
     if (duplicate != null) return duplicate;
 
-    final ParsedDocument parsed;
-    switch (resolver.resolve(data: data, filename: filename, password: password)) {
-      case ResolutionParsed(document: final doc):
-        parsed = doc;
-      case ResolutionPasswordRequired():
-        throw const PasswordRequiredException();
-      case ResolutionUnsupported(fingerprint: final fp):
-        throw UnsupportedFormatException(fp);
-      case ResolutionUnverified(fingerprint: final fp, detail: final detail):
-        throw UnverifiedStatementException(fp, detail);
-    }
+    final parsed = _parsed(resolver.resolve(data: data, filename: filename, password: password));
     final source = overrideSource ?? parsed.source;
     return insertParsedDocument(
         parsed: parsed, source: source, filename: filename, fileHash: fileHash);
   }
+
+  /// The second attempt at a statement [importBytes] refused as an unknown or
+  /// unverified format: [proposer] (Gemini Nano, on the phone) names its
+  /// columns, and the import goes ahead only if the running balance closes
+  /// under them. Throws the same refusal when the model can't help.
+  Future<ImportReport> importBytesReadingColumns({
+    required List<int> data,
+    required String filename,
+    String? password,
+    required ColumnRoleProposer proposer,
+  }) async {
+    final fileHash = sha256.convert(data).toString();
+    final duplicate = await _alreadyImported(fileHash);
+    if (duplicate != null) return duplicate;
+    final parsed = _parsed(await resolver.resolveWithProposer(
+        data: data, filename: filename, password: password, proposer: proposer));
+    return insertParsedDocument(
+        parsed: parsed, source: parsed.source, filename: filename, fileHash: fileHash);
+  }
+
+  static ParsedDocument _parsed(Resolution resolution) => switch (resolution) {
+        ResolutionParsed(document: final doc) => doc,
+        ResolutionPasswordRequired() => throw const PasswordRequiredException(),
+        ResolutionUnsupported(fingerprint: final fp) => throw UnsupportedFormatException(fp),
+        ResolutionUnverified(fingerprint: final fp, detail: final detail) =>
+          throw UnverifiedStatementException(fp, detail),
+      };
 
   /// "Have I already taken this file in?", answered in one place. Identity is
   /// whatever the caller calls the file: its bytes for a real import, a stable
