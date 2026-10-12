@@ -21,14 +21,23 @@ class ColumnInference {
     'dd MMM yyyy', 'dd-MMM-yyyy', 'dd-MMM-yy', 'yyyy-MM-dd',
   ];
 
-  static InferenceResult? infer(NormalizedTable table) {
+  /// The header row, if any, and the rows below it that carry at least three
+  /// cells — the rows a mapping must account for.
+  static ({List<String>? header, List<List<String>> rows}) body(
+      NormalizedTable table) {
     final headerIndex = detectHeader(table.rows);
     final start = headerIndex == null ? 0 : headerIndex + 1;
-    final body = <List<String>>[];
-    for (final row in table.rows.skip(start)) {
-      final nonEmpty = row.where((c) => c.isNotEmpty).length;
-      if (nonEmpty >= 3) body.add(row);
-    }
+    return (
+      header: headerIndex == null ? null : table.rows[headerIndex],
+      rows: [
+        for (final row in table.rows.skip(start))
+          if (row.where((c) => c.isNotEmpty).length >= 3) row
+      ],
+    );
+  }
+
+  static InferenceResult? infer(NormalizedTable table) {
+    final body = ColumnInference.body(table).rows;
     if (body.length < 2) return null;
 
     var width = 0;
@@ -48,7 +57,7 @@ class ColumnInference {
 
     for (var column = 0; column < width; column++) {
       final values = cells(column);
-      final format = _dateFormatParsingAll(values);
+      final format = dateFormatParsingAll(values);
       if (format != null) {
         dateColumns.add((column, format));
         continue;
@@ -182,14 +191,14 @@ class ColumnInference {
       for (final cell in rows[index]) {
         if (cell.isEmpty) continue;
         if (keywords.hasMatch(cell)) keywordHits++;
-        if (_dateFormatParsingAll([cell]) != null) hasDate = true;
+        if (dateFormatParsingAll([cell]) != null) hasDate = true;
       }
       if (keywordHits >= 2 && !hasDate) return index;
     }
     return null;
   }
 
-  static String? _dateFormatParsingAll(List<String> values) {
+  static String? dateFormatParsingAll(List<String> values) {
     final nonEmpty = values.where((v) => v.isNotEmpty).toList();
     if (nonEmpty.isEmpty) return null;
     for (final candidate in candidateDateFormats) {

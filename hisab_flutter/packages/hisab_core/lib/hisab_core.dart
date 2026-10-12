@@ -23,6 +23,7 @@ export 'src/generic_bank/format_spec.dart';
 export 'src/generic_bank/import_resolver.dart';
 export 'src/generic_bank/minimal_xls.dart';
 export 'src/generic_bank/normalized_table.dart';
+export 'src/generic_bank/proposed_mapping.dart';
 export 'src/generic_bank/spec_executor.dart';
 export 'src/generic_bank/statement_date.dart';
 export 'src/generic_bank/statement_layout.dart';
