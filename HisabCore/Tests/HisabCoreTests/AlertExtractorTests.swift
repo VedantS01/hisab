@@ -225,11 +225,15 @@ final class AlertExtractorTests: XCTestCase {
     func testEveryLengthRunsCleanly() throws {
         let model = try CoreMLExtractorModel()
         for n in 2...192 {
-            let ids = [Int32(101)] + (1..<(n - 1)).map { Int32(2000 + ($0 * 37) % 3000) } + [102]
+            var ids: [Int32] = [101]
+            for i in 1..<(n - 1) { ids.append(Int32(2000 + (i * 37) % 3000)) }
+            ids.append(102)
+            let mask = [Int32](repeating: 1, count: n)
             for _ in 0..<2 {
-                let out = try model.logits(inputIDs: ids, attentionMask: [Int32](repeating: 1, count: n))
-                XCTAssertTrue(out.seq.allSatisfy(\.isFinite) && out.tags.allSatisfy { $0.allSatisfy(\.isFinite) },
-                              "non-finite logits at \(n) tokens")
+                let out = try model.logits(inputIDs: ids, attentionMask: mask)
+                let seqFinite = out.seq.allSatisfy { $0.isFinite }
+                let tagsFinite = out.tags.allSatisfy { row in row.allSatisfy { $0.isFinite } }
+                XCTAssertTrue(seqFinite && tagsFinite, "non-finite logits at \(n) tokens")
             }
         }
     }
