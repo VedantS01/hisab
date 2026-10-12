@@ -9,6 +9,7 @@ import 'chain_interpreter.dart';
 import 'format_fingerprint.dart';
 import 'format_spec.dart';
 import 'normalized_table.dart';
+import 'proposed_mapping.dart';
 import 'spec_executor.dart';
 
 sealed class Resolution {
@@ -111,12 +112,7 @@ class ImportResolver {
     final fingerprint = FormatFingerprint.make(table);
     final result = ColumnInference.infer(table);
     if (result != null) {
-      final guess = fingerprint.bankNameGuess;
-      final slug = guess == null ? 'other' : slugify(guess);
-      return ResolutionParsed(ParsedDocument(
-          source: Source('bank:$slug'),
-          declaredPeriod: null,
-          transactions: result.transactions));
+      return ResolutionParsed(_document(result.transactions, fingerprint));
     }
 
     // 5. Refuse honestly.
@@ -124,6 +120,34 @@ class ImportResolver {
       return ResolutionUnverified(fingerprint, brokenDetail);
     }
     return ResolutionUnsupported(fingerprint);
+  }
+
+  /// [resolve], and then — for a table no rule could read — a proposer's
+  /// reading of its columns, accepted only when the balance chain closes under
+  /// it. A proposer that can't help leaves the refusal as it was.
+  Future<Resolution> resolveWithProposer(
+      {required List<int> data,
+      required String filename,
+      String? password,
+      required ColumnRoleProposer proposer}) async {
+    final resolution = resolve(data: data, filename: filename, password: password);
+    if (resolution is! ResolutionUnsupported && resolution is! ResolutionUnverified) {
+      return resolution;
+    }
+    final table = NormalizedTable.from(data: data, filename: filename, password: password);
+    if (table == null) return resolution;
+    final result = await ProposedMapping.read(table, proposer);
+    if (result == null) return resolution;
+    return ResolutionParsed(_document(result.transactions, FormatFingerprint.make(table)));
+  }
+
+  /// A generic read files under the bank its fingerprint names.
+  static ParsedDocument _document(
+      List<ParsedTransaction> transactions, FormatFingerprint fingerprint) {
+    final guess = fingerprint.bankNameGuess;
+    final slug = guess == null ? 'other' : slugify(guess);
+    return ParsedDocument(
+        source: Source('bank:$slug'), declaredPeriod: null, transactions: transactions);
   }
 
   /// "Bank of Baroda" → "bankofbaroda". Deterministic so re-imports dedup.

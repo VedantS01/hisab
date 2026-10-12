@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/gemini_nano_column_reader.dart';
 import '../services/import_service.dart';
 import '../services/password_store.dart';
 import '../state.dart';
@@ -30,6 +31,34 @@ Future<void> showImportFlow(BuildContext context) async {
     if (context.mounted) _showReport(context, report);
   }
 
+  /// A statement the rules can't read gets one more look — Gemini Nano
+  /// naming its columns, on the phone — before the user is asked to send it in.
+  Future<void> readColumnsOrRequest(
+      String? password, FormatFingerprint fingerprint, String? detail) async {
+    if (await GeminiNanoColumnReader.isAvailable() && context.mounted) {
+      final navigator = Navigator.of(context, rootNavigator: true);
+      _showReadingColumns(context);
+      try {
+        final report = await state.importService.importBytesReadingColumns(
+            data: data,
+            filename: file.name,
+            password: password,
+            proposer: const GeminiNanoColumnReader());
+        navigator.pop();
+        if (password != null && !report.duplicateOfExistingFile) {
+          await PasswordStore.setPassword(report.source, password);
+        }
+        if (context.mounted) _showReport(context, report);
+        return;
+      } catch (_) {
+        navigator.pop();
+      }
+    }
+    if (context.mounted) {
+      _showFormatRequest(context, fingerprint, detail, supportedNames);
+    }
+  }
+
   Future<void> attempt(String? password) async {
     try {
       await runImport(password);
@@ -43,15 +72,10 @@ Future<void> showImportFlow(BuildContext context) async {
             await runImport(stored);
             return;
           } on UnsupportedFormatException catch (e) {
-            if (context.mounted) {
-              _showFormatRequest(context, e.fingerprint, null, supportedNames);
-            }
+            await readColumnsOrRequest(stored, e.fingerprint, null);
             return;
           } on UnverifiedStatementException catch (e) {
-            if (context.mounted) {
-              _showFormatRequest(
-                  context, e.fingerprint, e.detail, supportedNames);
-            }
+            await readColumnsOrRequest(stored, e.fingerprint, e.detail);
             return;
           } catch (_) {
             // Wrong password for this file — try the next one.
@@ -62,13 +86,9 @@ Future<void> showImportFlow(BuildContext context) async {
       final typed = await _askPassword(context, file.name);
       if (typed != null && typed.isNotEmpty) await attempt(typed);
     } on UnsupportedFormatException catch (e) {
-      if (context.mounted) {
-        _showFormatRequest(context, e.fingerprint, null, supportedNames);
-      }
+      await readColumnsOrRequest(password, e.fingerprint, null);
     } on UnverifiedStatementException catch (e) {
-      if (context.mounted) {
-        _showFormatRequest(context, e.fingerprint, e.detail, supportedNames);
-      }
+      await readColumnsOrRequest(password, e.fingerprint, e.detail);
     } on ParseException catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -78,6 +98,33 @@ Future<void> showImportFlow(BuildContext context) async {
   }
 
   await attempt(null);
+}
+
+/// Shown while Gemini Nano reads a statement's columns; dismissed by the
+/// caller when the reading is accepted or refused.
+void _showReadingColumns(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const PopScope(
+      canPop: false,
+      child: AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text("Hisab doesn't know this layout yet. Reading its columns on this phone…",
+                textAlign: TextAlign.center),
+            SizedBox(height: 8),
+            Text('Nothing leaves your phone, and nothing is added unless every balance adds up.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.black54)),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 Future<String?> _askPassword(BuildContext context, String filename) {

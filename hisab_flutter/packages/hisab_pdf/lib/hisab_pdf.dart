@@ -34,6 +34,21 @@ List<core.StatementParser> pdfParsers() => const [
 /// and the locked-PDF check). Call once at app start.
 void installPdfHooks() {
   core.pdfIsLockedCheck = PdfText.isLocked;
+  core.pdfFragmentsExtractor = (data, password) {
+    PdfDocument? doc;
+    try {
+      doc = PdfText.open(data, password);
+    } catch (_) {
+      return null;
+    }
+    if (doc == null) return null;
+    try {
+      if (_isIdfcStatement(doc)) return null;
+      return [for (var page = 0; page < doc.pages.count; page++) PdfText.pageFragments(doc, page)];
+    } finally {
+      doc.dispose();
+    }
+  };
   core.pdfLinesExtractor = (data, password) {
     PdfDocument? doc;
     try {
@@ -68,6 +83,18 @@ void installPdfHooks() {
       doc.dispose();
     }
   };
+}
+
+/// IDFC FIRST's statement font loses glyphs in Syncfusion — "UPI/D/60643614627"
+/// for "UPI/DR/606435614627": the amounts survive, the narrations and the rail
+/// references inside them don't. The XLSX of the same statement reads exactly
+/// (IdfcXlsxParser), so the layout reader leaves these PDFs alone and the
+/// format sheet steers to the XLSX, as before. Identified by the branch IFSC in
+/// page 1's account block — the glyph loss eats "IFSC" itself down to "IFS",
+/// and an IDFC IFSC in another bank's narration sits further down the page.
+bool _isIdfcStatement(PdfDocument doc) {
+  final accountBlock = PdfText.pageLines(doc, 0).take(30).map((l) => l.text).join('\n');
+  return RegExp(r'\bIFSC?\s*:\s*IDFB0').hasMatch(accountBlock);
 }
 
 /// The complete live registry for the app: code parsers + PDF parsers.

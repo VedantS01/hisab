@@ -37,7 +37,9 @@ android {
         applicationId = "com.vedants.hisab"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // 26 for ML Kit's Prompt API (Gemini Nano), the statement reader's
+        // on-device model. Flutter's default is 24.
+        minSdk = maxOf(flutter.minSdkVersion, 26)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -67,6 +69,9 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Gemini Nano through AICore, for the statement reader (MainActivity).
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
 }
 
 flutter {
