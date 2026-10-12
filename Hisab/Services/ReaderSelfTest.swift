@@ -28,11 +28,15 @@ enum ReaderSelfTest {
         let start = Date()
         var runs = 0, nonFinite: [Int] = []
         for n in 2...192 {
-            let ids = [Int32(101)] + (1..<(n - 1)).map { Int32(2000 + ($0 * 37) % 3000) } + [102]
+            var ids: [Int32] = [101]
+            for i in 1..<(n - 1) { ids.append(Int32(2000 + (i * 37) % 3000)) }
+            ids.append(102)
+            let mask = [Int32](repeating: 1, count: n)
             for _ in 0..<2 {
                 runs += 1
-                guard let out = try? model.logits(inputIDs: ids, attentionMask: [Int32](repeating: 1, count: n)),
-                      out.seq.allSatisfy(\.isFinite), out.tags.allSatisfy({ $0.allSatisfy(\.isFinite) }) else {
+                guard let out = try? model.logits(inputIDs: ids, attentionMask: mask),
+                      out.seq.allSatisfy({ $0.isFinite }),
+                      out.tags.allSatisfy({ row in row.allSatisfy { $0.isFinite } }) else {
                     nonFinite.append(n)
                     continue
                 }
