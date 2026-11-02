@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
@@ -18,13 +20,16 @@ import 'screens/transactions_screen.dart';
 import 'services/capture_notifier.dart';
 import 'services/demo_data.dart';
 import 'services/import_service.dart';
+import 'services/incoming_router.dart';
 import 'services/insight_store.dart';
 import 'services/legacy_migration.dart';
+import 'services/pdfkit_text.dart';
 import 'services/queries.dart';
 import 'services/statement_self_test.dart';
 import 'state.dart';
 import 'storage/database.dart';
 import 'theme.dart';
+import 'widgets/import_flow.dart';
 import 'widgets/memo_review_sheet.dart';
 import 'widgets/needs_review_section.dart';
 import 'widgets/suggestion_prompt.dart';
@@ -32,6 +37,7 @@ import 'widgets/suggestion_prompt.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   installPdfHooks();
+  PdfKitText.install();
 
   final db = AppDatabase(driftDatabase(name: 'hisab'));
   // First, before anything reads preferences: the native half copies the
@@ -47,7 +53,7 @@ Future<void> main() async {
   final ruleset = Ruleset.fromJsonString(
       await rootBundle.loadString('assets/rulesets/india-default.json'));
   final resolver = ImportResolver(
-      registry: fullRegistry(), specs: SpecStore.parseAll(specJsons));
+      registry: fullRegistry(extra: PdfKitText.parsers), specs: SpecStore.parseAll(specJsons));
   final insightsConfig = InsightsConfig.fromJsonString(
       await rootBundle.loadString('assets/insights/insights-config.json'));
   final suppressions = await InsightStore.load();
@@ -84,6 +90,8 @@ Future<void> main() async {
   // dart-define that switched capture on behind the toggle's back would
   // contradict the one guarantee the toggle has to make.
   await CaptureNotifier.init(db: db, ruleset: ruleset);
+  // Files and links opened into Hisab; parked until RootTabs drains them.
+  await IncomingRouter.init();
 
   // iOS captures in a second engine (capture_entry.dart), whose writes this
   // engine's drift streams cannot see; the Runner pings here after each one.
@@ -134,12 +142,16 @@ class _RootTabsState extends State<RootTabs> {
     super.initState();
     CaptureRouter.reviewRequest.addListener(_onCaptureResponse);
     CaptureRouter.offerGeneration.addListener(_onCaptureResponse);
+    IncomingRouter.file.addListener(_onIncoming);
+    IncomingRouter.link.addListener(_onIncoming);
   }
 
   @override
   void dispose() {
     CaptureRouter.reviewRequest.removeListener(_onCaptureResponse);
     CaptureRouter.offerGeneration.removeListener(_onCaptureResponse);
+    IncomingRouter.file.removeListener(_onIncoming);
+    IncomingRouter.link.removeListener(_onIncoming);
     super.dispose();
   }
 
@@ -164,9 +176,36 @@ class _RootTabsState extends State<RootTabs> {
         // has already been applied, and the question it left behind is the
         // durable value the whole feature exists to produce.
         await _pumpCaptureQueue();
+        // Same reason as above: a file opened into a closed Hisab arrives
+        // before this widget listens.
+        _onIncoming();
         await _maybeSuggest();
       });
     }
+  }
+
+  /// A file or link opened into Hisab (IncomingRouter). Taken out of the
+  /// notifier as it is read, so each is handled once.
+  void _onIncoming() {
+    if (!mounted) return;
+    final target = IncomingRouter.link.value;
+    if (target != null) {
+      IncomingRouter.link.value = null;
+      setState(() => _tab = target == LinkTarget.transactions ? 2 : 0);
+    }
+    final file = IncomingRouter.file.value;
+    if (file == null) return;
+    IncomingRouter.file.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final staged = File(file.path);
+      if (!await staged.exists()) return;
+      final data = await staged.readAsBytes();
+      await staged.delete();
+      if (!mounted) return;
+      setState(() => _tab = 0);
+      await importFileBytes(context, filename: file.name, data: data);
+    });
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   /// A notification response — a body tap, "Later", or a category button —

@@ -49,6 +49,7 @@ final class CaptureBridge {
             engine.run(withEntrypoint: "captureMain", libraryURI: "package:hisab/capture_entry.dart")
             GeneratedPluginRegistrant.register(with: engine)
             LegacyStore.register(with: engine.binaryMessenger)
+            CaptureCategories.register(with: engine.binaryMessenger)
             // After `run` (the engine refuses handlers before it), and in the
             // same main-thread turn, so Dart's "ready" cannot arrive first.
             let channel = FlutterMethodChannel(name: "hisab/capture", binaryMessenger: engine.binaryMessenger)

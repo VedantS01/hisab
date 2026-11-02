@@ -18,14 +18,22 @@
 ///   kills background work aggressively. That is said too.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
 import '../services/capture_notifier.dart';
+import 'capture_shortcuts_screen.dart';
 import '../services/capture_prefs.dart';
 import '../services/notification_capture.dart';
 import '../state.dart';
 import '../theme.dart';
+
+/// The setup screen for this platform: Android's notification-access screen
+/// below, or the Shortcuts walkthrough on iOS.
+Widget captureSetupPage() => defaultTargetPlatform == TargetPlatform.iOS
+    ? const CaptureShortcutsScreen()
+    : const CaptureSetupScreen();
 
 class CaptureSetupScreen extends StatefulWidget {
   const CaptureSetupScreen({super.key});

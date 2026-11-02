@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -19,6 +20,9 @@ import UIKit
       }
     }
     #endif
+    // flutter_local_notifications forwards banners and taps through the app
+    // delegate; without this, foreground banners never show and taps are lost.
+    UNUserNotificationCenter.current().delegate = self
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -26,5 +30,10 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     CaptureBridge.shared.appMessenger = engineBridge.applicationRegistrar.messenger()
     LegacyStore.register(with: engineBridge.applicationRegistrar.messenger())
+    CaptureCategories.register(with: engineBridge.applicationRegistrar.messenger())
+    PdfKitText.register(with: engineBridge.applicationRegistrar.messenger())
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "HisabIncomingRouter") {
+      IncomingRouter.shared.attach(to: registrar)
+    }
   }
 }

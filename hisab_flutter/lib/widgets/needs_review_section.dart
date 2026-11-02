@@ -199,7 +199,7 @@ class _CaptureHealthBannerState extends State<CaptureHealthBanner> {
                 child: TextButton(
                   onPressed: () async {
                     await Navigator.of(context).push(MaterialPageRoute<void>(
-                        builder: (_) => const CaptureSetupScreen()));
+                        builder: (_) => captureSetupPage()));
                     await _refresh();
                   },
                   child: const Text('Check capture setup',
@@ -369,7 +369,7 @@ class NeedsReviewInbox extends StatelessWidget {
                   title: const Text('Capture setup'),
                   onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                          builder: (_) => const CaptureSetupScreen())),
+                          builder: (_) => captureSetupPage())),
                 ),
               ),
             ],

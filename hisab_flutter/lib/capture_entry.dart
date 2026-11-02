@@ -9,9 +9,11 @@ library;
 
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:hisab_core/hisab_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'services/capture_intake.dart';
+import 'services/capture_notifier.dart';
 import 'services/legacy_migration.dart';
 import 'services/notification_capture.dart';
 import 'storage/database.dart';
@@ -25,6 +27,9 @@ Future<void> captureMain() async {
   // An automation may be the first thing to run after the update from the
   // Swift app; without this, capture would read as switched off.
   await LegacyMigration.runIfNeeded(db);
+  await CaptureNotifier.initForCapture();
+  final ruleset = Ruleset.fromJsonString(
+      await rootBundle.loadString('assets/rulesets/india-default.json'));
   captureChannel.setMethodCallHandler((call) async {
     if (call.method != 'ingest') {
       throw MissingPluginException('hisab/capture has no ${call.method}');
@@ -36,6 +41,8 @@ Future<void> captureMain() async {
       db: db,
       now: DateTime.now(),
       extractor: await NotificationCapture.extractor(),
+      onCaptured: (memo) => CaptureNotifier.considerNotifying(
+          memo: memo, db: db, ruleset: ruleset),
     );
     return {'outcome': result.outcome.name, 'dialog': result.dialog};
   });

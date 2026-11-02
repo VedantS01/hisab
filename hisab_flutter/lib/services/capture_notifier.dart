@@ -4,10 +4,14 @@
 /// Twin of `Hisab/Services/CaptureNotifier.swift`. Everything about *whether*
 /// to interrupt and *what* to put on the banner is shared logic living in
 /// `hisab_core` ([CategoryMatcher], [NotificationPolicy], [CategoryRanker]);
-/// this file is the Android delivery of it plus the small amount of state a
-/// notification button leaves behind.
+/// this file is its delivery on Android and iOS plus the small amount of state
+/// a notification button leaves behind.
 ///
-/// ## Two asymmetries with iOS, both deliberate
+/// On iOS each banner gets a category of its own (ios/Runner/
+/// CaptureCategories.swift) holding its three ranked categories and "Later",
+/// as the Swift app did, because the plugin registers categories only once.
+///
+/// ## Two Android asymmetries, both deliberate
 ///
 /// 1. **Action buttons are per-notification here, and there are only three of
 ///    them.** iOS bakes action titles into a registered
@@ -56,6 +60,7 @@ library;
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -183,8 +188,31 @@ class CaptureNotifier {
   /// Whether this platform can deliver a capture notification at all.
   /// The Flutter app ships on Android; everything here is a no-op elsewhere,
   /// including in `flutter test`, where no platform channel exists.
-  static bool get _supported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  static bool get _supported => !kIsWeb && (_android || _ios);
+  static bool get _android => defaultTargetPlatform == TargetPlatform.android;
+  static bool get _ios => defaultTargetPlatform == TargetPlatform.iOS;
+
+  static const _categories = MethodChannel('hisab/notify_categories');
+
+  /// Delivery only, for iOS's headless capture engine (capture_entry.dart):
+  /// it posts banners but never answers them — taps foreground the app, whose
+  /// engine runs [init] and handles them.
+  static Future<void> initForCapture() async {
+    if (!_supported || _initialized) return;
+    _initialized = true;
+    tz_data.initializeTimeZones();
+    await plugin.initialize(settings: _settings);
+  }
+
+  /// Permission is asked for when capture is switched ON, never at launch.
+  static const _settings = InitializationSettings(
+    android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    iOS: DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    ),
+  );
 
   // MARK: - lifecycle
 
@@ -206,9 +234,7 @@ class CaptureNotifier {
       _initialized = true;
       tz_data.initializeTimeZones();
       await plugin.initialize(
-        settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        ),
+        settings: _settings,
         onDidReceiveNotificationResponse: (response) {
           // Fire-and-forget: the plugin does not await this, and an exception
           // escaping it would be swallowed with the user's tap.
@@ -232,7 +258,8 @@ class CaptureNotifier {
         );
       }
     }
-    if (await CapturePrefs.isEnabled()) {
+    // iOS has no listener: alerts arrive through the Shortcuts action.
+    if (_android && await CapturePrefs.isEnabled()) {
       await NotificationCapture.start(
         db: db,
         onCaptured: (memo) =>
@@ -263,11 +290,12 @@ class CaptureNotifier {
     await CapturePrefs.setEnabled(enabled);
     if (!_supported) return;
     if (!enabled) {
-      await NotificationCapture.stop();
+      if (_android) await NotificationCapture.stop();
       await plugin.cancelAllPendingNotifications();
       return;
     }
     await requestNotificationPermission();
+    if (!_android) return;
     await NotificationCapture.start(
       db: db,
       onCaptured: (memo) =>
@@ -317,6 +345,11 @@ class CaptureNotifier {
   /// flutter_local_notifications plugin's own manifest, not by Hisab's.
   static Future<bool> requestNotificationPermission() async {
     if (!_supported) return false;
+    if (_ios) {
+      final ios = plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      return await ios?.requestPermissions(alert: true, sound: true) ?? false;
+    }
     final android = plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     return await android?.requestNotificationsPermission() ?? false;
@@ -327,6 +360,11 @@ class CaptureNotifier {
   /// feature that never speaks.
   static Future<bool> areNotificationsEnabled() async {
     if (!_supported) return false;
+    if (_ios) {
+      final ios = plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      return (await ios?.checkPermissions())?.isEnabled ?? false;
+    }
     final android = plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     return await android?.areNotificationsEnabled() ?? false;
@@ -447,7 +485,7 @@ class CaptureNotifier {
     // not burn a slot or stamp the memo.
     if (!await areNotificationsEnabled()) return false;
 
-    final details = NotificationDetails(
+    var details = NotificationDetails(
       android: AndroidNotificationDetails(
         channelId,
         channelName,
@@ -470,6 +508,7 @@ class CaptureNotifier {
     final id = notificationId(plan.captureHash);
     final fireAt = plan.fireAt;
     try {
+      if (_ios) details = await _iosDetails(plan, now);
       if (fireAt == null) {
         await plugin.show(
           id: id,
@@ -501,6 +540,25 @@ class CaptureNotifier {
   }
 
   static tz.Location get _kolkata => tz.getLocation('Asia/Kolkata');
+
+  /// Registers this banner's own category — its three ranked categories and
+  /// "Later" — then points the banner at it. The id leads with the post time
+  /// so the native side can keep the newest categories and drop the oldest.
+  static Future<NotificationDetails> _iosDetails(
+      CaptureNotificationPlan plan, DateTime now) async {
+    final id = 'memo-${now.toUtc().millisecondsSinceEpoch}-'
+        '${notificationId(plan.captureHash)}';
+    await _categories.invokeMethod<void>('set', {
+      'id': id,
+      'actions': [
+        for (final category in plan.categories.take(maxActions))
+          {'id': '$categoryActionPrefix$category', 'title': category},
+        {'id': laterActionId, 'title': 'Later'},
+      ],
+    });
+    return NotificationDetails(
+        iOS: DarwinNotificationDetails(categoryIdentifier: id));
+  }
 
   /// A stable 31-bit id from a capture hash. Android notification ids are
   /// ints; the hash is what identifies a memo everywhere else, so the id is

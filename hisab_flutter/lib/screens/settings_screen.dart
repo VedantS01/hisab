@@ -349,7 +349,7 @@ class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
             title: const Text('Capture setup'),
             onTap: () async {
               await Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => const CaptureSetupScreen()));
+                  builder: (_) => captureSetupPage()));
               await _refresh();
             },
           ),

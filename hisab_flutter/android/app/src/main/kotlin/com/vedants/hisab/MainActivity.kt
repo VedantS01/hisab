@@ -7,6 +7,7 @@ import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.GenerativeModel
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
+import android.content.Intent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : FlutterActivity() {
     private var model: GenerativeModel? = null
+    private var incoming: IncomingRouter? = null
 
     /**
      * The statement reader's on-device model: Gemini Nano, through ML Kit's
@@ -25,6 +27,8 @@ class MainActivity : FlutterActivity() {
      */
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        incoming = IncomingRouter(this, flutterEngine.dartExecutor.binaryMessenger)
+            .also { it.receive(intent) }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hisab/column_reader")
             .setMethodCallHandler { call, result ->
                 lifecycleScope.launch {
@@ -66,6 +70,12 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }
+    }
+
+    /** A file or link opened while Hisab is already running. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        incoming?.receive(intent)
     }
 
     override fun onDestroy() {
