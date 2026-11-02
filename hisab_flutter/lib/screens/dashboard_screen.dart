@@ -92,7 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               const Text(
-                  'Import a statement to begin, or load demo data from Settings.',
+                  'Import a statement to begin.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.black54)),
               const SizedBox(height: 16),

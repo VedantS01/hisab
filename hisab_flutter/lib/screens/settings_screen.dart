@@ -33,19 +33,6 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.auto_awesome,
-                          color: HisabTheme.sona),
-                      title: const Text('Load demo data'),
-                      subtitle: const Text(
-                          'Seven months of synthetic GPay, HDFC and IDFC statements to explore every screen. Tapping again replaces the demo with a fresh copy.'),
-                      onTap: () async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        await DemoData.load(state.importService);
-                        messenger.showSnackBar(const SnackBar(
-                            content: Text('Demo data loaded')));
-                      },
-                    ),
-                    ListTile(
                       leading: const Icon(Icons.delete_forever,
                           color: HisabTheme.khataRed),
                       title: const Text('Erase all data'),

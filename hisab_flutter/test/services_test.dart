@@ -173,8 +173,8 @@ void main() {
           'assets/demo/$name': File('assets/demo/$name').readAsStringSync(),
       };
 
-  // "Load demo data" is a button a user can press twice, and the statements are
-  // rewritten to the current month on every load. Pressing it again must leave
+  // The demo (dev builds only) can be loaded twice, and the statements are
+  // rewritten to the current month on every load. Loading it again must leave
   // exactly one demo set — not two — and that set must be anchored to *now*,
   // not frozen at whenever it was first loaded.
   test('loading the demo again replaces it and re-anchors to today', () async {
