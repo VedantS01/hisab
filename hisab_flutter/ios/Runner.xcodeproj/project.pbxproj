@@ -17,6 +17,7 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		C0B72F23ED88B5CA652F6EC8 /* LegacyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5375F2FC78ADBFB68342EF /* LegacyStore.swift */; };
 		CF8CA54295B1C1691E064430 /* CaptureBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF0F8C16F3282E98DE16FEA /* CaptureBridge.swift */; };
 		CF986A5F5663991776BCDD13 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B0456561B1C819599CF633F2 /* Pods_RunnerTests.framework */; };
 /* End PBXBuildFile section */
@@ -52,6 +53,7 @@
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		694338615BC16956FE3E1F85 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
+		6E5375F2FC78ADBFB68342EF /* LegacyStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LegacyStore.swift; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -147,6 +149,7 @@
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				8BF0F8C16F3282E98DE16FEA /* CaptureBridge.swift */,
 				828BBF1E2878F2D0F98060ED /* AddTransactionAlertIntent.swift */,
+				6E5375F2FC78ADBFB68342EF /* LegacyStore.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -391,6 +394,7 @@
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				CF8CA54295B1C1691E064430 /* CaptureBridge.swift in Sources */,
 				7498C93B7A0363CC8DD7BFD1 /* AddTransactionAlertIntent.swift in Sources */,
+				C0B72F23ED88B5CA652F6EC8 /* LegacyStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

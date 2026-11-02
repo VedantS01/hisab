@@ -25,5 +25,6 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     CaptureBridge.shared.appMessenger = engineBridge.applicationRegistrar.messenger()
+    LegacyStore.register(with: engineBridge.applicationRegistrar.messenger())
   }
 }

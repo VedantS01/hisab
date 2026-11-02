@@ -139,6 +139,8 @@ class ImportService {
           fileSha256: fileHash,
           periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
           periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
+          importedAtMs:
+              Value(DateTime.now().toUtc().millisecondsSinceEpoch),
         ));
     final inserted = <MemoMergeCandidate>[];
     final insertedRefs = <String>{};
@@ -281,6 +283,8 @@ class ImportService {
               fileSha256: capturedAlertsFileHash,
               periodStartMs: dateMs,
               periodEndMs: dateMs,
+              importedAtMs:
+                  Value(DateTime.now().toUtc().millisecondsSinceEpoch),
             ));
       } else {
         documentId = doc.id;

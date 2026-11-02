@@ -6,6 +6,7 @@ import 'package:hisab_core/hisab_core.dart'
 import '../services/capture_notifier.dart';
 import '../services/capture_prefs.dart';
 import '../services/demo_data.dart';
+import '../services/legacy_migration.dart';
 import '../services/insight_store.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
@@ -59,6 +60,9 @@ class SettingsScreen extends StatelessWidget {
                         );
                         if (confirmed == true) {
                           await DemoData.eraseAll(state.db);
+                          // The Swift app's backup and statement copies
+                          // (iOS, after the 2.0 migration) are data too.
+                          await LegacyMigration.eraseLeftovers();
                           // Suppressions are keyed by insight id and merchant
                           // key; surviving an erase would silently hide cards
                           // about data the user no longer has.

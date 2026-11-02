@@ -14,6 +14,10 @@ class StoredDocuments extends Table {
   IntColumn get periodStartMs => integer()();
   IntColumn get periodEndMs => integer()();
 
+  /// When the statement came in; null for documents imported before 2.0's
+  /// Flutter app, which did not record it (the Swift app's dates migrate).
+  IntColumn get importedAtMs => integer().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -97,7 +101,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   /// There was no MigrationStrategy before v2, so every install in the field
   /// carries a v1 database with no pending-memo table. Without this, opening
@@ -108,6 +112,9 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (m, from, to) async {
           if (from < 2) {
             await m.createTable(storedPendingMemos);
+          }
+          if (from < 3) {
+            await m.addColumn(storedDocuments, storedDocuments.importedAtMs);
           }
         },
       );

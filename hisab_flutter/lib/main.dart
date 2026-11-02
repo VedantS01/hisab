@@ -19,6 +19,7 @@ import 'services/capture_notifier.dart';
 import 'services/demo_data.dart';
 import 'services/import_service.dart';
 import 'services/insight_store.dart';
+import 'services/legacy_migration.dart';
 import 'services/queries.dart';
 import 'services/statement_self_test.dart';
 import 'state.dart';
@@ -33,6 +34,9 @@ Future<void> main() async {
   installPdfHooks();
 
   final db = AppDatabase(driftDatabase(name: 'hisab'));
+  // First, before anything reads preferences: the native half copies the
+  // Swift app's settings over as part of the export.
+  await LegacyMigration.runIfNeeded(db);
   final specJsons = <String>[];
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
   for (final asset in manifest.listAssets()) {

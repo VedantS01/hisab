@@ -44,9 +44,22 @@ class $StoredDocumentsTable extends StoredDocuments
   late final GeneratedColumn<int> periodEndMs = GeneratedColumn<int>(
       'period_end_ms', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _importedAtMsMeta =
+      const VerificationMeta('importedAtMs');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, sourceRaw, filename, fileSha256, periodStartMs, periodEndMs];
+  late final GeneratedColumn<int> importedAtMs = GeneratedColumn<int>(
+      'imported_at_ms', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        sourceRaw,
+        filename,
+        fileSha256,
+        periodStartMs,
+        periodEndMs,
+        importedAtMs
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -98,6 +111,12 @@ class $StoredDocumentsTable extends StoredDocuments
     } else if (isInserting) {
       context.missing(_periodEndMsMeta);
     }
+    if (data.containsKey('imported_at_ms')) {
+      context.handle(
+          _importedAtMsMeta,
+          importedAtMs.isAcceptableOrUnknown(
+              data['imported_at_ms']!, _importedAtMsMeta));
+    }
     return context;
   }
 
@@ -119,6 +138,8 @@ class $StoredDocumentsTable extends StoredDocuments
           .read(DriftSqlType.int, data['${effectivePrefix}period_start_ms'])!,
       periodEndMs: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}period_end_ms'])!,
+      importedAtMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}imported_at_ms']),
     );
   }
 
@@ -135,13 +156,18 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
   final String fileSha256;
   final int periodStartMs;
   final int periodEndMs;
+
+  /// When the statement came in; null for documents imported before 2.0's
+  /// Flutter app, which did not record it (the Swift app's dates migrate).
+  final int? importedAtMs;
   const StoredDocument(
       {required this.id,
       required this.sourceRaw,
       required this.filename,
       required this.fileSha256,
       required this.periodStartMs,
-      required this.periodEndMs});
+      required this.periodEndMs,
+      this.importedAtMs});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -151,6 +177,9 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
     map['file_sha256'] = Variable<String>(fileSha256);
     map['period_start_ms'] = Variable<int>(periodStartMs);
     map['period_end_ms'] = Variable<int>(periodEndMs);
+    if (!nullToAbsent || importedAtMs != null) {
+      map['imported_at_ms'] = Variable<int>(importedAtMs);
+    }
     return map;
   }
 
@@ -162,6 +191,9 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
       fileSha256: Value(fileSha256),
       periodStartMs: Value(periodStartMs),
       periodEndMs: Value(periodEndMs),
+      importedAtMs: importedAtMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(importedAtMs),
     );
   }
 
@@ -175,6 +207,7 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
       fileSha256: serializer.fromJson<String>(json['fileSha256']),
       periodStartMs: serializer.fromJson<int>(json['periodStartMs']),
       periodEndMs: serializer.fromJson<int>(json['periodEndMs']),
+      importedAtMs: serializer.fromJson<int?>(json['importedAtMs']),
     );
   }
   @override
@@ -187,6 +220,7 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
       'fileSha256': serializer.toJson<String>(fileSha256),
       'periodStartMs': serializer.toJson<int>(periodStartMs),
       'periodEndMs': serializer.toJson<int>(periodEndMs),
+      'importedAtMs': serializer.toJson<int?>(importedAtMs),
     };
   }
 
@@ -196,7 +230,8 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
           String? filename,
           String? fileSha256,
           int? periodStartMs,
-          int? periodEndMs}) =>
+          int? periodEndMs,
+          Value<int?> importedAtMs = const Value.absent()}) =>
       StoredDocument(
         id: id ?? this.id,
         sourceRaw: sourceRaw ?? this.sourceRaw,
@@ -204,6 +239,8 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
         fileSha256: fileSha256 ?? this.fileSha256,
         periodStartMs: periodStartMs ?? this.periodStartMs,
         periodEndMs: periodEndMs ?? this.periodEndMs,
+        importedAtMs:
+            importedAtMs.present ? importedAtMs.value : this.importedAtMs,
       );
   StoredDocument copyWithCompanion(StoredDocumentsCompanion data) {
     return StoredDocument(
@@ -217,6 +254,9 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
           : this.periodStartMs,
       periodEndMs:
           data.periodEndMs.present ? data.periodEndMs.value : this.periodEndMs,
+      importedAtMs: data.importedAtMs.present
+          ? data.importedAtMs.value
+          : this.importedAtMs,
     );
   }
 
@@ -228,14 +268,15 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
           ..write('filename: $filename, ')
           ..write('fileSha256: $fileSha256, ')
           ..write('periodStartMs: $periodStartMs, ')
-          ..write('periodEndMs: $periodEndMs')
+          ..write('periodEndMs: $periodEndMs, ')
+          ..write('importedAtMs: $importedAtMs')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, sourceRaw, filename, fileSha256, periodStartMs, periodEndMs);
+  int get hashCode => Object.hash(id, sourceRaw, filename, fileSha256,
+      periodStartMs, periodEndMs, importedAtMs);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -245,7 +286,8 @@ class StoredDocument extends DataClass implements Insertable<StoredDocument> {
           other.filename == this.filename &&
           other.fileSha256 == this.fileSha256 &&
           other.periodStartMs == this.periodStartMs &&
-          other.periodEndMs == this.periodEndMs);
+          other.periodEndMs == this.periodEndMs &&
+          other.importedAtMs == this.importedAtMs);
 }
 
 class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
@@ -255,6 +297,7 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
   final Value<String> fileSha256;
   final Value<int> periodStartMs;
   final Value<int> periodEndMs;
+  final Value<int?> importedAtMs;
   final Value<int> rowid;
   const StoredDocumentsCompanion({
     this.id = const Value.absent(),
@@ -263,6 +306,7 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
     this.fileSha256 = const Value.absent(),
     this.periodStartMs = const Value.absent(),
     this.periodEndMs = const Value.absent(),
+    this.importedAtMs = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   StoredDocumentsCompanion.insert({
@@ -272,6 +316,7 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
     required String fileSha256,
     required int periodStartMs,
     required int periodEndMs,
+    this.importedAtMs = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         sourceRaw = Value(sourceRaw),
@@ -286,6 +331,7 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
     Expression<String>? fileSha256,
     Expression<int>? periodStartMs,
     Expression<int>? periodEndMs,
+    Expression<int>? importedAtMs,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -295,6 +341,7 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
       if (fileSha256 != null) 'file_sha256': fileSha256,
       if (periodStartMs != null) 'period_start_ms': periodStartMs,
       if (periodEndMs != null) 'period_end_ms': periodEndMs,
+      if (importedAtMs != null) 'imported_at_ms': importedAtMs,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -306,6 +353,7 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
       Value<String>? fileSha256,
       Value<int>? periodStartMs,
       Value<int>? periodEndMs,
+      Value<int?>? importedAtMs,
       Value<int>? rowid}) {
     return StoredDocumentsCompanion(
       id: id ?? this.id,
@@ -314,6 +362,7 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
       fileSha256: fileSha256 ?? this.fileSha256,
       periodStartMs: periodStartMs ?? this.periodStartMs,
       periodEndMs: periodEndMs ?? this.periodEndMs,
+      importedAtMs: importedAtMs ?? this.importedAtMs,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -339,6 +388,9 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
     if (periodEndMs.present) {
       map['period_end_ms'] = Variable<int>(periodEndMs.value);
     }
+    if (importedAtMs.present) {
+      map['imported_at_ms'] = Variable<int>(importedAtMs.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -354,6 +406,7 @@ class StoredDocumentsCompanion extends UpdateCompanion<StoredDocument> {
           ..write('fileSha256: $fileSha256, ')
           ..write('periodStartMs: $periodStartMs, ')
           ..write('periodEndMs: $periodEndMs, ')
+          ..write('importedAtMs: $importedAtMs, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2369,6 +2422,7 @@ typedef $$StoredDocumentsTableCreateCompanionBuilder = StoredDocumentsCompanion
   required String fileSha256,
   required int periodStartMs,
   required int periodEndMs,
+  Value<int?> importedAtMs,
   Value<int> rowid,
 });
 typedef $$StoredDocumentsTableUpdateCompanionBuilder = StoredDocumentsCompanion
@@ -2379,6 +2433,7 @@ typedef $$StoredDocumentsTableUpdateCompanionBuilder = StoredDocumentsCompanion
   Value<String> fileSha256,
   Value<int> periodStartMs,
   Value<int> periodEndMs,
+  Value<int?> importedAtMs,
   Value<int> rowid,
 });
 
@@ -2408,6 +2463,9 @@ class $$StoredDocumentsTableFilterComposer
 
   ColumnFilters<int> get periodEndMs => $composableBuilder(
       column: $table.periodEndMs, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get importedAtMs => $composableBuilder(
+      column: $table.importedAtMs, builder: (column) => ColumnFilters(column));
 }
 
 class $$StoredDocumentsTableOrderingComposer
@@ -2437,6 +2495,10 @@ class $$StoredDocumentsTableOrderingComposer
 
   ColumnOrderings<int> get periodEndMs => $composableBuilder(
       column: $table.periodEndMs, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get importedAtMs => $composableBuilder(
+      column: $table.importedAtMs,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$StoredDocumentsTableAnnotationComposer
@@ -2465,6 +2527,9 @@ class $$StoredDocumentsTableAnnotationComposer
 
   GeneratedColumn<int> get periodEndMs => $composableBuilder(
       column: $table.periodEndMs, builder: (column) => column);
+
+  GeneratedColumn<int> get importedAtMs => $composableBuilder(
+      column: $table.importedAtMs, builder: (column) => column);
 }
 
 class $$StoredDocumentsTableTableManager extends RootTableManager<
@@ -2500,6 +2565,7 @@ class $$StoredDocumentsTableTableManager extends RootTableManager<
             Value<String> fileSha256 = const Value.absent(),
             Value<int> periodStartMs = const Value.absent(),
             Value<int> periodEndMs = const Value.absent(),
+            Value<int?> importedAtMs = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               StoredDocumentsCompanion(
@@ -2509,6 +2575,7 @@ class $$StoredDocumentsTableTableManager extends RootTableManager<
             fileSha256: fileSha256,
             periodStartMs: periodStartMs,
             periodEndMs: periodEndMs,
+            importedAtMs: importedAtMs,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -2518,6 +2585,7 @@ class $$StoredDocumentsTableTableManager extends RootTableManager<
             required String fileSha256,
             required int periodStartMs,
             required int periodEndMs,
+            Value<int?> importedAtMs = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               StoredDocumentsCompanion.insert(
@@ -2527,6 +2595,7 @@ class $$StoredDocumentsTableTableManager extends RootTableManager<
             fileSha256: fileSha256,
             periodStartMs: periodStartMs,
             periodEndMs: periodEndMs,
+            importedAtMs: importedAtMs,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
