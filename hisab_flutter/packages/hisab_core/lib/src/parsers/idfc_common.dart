@@ -1,8 +1,65 @@
-/// IDFC particulars extraction shared by the XLSX and PDF parsers.
-/// Port of IDFCStatementText.extract.
+/// IDFC particulars extraction and row reading shared by the XLSX and PDF
+/// parsers. Port of IDFCStatementText.extract.
 library;
 
+import '../domain.dart';
+import '../generic_bank/synthetic_ref.dart';
+
+/// One statement row, amounts in paise: the same in either rendition.
+typedef IdfcRow = ({
+  DateTime date,
+  String particulars,
+  int? debit,
+  int? credit,
+  int balance,
+});
+
 class IdfcStatementText {
+  /// Exactly one of debit and credit per row, the running balance verified
+  /// row to row, balance-keyed synthetic refs for rows with no rail ref.
+  static List<ParsedTransaction> transactions(Iterable<IdfcRow> rows) {
+    int? previousBalance;
+    final transactions = <ParsedTransaction>[];
+    for (final row in rows) {
+      final Direction direction;
+      final int amount;
+      if (row.debit != null && row.credit == null) {
+        direction = Direction.debit;
+        amount = row.debit!;
+      } else if (row.debit == null && row.credit != null) {
+        direction = Direction.credit;
+        amount = row.credit!;
+      } else {
+        throw MalformedRowException(0, row.particulars);
+      }
+
+      final previous = previousBalance;
+      if (previous != null) {
+        final expected =
+            direction == Direction.debit ? previous - amount : previous + amount;
+        if (expected != row.balance) {
+          throw MalformedRowException(
+              0, 'balance chain break at: ${row.particulars}');
+        }
+      }
+      previousBalance = row.balance;
+
+      final (counterparty, reference) = extract(row.particulars);
+      transactions.add(ParsedTransaction(
+        date: row.date,
+        amountPaise: amount,
+        direction: direction,
+        counterparty: counterparty,
+        reference: reference ??
+            SyntheticRef.make(
+                balancePaise: row.balance, date: row.date, amountPaise: amount),
+        narration: row.particulars,
+      ));
+    }
+    if (transactions.isEmpty) throw const EmptyDocumentException();
+    return transactions;
+  }
+
   /// Counterparty/reference from the particulars, by transaction rail:
   /// "UPI/DR/<ref>/<name>/…", "NEFT/<ref>/<name>/…", "POS-…/<name>/<ref>/…".
   static (String, String?) extract(String particulars) {
