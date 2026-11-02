@@ -44,8 +44,8 @@ import 'package:notification_listener_service/notification_event.dart';
 import 'package:notification_listener_service/notification_listener_service.dart';
 
 import '../storage/database.dart';
+import 'capture_intake.dart';
 import 'capture_prefs.dart';
-import 'import_service.dart';
 import 'memo_store.dart';
 import 'onnx_extractor_model.dart';
 
@@ -99,6 +99,9 @@ enum CaptureOutcome {
 
   /// Parsed and filed: a new memo, a new ledger row, or both.
   captured,
+
+  /// Parsed, but the store could not be written.
+  saveFailed,
 }
 
 class NotificationCapture {
@@ -226,60 +229,20 @@ class NotificationCapture {
     // the dedup guard for no reason.
     if (hasRemoved) return CaptureOutcome.notAPosting;
 
-    // Unconditional, and BEFORE both the enable gate and the parse: an alert
-    // that arrived while capture was off is still an arrival, and health's
-    // whole job is to tell "nothing is reaching Hisab" apart from "everything
-    // reaches Hisab and none of it parses". Mirrors the iOS intent exactly.
-    await CapturePrefs.setLastAttemptAt(now);
-
-    // The Settings toggle has to actually stop capture. A toggle that only
-    // silences the notification while memos keep accruing is worse than no
-    // toggle — the user believes they switched the feature off.
-    if (!await CapturePrefs.isEnabled()) return CaptureOutcome.disabled;
-
-    // The only place the raw text exists. It is not stored, not logged, and
-    // goes out of scope with this call.
-    final text = '$title $content'.trim();
-    final (memo, row) = await _read(text, now, extractor);
-    if (memo == null && row == null) return CaptureOutcome.unparsed;
-
-    final memoInserted = memo != null && await MemoStore.insert(memo, db: db);
-    // Only an alert carrying a bank reference has a row; the content hash
-    // (source + reference + direction) is its dedup guard.
-    final rowInserted =
-        row != null && await ImportService.insertCapturedAlert(row, db: db);
-    // On a PARSED alert, whether or not it was new — a duplicate is still
-    // proof the pipeline works, and the health indicator is about the
-    // pipeline. Set on every parse, never on every notification.
-    await CapturePrefs.setLastCaptureAt(now);
-    if (!memoInserted && !rowInserted) return CaptureOutcome.duplicate;
-
-    // Task 16's CaptureNotifier goes here, and only on a newly inserted memo:
-    // a re-posted alert must not produce a second banner, and a ledger row
-    // alone (an account-to-account transfer) has nobody to label.
-    if (memo != null && memoInserted) await onCaptured?.call(memo);
-    return CaptureOutcome.captured;
-  }
-
-  /// The extractor's memo and ledger row ([AlertCapture]) when it is loaded;
-  /// the parser's memo and no row while it loads, if it never does, and if
-  /// one extraction throws. An alert the extractor reads as no transaction is
-  /// an answer, not a failure — it does not go to the parser.
-  static Future<(PendingMemo?, ParsedTransaction?)> _read(
-      String text, DateTime now, AlertExtractor? extractor) async {
-    if (extractor != null) {
-      try {
-        final alert = await extractor.extract(text);
-        return (
-          AlertCapture.memo(alert, receivedAt: now),
-          AlertCapture.ledgerRow(alert, receivedAt: now),
-        );
-      } catch (error) {
-        // The type only: an error's message could quote the text.
-        debugPrint('capture: extraction failed, reading the alert with the '
-            'parser (${error.runtimeType})');
-      }
-    }
-    return (AlertParser.parse(text, now), null);
+    final result = await CaptureIntake.ingest(
+      text: '$title $content'.trim(),
+      db: db,
+      now: now,
+      extractor: extractor,
+      onCaptured: onCaptured,
+    );
+    return switch (result.outcome) {
+      IntakeOutcome.captureOff => CaptureOutcome.disabled,
+      IntakeOutcome.noText || IntakeOutcome.notAPayment =>
+        CaptureOutcome.unparsed,
+      IntakeOutcome.duplicate => CaptureOutcome.duplicate,
+      IntakeOutcome.logged => CaptureOutcome.captured,
+      IntakeOutcome.saveFailed => CaptureOutcome.saveFailed,
+    };
   }
 }

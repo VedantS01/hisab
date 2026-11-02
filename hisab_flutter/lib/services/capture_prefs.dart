@@ -10,6 +10,11 @@ library;
 import 'package:hisab_core/hisab_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// What became of the last alert handed to Hisab's intake, for the System
+/// check. Raw names match the Swift app's `CapturePrefs.Outcome`, so a
+/// migrated value keeps its meaning.
+enum IntakeOutcome { logged, duplicate, notAPayment, noText, saveFailed, captureOff }
+
 class CapturePrefs {
   CapturePrefs._();
 
@@ -18,10 +23,17 @@ class CapturePrefs {
   static const lastAttemptKey = 'capture.lastAttemptAt';
   static const notifyCountKey = 'capture.notifyCount';
   static const notifyDayKey = 'capture.notifyDay';
+  static const lastOutcomeKey = 'capture.lastOutcome';
+  static const lastOutcomeAtKey = 'capture.lastOutcomeAt';
 
   /// Off by default. The user opts in.
+  ///
+  /// Reloads first: on iOS a Shortcuts run captures in its own Flutter engine,
+  /// and each engine caches preferences, so a switch flipped in the app would
+  /// otherwise go unseen by an engine that started earlier.
   static Future<bool> isEnabled() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     return prefs.getBool(enabledKey) ?? false;
   }
 
@@ -50,6 +62,22 @@ class CapturePrefs {
 
   static Future<void> setLastAttemptAt(DateTime value) =>
       _writeDate(lastAttemptKey, value);
+
+  static Future<(IntakeOutcome, DateTime)?> lastOutcome() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final name = prefs.getString(lastOutcomeKey);
+    final at = await _readDate(lastOutcomeAtKey);
+    final outcome =
+        IntakeOutcome.values.where((o) => o.name == name).firstOrNull;
+    return outcome == null || at == null ? null : (outcome, at);
+  }
+
+  static Future<void> record(IntakeOutcome outcome, DateTime at) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(lastOutcomeKey, outcome.name);
+    await _writeDate(lastOutcomeAtKey, at);
+  }
 
   /// Notifications sent today, so a heavy UPI day cannot spam. Resets when
   /// the IST day changes.
@@ -102,6 +130,7 @@ class CapturePrefs {
 
   static Future<DateTime?> _readDate(String key) async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     final ms = prefs.getInt(key);
     return ms == null
         ? null

@@ -1,10 +1,15 @@
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show AssetManifest, rootBundle;
+import 'package:flutter/services.dart'
+    show AssetManifest, MethodChannel, rootBundle;
 import 'package:hisab_core/hisab_core.dart';
 import 'package:hisab_pdf/hisab_pdf.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Not called from here: compiled in so iOS's headless capture engine can
+// start at its `captureMain` entry point in a release build.
+// ignore: unused_import
+import 'capture_entry.dart';
 import 'screens/buckets_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/reconciliation_screen.dart';
@@ -75,6 +80,12 @@ Future<void> main() async {
   // dart-define that switched capture on behind the toggle's back would
   // contradict the one guarantee the toggle has to make.
   await CaptureNotifier.init(db: db, ruleset: ruleset);
+
+  // iOS captures in a second engine (capture_entry.dart), whose writes this
+  // engine's drift streams cannot see; the Runner pings here after each one.
+  const MethodChannel('hisab/app').setMethodCallHandler((call) async {
+    if (call.method == 'dataChanged') db.markTablesUpdated(db.allTables);
+  });
 
   runApp(AppScope(state: state, child: const HisabApp()));
 }
