@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../services/demo_data.dart';
 import '../services/insight_store.dart';
 import '../services/queries.dart';
 import '../state.dart';
@@ -92,7 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               const Text(
-                  'Import a statement to begin, or load demo data from Settings.',
+                  'Import a statement to begin.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.black54)),
               const SizedBox(height: 16),
@@ -102,6 +103,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: () => showImportFlow(context),
                 icon: const Icon(Icons.add),
                 label: const Text('Import statement'),
+              ),
+              // Only on an empty ledger: how a first-time user (and App
+              // Review) can see every screen without importing their own
+              // statements. Gone once anything real is in.
+              TextButton(
+                onPressed: () =>
+                    DemoData.load(AppScope.of(context).importService),
+                child: const Text('Explore with sample data',
+                    style: TextStyle(color: HisabTheme.khataRed)),
               ),
             ],
           ),
@@ -149,6 +159,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (data.documents.any((d) => DemoData.slotKeys.contains(d.fileSha256)))
+          _SampleDataBar(onClear: () => DemoData.eraseExisting(state.db)),
         const CaptureHealthBanner(),
         NeedsReviewSection(data: data),
         // The strip sits above the month chips, matching iOS: it always
@@ -379,6 +391,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
             ],
           ),
+        ),
+      );
+}
+
+/// Shown while the sample statements are loaded, so they are never mistaken
+/// for the user's own money.
+class _SampleDataBar extends StatelessWidget {
+  final Future<void> Function() onClear;
+  const _SampleDataBar({required this.onClear});
+
+  @override
+  Widget build(BuildContext context) => Card(
+        color: HisabTheme.khataRed.withValues(alpha: 0.08),
+        child: ListTile(
+          dense: true,
+          leading: const Icon(Icons.science_outlined, color: HisabTheme.khataRed),
+          title: const Text('Sample data'),
+          trailing: TextButton(onPressed: onClear, child: const Text('Clear')),
         ),
       );
 }

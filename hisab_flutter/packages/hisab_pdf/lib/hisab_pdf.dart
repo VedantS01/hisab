@@ -20,7 +20,8 @@ export 'src/pdf_text.dart';
 
 /// The PDF parser set appended to hisab_core's liveRegistry.
 /// (IDFC PDF is deliberately absent: Syncfusion drops glyphs in that
-/// statement's embedded font, silently corrupting rail references. IDFC's
+/// statement's embedded font, silently corrupting rail references. On iOS the
+/// app adds hisab_core's IdfcPdfParser over PDFKit's text; elsewhere IDFC's
 /// XLSX rendition of the same statement parses perfectly — the unsupported
 /// sheet steers users there.)
 List<core.StatementParser> pdfParsers() => const [
@@ -97,5 +98,7 @@ bool _isIdfcStatement(PdfDocument doc) {
   return RegExp(r'\bIFSC?\s*:\s*IDFB0').hasMatch(accountBlock);
 }
 
-/// The complete live registry for the app: code parsers + PDF parsers.
-core.ParserRegistry fullRegistry() => core.liveRegistry(extra: pdfParsers());
+/// The complete live registry for the app: code parsers + PDF parsers, then
+/// [extra] (the app's platform-specific readers).
+core.ParserRegistry fullRegistry({List<core.StatementParser> extra = const []}) =>
+    core.liveRegistry(extra: [...pdfParsers(), ...extra]);

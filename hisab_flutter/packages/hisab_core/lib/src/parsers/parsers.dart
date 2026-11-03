@@ -12,6 +12,7 @@ export 'hdfc_common.dart';
 export 'hdfc_txt_parser.dart';
 export 'hdfc_xls_parser.dart';
 export 'idfc_common.dart';
+export 'idfc_pdf_parser.dart';
 export 'idfc_xlsx_parser.dart';
 export 'paytm_xlsx_parser.dart';
 export 'synthetic_csv_parser.dart';

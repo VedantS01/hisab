@@ -3,6 +3,7 @@
 library;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show Uint8List;
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,17 +15,23 @@ import '../state.dart';
 import '../theme.dart';
 
 Future<void> showImportFlow(BuildContext context) async {
-  final state = AppScope.of(context);
   final result = await FilePicker.platform.pickFiles(withData: true);
   final file = result?.files.firstOrNull;
   final data = file?.bytes;
   if (file == null || data == null || !context.mounted) return;
+  await importFileBytes(context, filename: file.name, data: data);
+}
 
+/// The import flow for a file already in hand: one picked above, or one
+/// shared or opened into Hisab from another app (IncomingRouter).
+Future<void> importFileBytes(BuildContext context,
+    {required String filename, required Uint8List data}) async {
+  final state = AppScope.of(context);
   final supportedNames = state.importService.resolver.supportedFormatNames;
 
   Future<void> runImport(String? password) async {
     final report = await state.importService.importBytes(
-        data: data, filename: file.name, password: password);
+        data: data, filename: filename, password: password);
     if (password != null && !report.duplicateOfExistingFile) {
       await PasswordStore.setPassword(report.source, password);
     }
@@ -41,7 +48,7 @@ Future<void> showImportFlow(BuildContext context) async {
       try {
         final report = await state.importService.importBytesReadingColumns(
             data: data,
-            filename: file.name,
+            filename: filename,
             password: password,
             proposer: const GeminiNanoColumnReader());
         navigator.pop();
@@ -83,7 +90,7 @@ Future<void> showImportFlow(BuildContext context) async {
         }
         if (!context.mounted) return;
       }
-      final typed = await _askPassword(context, file.name);
+      final typed = await _askPassword(context, filename);
       if (typed != null && typed.isNotEmpty) await attempt(typed);
     } on UnsupportedFormatException catch (e) {
       await readColumnsOrRequest(password, e.fingerprint, null);
@@ -92,7 +99,7 @@ Future<void> showImportFlow(BuildContext context) async {
     } on ParseException catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not parse ${file.name}: $e')));
+            SnackBar(content: Text('Could not parse $filename: $e')));
       }
     }
   }

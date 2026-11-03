@@ -18,14 +18,22 @@
 ///   kills background work aggressively. That is said too.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
 import '../services/capture_notifier.dart';
+import 'capture_shortcuts_screen.dart';
 import '../services/capture_prefs.dart';
 import '../services/notification_capture.dart';
 import '../state.dart';
 import '../theme.dart';
+
+/// The setup screen for this platform: Android's notification-access screen
+/// below, or the Shortcuts walkthrough on iOS.
+Widget captureSetupPage() => defaultTargetPlatform == TargetPlatform.iOS
+    ? const CaptureShortcutsScreen()
+    : const CaptureSetupScreen();
 
 class CaptureSetupScreen extends StatefulWidget {
   const CaptureSetupScreen({super.key});
@@ -35,17 +43,9 @@ class CaptureSetupScreen extends StatefulWidget {
 }
 
 class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
-  /// An inline sample, not a bundled resource. The point is for the user to
-  /// watch the real reader succeed before trusting it, and a constant serves
-  /// that exactly as well as a file would. It carries a UPI reference so the
-  /// result can show the ledger half of capture, not only the memo.
-  static const sample = 'Rs.450.00 debited from a/c XX1234 on 22-09-26 to VPA '
-      'vedant@okaxis. Ref 123456789012.';
-
   bool _enabled = false;
   bool _accessGranted = false;
   bool _notificationsAllowed = false;
-  String? _testResult;
 
   @override
   void initState() {
@@ -207,31 +207,6 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'so this fails loudly rather than silently.',
                 style: TextStyle(fontSize: 13, color: Colors.black54)),
           ]),
-          _section('Check the parser', [
-            const Text(sample,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    color: Colors.black54)),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: _runTest,
-              child: const Text('Test it',
-                  style: TextStyle(color: HisabTheme.khataRed)),
-            ),
-            if (_testResult != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(_testResult!,
-                    key: const Key('capture-test-result'),
-                    style: const TextStyle(fontSize: 13)),
-              ),
-            const SizedBox(height: 6),
-            const Text(
-                'Runs the reader on a sample alert and shows what it got out. '
-                'Nothing is stored.',
-                style: TextStyle(fontSize: 12, color: Colors.black54)),
-          ]),
         ],
       ),
     );
@@ -273,79 +248,4 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
           ],
         ),
       );
-
-  /// Runs what capture runs — the on-device extractor, or the parser when the
-  /// extractor cannot load — and writes nothing.
-  Future<void> _runTest() async {
-    final now = DateTime.now();
-    final extractor = await NotificationCapture.extractor();
-    ExtractedAlert? alert;
-    if (extractor != null) {
-      try {
-        alert = await extractor.extract(sample);
-      } catch (_) {
-        // Falls through to the parser, as capture does.
-      }
-    }
-    if (!mounted) return;
-    setState(() => _testResult = alert == null
-        ? 'The on-device reader is not available, so this used the pattern '
-            'parser. ${_parserResult(now)}'
-        : _extractorResult(alert, now));
-  }
-
-  String _extractorResult(ExtractedAlert alert, DateTime now) {
-    final amount = alert.amountPaise;
-    final direction = alert.direction;
-    if (!alert.isTransaction || amount == null || direction == null) {
-      return 'No transaction found in that alert. Nothing was stored.';
-    }
-    final parts = <String>[
-      '${Money.formatPaise(amount)} '
-          '${direction == Direction.debit ? 'out' : 'in'}',
-      if (alert.payee case final payee? when payee.isNotEmpty)
-        '${direction == Direction.debit ? 'to' : 'from'} $payee',
-      if (alert.vpa case final vpa? when vpa.isNotEmpty) 'UPI $vpa',
-      if (alert.ownAccountTail case final tail? when tail.isNotEmpty)
-        'a/c ••$tail',
-      if (alert.counterpartyAccountTail case final tail? when tail.isNotEmpty)
-        'their a/c ••$tail',
-      'on ${istDayLabel(AlertCapture.date(alert.dateIso, receivedAt: now))}',
-      if (alert.ref case final ref? when ref.isNotEmpty) 'ref $ref',
-    ];
-    final String fate;
-    if (AlertCapture.ledgerRow(alert, receivedAt: now) != null) {
-      fate = 'It carries a bank reference, so a real alert like this is added '
-          'to your ledger right away.';
-    } else if (AlertCapture.memo(alert, receivedAt: now) != null) {
-      fate = 'No bank reference, so a real alert like this is kept as a memo '
-          'until the statement arrives.';
-    } else {
-      fate = 'No bank reference and nobody to label, so a real alert like '
-          'this would not be kept.';
-    }
-    return 'Read: ${parts.join(', ')}. $fate Nothing was stored.';
-  }
-
-  String _parserResult(DateTime now) {
-    final memo = AlertParser.parse(sample, now);
-    if (memo == null) return 'Could not read that alert. Nothing was stored.';
-    final parts = <String>[
-      '${Money.formatPaise(memo.amountPaise)} '
-          '${memo.direction == Direction.debit ? 'out' : 'in'}',
-      'to ${memo.payee}',
-      'on ${istDayLabel(memo.date)}',
-    ];
-    // Only when it adds something: this sample's payee IS its VPA, because the
-    // alert names no merchant, and printing it twice reads like a bug.
-    final vpa = memo.vpa;
-    if (vpa != null && vpa != memo.payee.toLowerCase()) {
-      parts.add('UPI $vpa');
-    }
-    if (memo.accountTail != null) {
-      parts.add('a/c ••${memo.accountTail}');
-    }
-    return 'Read: ${parts.join(', ')}. It would be kept as a memo until the '
-        'statement arrives. Nothing was stored.';
-  }
 }

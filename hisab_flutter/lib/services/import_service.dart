@@ -11,6 +11,7 @@ import 'package:hisab_core/hisab_core.dart';
 
 import '../storage/database.dart';
 import 'memo_store.dart';
+import 'pdfkit_text.dart';
 import 'queries.dart';
 
 class ImportReport {
@@ -58,6 +59,7 @@ class ImportService {
     final duplicate = await _alreadyImported(fileHash);
     if (duplicate != null) return duplicate;
 
+    await PdfKitText.prepare(data, password);
     final parsed = _parsed(resolver.resolve(data: data, filename: filename, password: password));
     final source = overrideSource ?? parsed.source;
     return insertParsedDocument(
@@ -77,6 +79,7 @@ class ImportService {
     final fileHash = sha256.convert(data).toString();
     final duplicate = await _alreadyImported(fileHash);
     if (duplicate != null) return duplicate;
+    await PdfKitText.prepare(data, password);
     final parsed = _parsed(await resolver.resolveWithProposer(
         data: data, filename: filename, password: password, proposer: proposer));
     return insertParsedDocument(
@@ -139,6 +142,8 @@ class ImportService {
           fileSha256: fileHash,
           periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
           periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
+          importedAtMs:
+              Value(DateTime.now().toUtc().millisecondsSinceEpoch),
         ));
     final inserted = <MemoMergeCandidate>[];
     final insertedRefs = <String>{};
@@ -281,6 +286,8 @@ class ImportService {
               fileSha256: capturedAlertsFileHash,
               periodStartMs: dateMs,
               periodEndMs: dateMs,
+              importedAtMs:
+                  Value(DateTime.now().toUtc().millisecondsSinceEpoch),
             ));
       } else {
         documentId = doc.id;

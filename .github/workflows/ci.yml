@@ -72,3 +72,26 @@ jobs:
         run: |
           cd hisab_flutter
           flutter build apk --debug
+
+  flutter-ios:
+    name: Flutter app builds for iOS Simulator
+    # Same toolchain as the Swift jobs above.
+    runs-on: macos-26
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      # arm64 only: Xcode 27's lipo verifies one architecture at a time, which
+      # fails `flutter build ios --simulator`'s two-architecture check.
+      - name: Build
+        run: |
+          cd hisab_flutter
+          flutter build ios --config-only --simulator --debug
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner \
+            -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build

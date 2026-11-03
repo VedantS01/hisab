@@ -6,6 +6,7 @@ import 'package:hisab_core/hisab_core.dart'
 import '../services/capture_notifier.dart';
 import '../services/capture_prefs.dart';
 import '../services/demo_data.dart';
+import '../services/legacy_migration.dart';
 import '../services/insight_store.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
@@ -33,19 +34,6 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.auto_awesome,
-                          color: HisabTheme.sona),
-                      title: const Text('Load demo data'),
-                      subtitle: const Text(
-                          'Seven months of synthetic GPay, HDFC and IDFC statements to explore every screen. Tapping again replaces the demo with a fresh copy.'),
-                      onTap: () async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        await DemoData.load(state.importService);
-                        messenger.showSnackBar(const SnackBar(
-                            content: Text('Demo data loaded')));
-                      },
-                    ),
-                    ListTile(
                       leading: const Icon(Icons.delete_forever,
                           color: HisabTheme.khataRed),
                       title: const Text('Erase all data'),
@@ -72,6 +60,9 @@ class SettingsScreen extends StatelessWidget {
                         );
                         if (confirmed == true) {
                           await DemoData.eraseAll(state.db);
+                          // The Swift app's backup and statement copies
+                          // (iOS, after the 2.0 migration) are data too.
+                          await LegacyMigration.eraseLeftovers();
                           // Suppressions are keyed by insight id and merchant
                           // key; surviving an erase would silently hide cards
                           // about data the user no longer has.
@@ -358,7 +349,7 @@ class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
             title: const Text('Capture setup'),
             onTap: () async {
               await Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => const CaptureSetupScreen()));
+                  builder: (_) => captureSetupPage()));
               await _refresh();
             },
           ),

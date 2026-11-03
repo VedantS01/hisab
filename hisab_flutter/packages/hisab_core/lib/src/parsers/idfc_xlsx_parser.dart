@@ -5,7 +5,6 @@ library;
 
 import '../domain.dart';
 import '../generic_bank/statement_date.dart';
-import '../generic_bank/synthetic_ref.dart';
 import '../generic_bank/xlsx_reader.dart';
 import 'idfc_common.dart';
 
@@ -61,56 +60,12 @@ class IdfcXlsxParser implements StatementParser {
       throw const UnrecognizedFormatException();
     }
 
-    int? previousBalance;
-    final transactions = <ParsedTransaction>[];
-
-    for (final row in rows.skip(headerIndex + 1)) {
-      final dateText = row[dateCol];
-      final date = dateText == null
-          ? null
-          : StatementDate.tryParse(dateText, 'dd-MMM-yyyy');
-      final particulars = row[particularsCol];
-      final balanceText = row[balanceCol];
-      final balance = balanceText == null ? null : _paise(balanceText);
-      if (date == null || particulars == null || balance == null) continue;
-
-      final debit = row[debitCol] == null ? null : _paise(row[debitCol]!);
-      final credit = row[creditCol] == null ? null : _paise(row[creditCol]!);
-      Direction direction;
-      int amount;
-      if (debit != null && credit == null) {
-        direction = Direction.debit;
-        amount = debit;
-      } else if (debit == null && credit != null) {
-        direction = Direction.credit;
-        amount = credit;
-      } else {
-        throw MalformedRowException(0, particulars);
-      }
-
-      final previous = previousBalance;
-      if (previous != null) {
-        final expected =
-            direction == Direction.debit ? previous - amount : previous + amount;
-        if (expected != balance) {
-          throw MalformedRowException(0, 'balance chain break at: $particulars');
-        }
-      }
-      previousBalance = balance;
-
-      final (counterparty, reference) = IdfcStatementText.extract(particulars);
-      transactions.add(ParsedTransaction(
-        date: date,
-        amountPaise: amount,
-        direction: direction,
-        counterparty: counterparty,
-        reference: reference ??
-            SyntheticRef.make(
-                balancePaise: balance, date: date, amountPaise: amount),
-        narration: particulars,
-      ));
-    }
-    if (transactions.isEmpty) throw const EmptyDocumentException();
+    final transactions = IdfcStatementText.transactions([
+      for (final row in rows.skip(headerIndex + 1))
+        if (_row(row, dateCol, particularsCol, debitCol, creditCol, balanceCol)
+            case final read?)
+          read,
+    ]);
 
     DatePeriod? declaredPeriod;
     final periodRegex =
@@ -128,6 +83,24 @@ class IdfcXlsxParser implements StatementParser {
         source: Source.idfc,
         declaredPeriod: declaredPeriod,
         transactions: transactions);
+  }
+
+  static IdfcRow? _row(Map<String, String> row, String dateCol,
+      String particularsCol, String debitCol, String creditCol, String balanceCol) {
+    final dateText = row[dateCol];
+    final date =
+        dateText == null ? null : StatementDate.tryParse(dateText, 'dd-MMM-yyyy');
+    final particulars = row[particularsCol];
+    final balanceText = row[balanceCol];
+    final balance = balanceText == null ? null : _paise(balanceText);
+    if (date == null || particulars == null || balance == null) return null;
+    return (
+      date: date,
+      particulars: particulars,
+      debit: row[debitCol] == null ? null : _paise(row[debitCol]!),
+      credit: row[creditCol] == null ? null : _paise(row[creditCol]!),
+      balance: balance,
+    );
   }
 
   /// "303594.0" / "1417816.76" / "1999" → paise, exact. Mirrors the Swift

@@ -110,7 +110,7 @@ PendingMemo memoAt(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('schema migration v1 -> v2', () {
+  group('schema migration v1 -> current', () {
     test('an existing v1 database upgrades: old rows survive, memos work',
         () async {
       final db = openUpgradedFromV1();
@@ -120,6 +120,8 @@ void main() {
       final docs = await db.select(db.storedDocuments).get();
       expect(docs.map((d) => d.id), ['doc-1'],
           reason: 'the pre-existing document must survive the migration');
+      expect(docs.single.importedAtMs, isNull,
+          reason: 'v3 adds the column; older rows never recorded it');
 
       final txns = await db.select(db.storedTransactions).get();
       expect(txns, hasLength(1));
@@ -142,10 +144,11 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .map((row) => row.read<int>('user_version'))
           .getSingle();
-      expect(version, 2, reason: 'the upgrade must record the new version');
+      expect(version, db.schemaVersion,
+          reason: 'the upgrade must record the new version');
     });
 
-    test('a fresh install is created at v2 with the memo table', () async {
+    test('a fresh install is created at the current version', () async {
       final db = AppDatabase(NativeDatabase.memory());
       addTearDown(db.close);
 
@@ -154,7 +157,7 @@ void main() {
           .customSelect('PRAGMA user_version;')
           .map((row) => row.read<int>('user_version'))
           .getSingle();
-      expect(version, 2);
+      expect(version, db.schemaVersion);
     });
   });
 

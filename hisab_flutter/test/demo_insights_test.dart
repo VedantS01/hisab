@@ -1,5 +1,5 @@
-// The bundled demo statements have one job beyond looking plausible: whoever
-// taps "Load demo data" — a reviewer, Play's pre-launch robots, us — must see
+// The bundled demo statements have one job beyond looking plausible: a dev
+// build seeded with them (--dart-define=SEED_DEMO=true) must show
 // a full insight strip, today and in two years' time. The month shift is what
 // keeps that true, so this runs the real import pipeline (dedup ->
 // reconciliation -> self transfers -> categorisation) over the real assets at
