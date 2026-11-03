@@ -4,6 +4,13 @@ platform :ios, '18.0'
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
+# Hisab picks statements with the document picker only. Without file_picker's
+# media and audio pickers the binary carries no photo or music library code,
+# which App Store processing otherwise rejects without purpose strings
+# (ITMS-90683, build 2.0.0 (8)).
+Pod::PICKER_MEDIA = false
+Pod::PICKER_AUDIO = false
+
 project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
