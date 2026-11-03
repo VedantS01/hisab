@@ -29,6 +29,7 @@ Future<void> main(List<String> args) async {
   try {
     if (suite == 'columns' || suite == 'all') passed &= await columns(runtime);
     if (suite == 'detection' || suite == 'all') passed &= await detection(runtime);
+    if (suite == 'insights' || suite == 'all') passed &= await insights(runtime);
   } finally {
     await runtime.close();
   }
@@ -128,6 +129,98 @@ Future<bool> detection(ModelRuntime runtime) async {
   return score >= cases.length * 0.9;
 }
 
+
+/// The insights agent on three months of an ordinary ledger, each with one
+/// fact planted in October. A case passes when a card that survives the
+/// grounding check names the planted fact; the dropped count is how often
+/// the model quoted a number no tool said.
+Future<bool> insights(ModelRuntime runtime) async {
+  stdout.writeln('\n== insights');
+  const cases = {
+    'food-up': ['food', 'zomato'],
+    'subscription': ['netflix'],
+    'big-merchant': ['amazon', 'shopping'],
+  };
+  final tap = _Tap(runtime);
+  final agent = InsightsAgent(tap);
+  var score = 0, produced = 0, kept = 0;
+  for (final MapEntry(key: name, value: words) in cases.entries) {
+    final watch = Stopwatch()..start();
+    String verdict;
+    try {
+      final tools = LedgerTools(_ledger(name), now: DateTime.utc(2026, 11, 3));
+      final cards = await agent.run(tools: tools, month: YearMonth(2026, 10));
+      final raw = (tap.last?.json['insights'] as List? ?? const []).length;
+      produced += raw;
+      kept += cards.length;
+      final hit = cards.any((c) => words.any((w) =>
+          '${c.title} ${c.body} ${c.category} ${c.merchant}'.toLowerCase().contains(w)));
+      if (hit) score++;
+      verdict = '${hit ? 'PASS' : 'FAIL'}  kept ${cards.length}/$raw  tools ${tools.calls.join(',')}';
+      for (final c in cards) {
+        verdict += '\n${' ' * 32}+ ${c.title} — ${c.body}';
+      }
+      if (cards.length < raw) verdict += '\n${' ' * 32}raw ${tap.last?.content}';
+    } on ModelFailure catch (e) {
+      verdict = 'FAIL  $e';
+    }
+    stdout.writeln('${name.padRight(30)}  $verdict  (${watch.elapsedMilliseconds} ms)');
+  }
+  stdout.writeln('insights: $score/${cases.length}  (cards kept $kept/$produced)');
+  return score >= 2;
+}
+
+/// Three months of salary, rent, food, groceries and travel, plus [plant].
+List<InsightRecord> _ledger(String plant) {
+  final rows = <InsightRecord>[];
+  void add(int month, int day, int rupees, String category, String merchant,
+          {Direction direction = Direction.debit}) =>
+      rows.add(InsightRecord(
+          id: 'r${rows.length}',
+          date: DateTime.utc(2026, month, day, 6),
+          amountPaise: rupees * 100,
+          direction: direction,
+          category: category,
+          merchant: merchant));
+  // Only salary and rent repeat to the rupee; everyday spending wanders, as
+  // it does.
+  for (final (i, m) in [8, 9, 10].indexed) {
+    add(m, 1, 85000, 'Income', 'ACME LTD', direction: Direction.credit);
+    add(m, 5, 18000, 'Rent', 'LANDLORD');
+    for (var d = 3 + i; d <= 27; d += 4 + i) {
+      add(m, d, 380 + 35 * d % 140, 'Food', 'SWIGGY');
+    }
+    add(m, [12, 9, 16][i], [2240, 2675, 1930][i], 'Groceries', 'BIGBASKET');
+    add(m, [24, 20, 27][i], [1810, 1365, 2120][i], 'Groceries', 'BLINKIT');
+    add(m, [15, 18, 11][i], [1190, 960, 1415][i], 'Transport', 'UBER');
+  }
+  switch (plant) {
+    case 'food-up':
+      for (var d = 2; d <= 29; d += 3) {
+        add(10, d, 520, 'Food', 'ZOMATO');
+      }
+    case 'subscription':
+      for (final m in [6, 7, 8, 9, 10]) {
+        add(m, 9, 649, 'Entertainment', 'NETFLIX');
+      }
+    case 'big-merchant':
+      add(10, 18, 24999, 'Shopping', 'AMAZON');
+  }
+  return rows;
+}
+
+/// Keeps the last reply, so a case can show what the check dropped.
+class _Tap implements ModelRuntime {
+  final ModelRuntime inner;
+  ModelReply? last;
+  _Tap(this.inner);
+
+  @override
+  Future<ModelStatus> status() => inner.status();
+
+  @override
+  Future<ModelReply> respond(ModelRequest request) async => last = await inner.respond(request);
+}
 
 /// ProposedMapping swallows a proposer's exceptions (a failed reading is a
 /// refusal); the eval wants to see them.
