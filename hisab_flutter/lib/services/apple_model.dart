@@ -81,6 +81,11 @@ class ChannelRuntime implements ModelRuntime {
 /// The one runtime the app's agents share.
 final appleModel = ChannelRuntime();
 
+/// Whether one of Apple's models can answer on this phone. Asked once per
+/// process.
+final Future<bool> appleModelReady =
+    appleModel.status().then((s) => s.ready, onError: (_) => false);
+
 /// The phone's own model for reading an unknown statement's columns: Apple's
 /// on iOS, Gemini Nano on Android; null when neither can.
 Future<ColumnRoleProposer?> columnReaderOnThisPhone() async {

@@ -20,9 +20,8 @@ import 'memo_review_sheet.dart';
 DateTime _memoDate(StoredPendingMemo memo) =>
     DateTime.fromMillisecondsSinceEpoch(memo.dateMs, isUtc: true);
 
-/// Whether this phone can run the detection agent. Asked once per process.
-final Future<bool> canFindInText =
-    appleModel.status().then((s) => s.ready, onError: (_) => false);
+/// Whether this phone can run the detection agent.
+Future<bool> get canFindInText => appleModelReady;
 
 class DetectionsList extends StatelessWidget {
   final Snapshot data;

@@ -16,6 +16,10 @@ class TransactionsScreen extends StatefulWidget {
   /// memo of its own can land on Detections.
   static final segment = ValueNotifier<int>(0);
 
+  /// A category to filter by when the screen next opens — a feed card's
+  /// action. Taken as it is read.
+  static final requestedCategory = ValueNotifier<String?>(null);
+
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
@@ -32,11 +36,24 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void initState() {
     super.initState();
     TransactionsScreen.segment.addListener(_onSegment);
+    TransactionsScreen.requestedCategory.addListener(_takeCategory);
+    _takeCategory();
+  }
+
+  void _takeCategory() {
+    final category = TransactionsScreen.requestedCategory.value;
+    if (category == null) return;
+    TransactionsScreen.requestedCategory.value = null;
+    _monthFilter = null;
+    _sourceFilter = null;
+    _categoryFilter = category;
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     TransactionsScreen.segment.removeListener(_onSegment);
+    TransactionsScreen.requestedCategory.removeListener(_takeCategory);
     super.dispose();
   }
 

@@ -27,6 +27,8 @@ import 'services/pdfkit_text.dart';
 import 'services/queries.dart';
 import 'services/statement_self_test.dart';
 import 'state.dart';
+import 'feed/home_feed.dart';
+import 'services/agent_insights.dart';
 import 'storage/database.dart';
 import 'theme.dart';
 import 'widgets/import_flow.dart';
@@ -56,6 +58,9 @@ Future<void> main() async {
   final insightsConfig = InsightsConfig.fromJsonString(
       await rootBundle.loadString('assets/insights/insights-config.json'));
   final suppressions = await InsightStore.load();
+  await AgentInsights.load();
+  // Not awaited past the cache: the site is fetched in the background.
+  await HomeFeed.load();
   final state = AppState(
     db: db,
     importService: ImportService(db: db, resolver: resolver),

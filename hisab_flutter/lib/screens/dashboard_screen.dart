@@ -2,6 +2,11 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
+import '../feed/feed_view.dart';
+import '../feed/home_feed.dart';
+import '../services/agent_insights.dart';
+import '../services/apple_model.dart';
 import '../services/demo_data.dart';
 import '../services/insight_store.dart';
 import '../services/queries.dart';
@@ -32,6 +37,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// and flipping the flag before the (fire-and-forget) call means at most
   /// one prune ever runs for this screen's lifetime.
   bool _pruned = false;
+
+  /// Whether this screen has offered the insights agent its run.
+  bool _agentAsked = false;
 
   @override
   Widget build(BuildContext context) {
@@ -137,10 +145,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         grid.state(_selected, s) is CellPresent);
 
     final state = AppScope.of(context);
+    final records = Queries.insightRecords(data.txns, data.matches, matcher,
+        selfTransfers: selfTransfers);
     final insights = InsightsEngine.generate(
       input: InsightsInput(
-        records: Queries.insightRecords(data.txns, data.matches, matcher,
-            selfTransfers: selfTransfers),
+        records: records,
         documentPeriods:
             Queries.insightPeriods(Queries.statements(data.documents)),
         now: DateTime.now(),
@@ -154,59 +163,157 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _pruned = true;
       InsightStore.prune(insights.allIDs);
     }
+    // The first open after a month ends writes that month's insights.
+    if (!_agentAsked) {
+      _agentAsked = true;
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => AgentInsights.maybeRun(records, now: DateTime.now()));
+    }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (data.documents.any((d) => DemoData.slotKeys.contains(d.fileSha256)))
-          _SampleDataBar(onClear: () => DemoData.eraseExisting(state.db)),
-        const CaptureHealthBanner(),
-        // The strip sits above the month chips, matching iOS: it always
-        // speaks about the latest complete month, so mounting it under the
-        // chips would imply it follows the selection. Everything below the
-        // chip row does.
-        InsightStrip(
-          insights: insights.cards,
-          onOpen: (insight) =>
-              showInsightEvidence(context, insight, data.txns),
-          onDismiss: (insight) async {
-            await InsightStore.dismiss(insight.id);
-            final refreshed = await InsightStore.load();
-            if (mounted) setState(() => state.suppressions = refreshed);
-          },
-          onMute: (insight) async {
-            final target = insight.mute;
-            if (target == null) return;
-            await InsightStore.mute(target);
-            final refreshed = await InsightStore.load();
-            if (mounted) setState(() => state.suppressions = refreshed);
-          },
-        ),
-        if (insights.cards.isNotEmpty) const SizedBox(height: 8),
-        SizedBox(
-          height: 40,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final month in months)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(month.displayName),
-                    selected: month == _selected,
-                    selectedColor: HisabTheme.khataRed.withValues(alpha: 0.15),
-                    onSelected: (_) => setState(() => _selected = month),
-                  ),
-                ),
+    final now = DateTime.now();
+    List<Widget> section(FeedSection section) => switch (section.type) {
+          'sampleDataBar' => [
+              if (data.documents
+                  .any((d) => DemoData.slotKeys.contains(d.fileSha256)))
+                _SampleDataBar(
+                    onClear: () => DemoData.eraseExisting(state.db)),
             ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        _heroCard(stats, bankVerified),
-        _trendCard(trend),
-        _breakdownCard(breakdown),
-        _merchantsCard(merchants),
-      ],
+          'captureHealth' => [const CaptureHealthBanner()],
+          // Above the month chips, matching iOS: insights speak about the
+          // month just ended, so mounting them under the chips would imply
+          // they follow the selection. Everything below the chip row does.
+          'insights' => [_insights(insights, data, records)],
+          'monthPicker' => [
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final month in months)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(month.displayName),
+                          selected: month == _selected,
+                          selectedColor:
+                              HisabTheme.khataRed.withValues(alpha: 0.15),
+                          onSelected: (_) => setState(() => _selected = month),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          'hero' => [_heroCard(stats, bankVerified)],
+          'trend' => [_trendCard(trend)],
+          'breakdown' => [_breakdownCard(breakdown)],
+          'merchants' => [_merchantsCard(merchants)],
+          'card' => [
+              if (section.card!.until == null || now.isBefore(section.card!.until!))
+                FeedCardView(card: section.card!),
+            ],
+          _ => const [],
+        };
+
+    return ValueListenableBuilder<HomeFeed>(
+      valueListenable: HomeFeed.current,
+      builder: (context, feed, _) => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [for (final s in feed.sections) ...section(s)],
+      ),
+    );
+  }
+
+  /// The insights agent's cards for the month just ended where Apple's
+  /// models run; the native engine's strip until then, and everywhere else.
+  Widget _insights(
+      InsightsResult native, Snapshot data, List<InsightRecord> records) {
+    final state = AppScope.of(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([AgentInsights.current, AgentInsights.running]),
+      builder: (context, _) {
+        final now = DateTime.now();
+        final month = AgentInsights.monthFor(now);
+        final agent = AgentInsights.current.value;
+        final running = AgentInsights.running.value;
+        void rewrite() =>
+            AgentInsights.maybeRun(records, now: DateTime.now(), force: true);
+        if (agent != null && agent.month == month && agent.cards.isNotEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text(month.displayName,
+                        style: Theme.of(context).textTheme.titleSmall)),
+                IconButton(
+                  tooltip: 'Write again',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: running ? null : rewrite,
+                ),
+              ]),
+              InsightCarousel(cards: [
+                for (final c in agent.cards)
+                  InsightCard(
+                    icon: FeedIcons.of(c.kind),
+                    title: c.title,
+                    body: c.body,
+                    onTap: c.category == null
+                        ? null
+                        : () => openFeedAction(context,
+                            FeedAction('transactions', category: c.category)),
+                  ),
+              ]),
+              const SizedBox(height: 8),
+            ],
+          );
+        }
+        if (running) {
+          return const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: SkeletonBox(height: 124, radius: HisabRadius.r16),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InsightStrip(
+              insights: native.cards,
+              onOpen: (insight) =>
+                  showInsightEvidence(context, insight, data.txns),
+              onDismiss: (insight) async {
+                await InsightStore.dismiss(insight.id);
+                final refreshed = await InsightStore.load();
+                if (mounted) setState(() => state.suppressions = refreshed);
+              },
+              onMute: (insight) async {
+                final target = insight.mute;
+                if (target == null) return;
+                await InsightStore.mute(target);
+                final refreshed = await InsightStore.load();
+                if (mounted) setState(() => state.suppressions = refreshed);
+              },
+            ),
+            // On demand, where the agent can run and has something to read.
+            FutureBuilder<bool>(
+              future: appleModelReady,
+              builder: (context, ready) => ready.data == true &&
+                      records.any((r) => YearMonth.fromDate(r.date) == month)
+                  ? Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: rewrite,
+                        icon: const Icon(Icons.auto_awesome, size: 18),
+                        label: Text('Insights for ${month.displayName}'),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            if (native.cards.isNotEmpty) const SizedBox(height: 8),
+          ],
+        );
+      },
     );
   }
 

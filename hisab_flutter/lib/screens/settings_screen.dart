@@ -4,6 +4,7 @@ import 'package:hisab_core/hisab_core.dart'
     show Categorizer, Suppressions, istDayLabel;
 
 import '../services/capture_notifier.dart';
+import '../services/agent_insights.dart';
 import '../services/capture_prefs.dart';
 import '../services/demo_data.dart';
 import '../services/legacy_migration.dart';
@@ -67,6 +68,8 @@ class SettingsScreen extends StatelessWidget {
                           // key; surviving an erase would silently hide cards
                           // about data the user no longer has.
                           await InsightStore.clearAll();
+                          // The agent's cards quote the ledger's numbers.
+                          await AgentInsights.clear();
                           // Same reason, one layer over: the capture health
                           // timestamps — and, once Task 16 lands, a pending
                           // rule offer naming a payee — are things Hisab
