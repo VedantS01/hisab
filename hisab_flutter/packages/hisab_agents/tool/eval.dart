@@ -9,6 +9,7 @@
 /// prompts and schemas.
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:hisab_agents/hisab_agents.dart';
@@ -27,6 +28,7 @@ Future<void> main(List<String> args) async {
   var passed = true;
   try {
     if (suite == 'columns' || suite == 'all') passed &= await columns(runtime);
+    if (suite == 'detection' || suite == 'all') passed &= await detection(runtime);
   } finally {
     await runtime.close();
   }
@@ -76,6 +78,56 @@ Future<bool> columns(ModelRuntime runtime) async {
   // The 1.5.0 on-device reader read all the bundled formats.
   return score == cases.length;
 }
+
+/// The detection agent on eval/detection.json: alert-parity's labelled
+/// alerts and rejections plus synthetic emails, histories and non-payments.
+/// A case passes when the detections are exactly the expected ones by
+/// amount, direction, day and reference; account tail and payee are
+/// reported, not gated.
+Future<bool> detection(ModelRuntime runtime) async {
+  stdout.writeln('\n== detection');
+  final cases = (jsonDecode(File('eval/detection.json').readAsStringSync()) as Map)['cases'] as List;
+  final agent = DetectionAgent(runtime);
+  var score = 0, tails = 0, tailTotal = 0, payees = 0, payeeTotal = 0;
+  for (final c in cases.cast<Map<String, Object?>>()) {
+    final expected = [for (final e in c['expected'] as List) Map<String, Object?>.from(e as Map)];
+    final watch = Stopwatch()..start();
+    String verdict;
+    try {
+      final found = await agent.detect(c['text'] as String,
+          receivedAt: DateTime.parse(c['receivedAt'] as String));
+      String key(int paise, String direction, String day, String? ref) => '$paise $direction $day $ref';
+      final got = {for (final d in found) key(d.amountPaise, d.direction.name, istDayString(d.date), d.reference)};
+      final want = {
+        for (final e in expected)
+          key(e['amountPaise'] as int, e['direction'] as String, e['date'] as String, e['reference'] as String?)
+      };
+      final ok = got.length == found.length && got.length == want.length && got.containsAll(want);
+      if (ok) score++;
+      for (final e in expected) {
+        final match = found.where((d) => d.amountPaise == e['amountPaise']).firstOrNull;
+        if (e['accountTail'] != null) {
+          tailTotal++;
+          if (match?.accountTail == e['accountTail']) tails++;
+        }
+        if (e['counterparty'] != null) {
+          payeeTotal++;
+          if (match != null &&
+              match.counterparty.toLowerCase().contains((e['counterparty'] as String).toLowerCase())) {
+            payees++;
+          }
+        }
+      }
+      verdict = ok ? 'PASS' : 'FAIL  got $got\n${' ' * 32}want $want';
+    } on ModelFailure catch (e) {
+      verdict = 'FAIL  $e';
+    }
+    stdout.writeln('${(c['name'] as String).padRight(30).substring(0, 30)}  $verdict  (${watch.elapsedMilliseconds} ms)');
+  }
+  stdout.writeln('detection: $score/${cases.length}  (account tail $tails/$tailTotal, payee $payees/$payeeTotal)');
+  return score >= cases.length * 0.9;
+}
+
 
 /// ProposedMapping swallows a proposer's exceptions (a failed reading is a
 /// refusal); the eval wants to see them.

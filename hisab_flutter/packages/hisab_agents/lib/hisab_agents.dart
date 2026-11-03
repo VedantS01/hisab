@@ -3,4 +3,5 @@
 library;
 
 export 'src/agents/column_reader.dart';
+export 'src/agents/detection_agent.dart';
 export 'src/runtime.dart';
