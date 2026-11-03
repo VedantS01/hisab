@@ -38,6 +38,7 @@ dependencies:
   # On-device alert extractor: ONNX Runtime, CPU, in-process. Adds no
   # Android permission (merged manifest checked); the model ships in assets.
   flutter_onnxruntime: ^1.8.5
+  connectivity_plus: ^7.3.2
 
 dev_dependencies:
   flutter_test:

@@ -43,7 +43,7 @@ class BucketsScreen extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(32),
           child: Text(
-            'No months yet — import a statement or pin a month to start tracking.',
+            'No months yet. Import a statement to start.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.black54),
           ),

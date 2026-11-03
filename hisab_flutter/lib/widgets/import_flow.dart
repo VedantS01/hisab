@@ -123,10 +123,9 @@ void _showReadingColumns(BuildContext context) {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text("Hisab doesn't know this layout yet. Reading its columns on this phone…",
-                textAlign: TextAlign.center),
+            Text('Reading a new layout…', textAlign: TextAlign.center),
             SizedBox(height: 8),
-            Text('Nothing leaves your phone, and nothing is added unless every balance adds up.',
+            Text('Nothing is added unless every balance adds up.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: Colors.black54)),
           ],

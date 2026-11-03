@@ -27,10 +27,11 @@ import 'services/pdfkit_text.dart';
 import 'services/queries.dart';
 import 'services/statement_self_test.dart';
 import 'state.dart';
+import 'design/design.dart';
 import 'feed/home_feed.dart';
 import 'services/agent_insights.dart';
+import 'services/network.dart';
 import 'storage/database.dart';
-import 'theme.dart';
 import 'widgets/import_flow.dart';
 import 'widgets/memo_review_sheet.dart';
 import 'widgets/suggestion_prompt.dart';
@@ -61,6 +62,7 @@ Future<void> main() async {
   await AgentInsights.load();
   // Not awaited past the cache: the site is fetched in the background.
   await HomeFeed.load();
+  await Network.watch();
   final state = AppState(
     db: db,
     importService: ImportService(db: db, resolver: resolver),
@@ -113,7 +115,8 @@ class HisabApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Hisab',
-      theme: HisabTheme.light(),
+      // Light only until every screen reads colours from the theme.
+      theme: HisabDesign.light(),
       debugShowCheckedModeBanner: false,
       home: const RootTabs(),
     );
@@ -324,7 +327,7 @@ class _RootTabsState extends State<RootTabs> {
         stream: state.snapshots,
         builder: (context, snap) {
           final waiting = snap.data?.detections.length ?? 0;
-          return NavigationBar(
+          final nav = NavigationBar(
             selectedIndex: _tab,
             onDestinationSelected: (i) => setState(() => _tab = i),
             destinations: [
@@ -342,6 +345,25 @@ class _RootTabsState extends State<RootTabs> {
                   icon: Icon(Icons.compare_arrows), label: 'Reconcile'),
               const NavigationDestination(
                   icon: Icon(Icons.settings), label: 'Settings'),
+            ],
+          );
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ValueListenableBuilder<bool>(
+                valueListenable: Network.offline,
+                builder: (context, offline, _) => offline
+                    ? const Padding(
+                        padding: EdgeInsets.fromLTRB(HisabSpace.gutter,
+                            HisabSpace.s8, HisabSpace.gutter, HisabSpace.s8),
+                        child: InfoBanner(
+                            icon: Icons.cloud_off_outlined,
+                            message: 'Your device is offline.',
+                            tone: HisabTone.neutral),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              nav,
             ],
           );
         },

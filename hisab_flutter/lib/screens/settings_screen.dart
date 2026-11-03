@@ -127,7 +127,7 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const Center(
                 child: Text(
-                  'Hisab keeps everything on this device.\nNo account · no network · open source (Apache-2.0)',
+                  'Your ledger stays on this device.\nNo account · no tracking · open source (Apache-2.0)',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
@@ -328,8 +328,7 @@ class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
                 color: HisabTheme.khataRed),
             title: const Text('Capture bank alerts'),
             subtitle: const Text(
-                'Reads bank and UPI notifications on this phone and files '
-                'what it cannot categorize for review.',
+                'Files bank and UPI alerts from this phone.',
                 style: TextStyle(fontSize: 12)),
             value: _enabled,
             onChanged: (value) async {

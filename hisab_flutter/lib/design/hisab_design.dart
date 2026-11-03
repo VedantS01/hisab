@@ -244,6 +244,13 @@ class HisabDesign {
       textTheme: _textTheme,
       scaffoldBackgroundColor: c.bg,
       extensions: [c],
+      // Five tabs at the platform's 15pt wrap "Transactions"; 12pt fits.
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: c.surface,
+        indicatorColor: c.brandSoft,
+        labelTextStyle: WidgetStatePropertyAll(
+            HisabType.caption.copyWith(fontWeight: FontWeight.w500, color: c.textPrimary)),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: c.bg,
         foregroundColor: c.textPrimary,

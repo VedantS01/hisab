@@ -9,16 +9,16 @@ import 'package:flutter/painting.dart';
 /// Raw colours. Read them through [HisabColors] (`context.hisab`) in widgets;
 /// this class is the single place a hex value lives.
 abstract final class HisabPalette {
-  // Brand ramp.
-  static const brand050 = Color(0xFFFDF1EF);
-  static const brand100 = Color(0xFFFBE0DC);
-  static const brand200 = Color(0xFFF5BDB6);
-  static const brand300 = Color(0xFFEE8E84);
-  static const brand500 = Color(0xFFB8312A); // white text 5.98:1
-  static const brand600 = Color(0xFF9B2620);
-  static const brand900 = Color(0xFF3A0F0D);
-  static const brandDarkFill = Color(0xFFC93A32); // white text 5.08:1
-  static const brandDarkText = Color(0xFFFF8A7D); // 8.09:1 on darkBg
+  // Brand ramp on Hisab's khata red (#A4243B, HisabTheme.khataRed).
+  static const brand050 = Color(0xFFFCEFF1);
+  static const brand100 = Color(0xFFF8DDE2);
+  static const brand200 = Color(0xFFF0B9C4);
+  static const brand300 = Color(0xFFE48A9D);
+  static const brand500 = Color(0xFFA4243B); // white text 7.26:1
+  static const brand600 = Color(0xFF87182F);
+  static const brand900 = Color(0xFF3B0A14);
+  static const brandDarkFill = Color(0xFFC0304C); // white text 5.57:1
+  static const brandDarkText = Color(0xFFFF8FA3); // 8.55:1 on darkBg
 
   // Light neutrals.
   static const lightBg = Color(0xFFFAF7F4);
