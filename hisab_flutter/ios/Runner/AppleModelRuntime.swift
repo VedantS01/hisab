@@ -22,6 +22,11 @@ struct AppleModelRuntime {
         var reasoning: String?
         /// auto (default) | cloud | onDevice
         var model: String?
+        /// Always the most likely token: for labelling, where variety is noise.
+        var greedy: Bool?
+        /// The request transforms the user's own content (statements, alerts),
+        /// which the on-device model's default guardrails often refuse.
+        var transform: Bool?
     }
 
     struct ToolSpec: Decodable {
@@ -111,7 +116,9 @@ struct AppleModelRuntime {
             throw Failure(code: "unavailable", message: Self.describe(SystemLanguageModel.default.availability))
         }
         do {
-            let session = LanguageModelSession(tools: tools, instructions: request.instructions)
+            let model = request.transform == true
+                ? SystemLanguageModel(guardrails: .permissiveContentTransformations) : .default
+            let session = LanguageModelSession(model: model, tools: tools, instructions: request.instructions)
             let content = try await Self.generate(session, request, reasoning: nil)
             return Reply(content: content, model: "onDevice", fallback: fallback)
         } catch {
@@ -122,18 +129,20 @@ struct AppleModelRuntime {
     private static func generate(
         _ session: LanguageModelSession, _ request: Request, reasoning: Any?
     ) async throws -> String {
+        let options = request.greedy == true ? GenerationOptions(sampling: .greedy) : GenerationOptions()
         if #available(iOS 27.0, macOS 27.0, *), let level = reasoning as? ContextOptions.ReasoningLevel {
-            let options = ContextOptions(reasoningLevel: level)
+            let context = ContextOptions(reasoningLevel: level)
             if let schema = request.schema {
-                return try await session.respond(to: request.prompt, schema: schema, contextOptions: options)
-                    .content.jsonString
+                return try await session.respond(
+                    to: request.prompt, schema: schema, options: options, contextOptions: context
+                ).content.jsonString
             }
-            return try await session.respond(to: request.prompt, contextOptions: options).content
+            return try await session.respond(to: request.prompt, options: options, contextOptions: context).content
         }
         if let schema = request.schema {
-            return try await session.respond(to: request.prompt, schema: schema).content.jsonString
+            return try await session.respond(to: request.prompt, schema: schema, options: options).content.jsonString
         }
-        return try await session.respond(to: request.prompt).content
+        return try await session.respond(to: request.prompt, options: options).content
     }
 
     private static func reasoning(_ name: String?) -> Any? {

@@ -32,6 +32,7 @@ import UserNotifications
     LegacyStore.register(with: engineBridge.applicationRegistrar.messenger())
     CaptureCategories.register(with: engineBridge.applicationRegistrar.messenger())
     PdfKitText.register(with: engineBridge.applicationRegistrar.messenger())
+    AppleModelChannel.register(with: engineBridge.applicationRegistrar.messenger())
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "HisabIncomingRouter") {
       IncomingRouter.shared.attach(to: registrar)
     }

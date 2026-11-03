@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../services/gemini_nano_column_reader.dart';
+import '../services/apple_model.dart';
 import '../services/import_service.dart';
 import '../services/password_store.dart';
 import '../state.dart';
@@ -38,11 +38,13 @@ Future<void> importFileBytes(BuildContext context,
     if (context.mounted) _showReport(context, report);
   }
 
-  /// A statement the rules can't read gets one more look — Gemini Nano
-  /// naming its columns, on the phone — before the user is asked to send it in.
+  /// A statement the rules can't read gets one more look — the phone's own
+  /// model naming its columns (Apple's on iOS, Gemini Nano on Android) —
+  /// before the user is asked to send it in.
   Future<void> readColumnsOrRequest(
       String? password, FormatFingerprint fingerprint, String? detail) async {
-    if (await GeminiNanoColumnReader.isAvailable() && context.mounted) {
+    final reader = await columnReaderOnThisPhone();
+    if (reader != null && context.mounted) {
       final navigator = Navigator.of(context, rootNavigator: true);
       _showReadingColumns(context);
       try {
@@ -50,7 +52,7 @@ Future<void> importFileBytes(BuildContext context,
             data: data,
             filename: filename,
             password: password,
-            proposer: const GeminiNanoColumnReader());
+            proposer: reader);
         navigator.pop();
         if (password != null && !report.duplicateOfExistingFile) {
           await PasswordStore.setPassword(report.source, password);

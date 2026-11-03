@@ -55,10 +55,12 @@ while let line = readLine() {
             await toolCalls.resolve(callId, message["result"] as? String ?? "")
         }
     case "respond":
-        guard let body = message["request"],
-              let json = try? JSONSerialization.data(withJSONObject: body),
-              let request = try? JSONDecoder().decode(AppleModelRuntime.Request.self, from: json) else {
-            emit(["id": id, "type": "error", "code": "badRequest", "message": "could not decode request"])
+        let request: AppleModelRuntime.Request
+        do {
+            let json = try JSONSerialization.data(withJSONObject: message["request"] ?? [:])
+            request = try JSONDecoder().decode(AppleModelRuntime.Request.self, from: json)
+        } catch {
+            emit(["id": id, "type": "error", "code": "badRequest", "message": "\(error)"])
             continue
         }
         // Detached: top-level code is main-actor-bound and readLine() blocks

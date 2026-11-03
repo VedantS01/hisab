@@ -12,6 +12,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  hisab_agents:
+    path: packages/hisab_agents
   hisab_core:
     path: packages/hisab_core
   hisab_pdf:

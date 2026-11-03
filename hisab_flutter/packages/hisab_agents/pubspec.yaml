@@ -1,0 +1,19 @@
+name: hisab_agents
+description: >-
+  Hisab's language-model agents — prompts, JSON schemas and tools — over one
+  runtime interface: Apple's models through the iOS channel in the app, the
+  same Swift runtime through a macOS CLI in evals, canned replies in tests.
+  Pure Dart.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  hisab_core:
+    path: ../hisab_core
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0
