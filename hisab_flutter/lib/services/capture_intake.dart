@@ -9,6 +9,7 @@ import 'package:hisab_core/hisab_core.dart';
 
 import '../storage/database.dart';
 import 'capture_prefs.dart';
+import 'detections.dart';
 import 'import_service.dart';
 import 'memo_store.dart';
 
@@ -67,8 +68,16 @@ abstract final class CaptureIntake {
       memoInserted = memo != null && await MemoStore.insert(memo, db: db);
       // Only an alert carrying a bank reference has a row; the content hash
       // (source + reference + direction) is its dedup guard.
-      rowInserted =
-          row != null && await ImportService.insertCapturedAlert(row, db: db);
+      final rowId =
+          row == null ? null : await ImportService.insertCapturedAlert(row, db: db);
+      rowInserted = rowId != null;
+      // A memo for a payment the ledger has — this alert's new row, or the
+      // one an earlier capture of it made — is that row's, not a detection.
+      if (memo != null && memoInserted && row != null) {
+        final txn = rowId ??
+            await Detections.rowWith(row.reference!, row.direction, db: db);
+        if (txn != null) await Detections.link(memo.captureHash, txn, db: db);
+      }
     } catch (error) {
       // A store that could not be written is NOT a duplicate. Saying "already
       // logged" would promise the spend is filed when nothing was written,

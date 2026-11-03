@@ -31,7 +31,6 @@ import 'storage/database.dart';
 import 'theme.dart';
 import 'widgets/import_flow.dart';
 import 'widgets/memo_review_sheet.dart';
-import 'widgets/needs_review_section.dart';
 import 'widgets/suggestion_prompt.dart';
 
 Future<void> main() async {
@@ -273,13 +272,13 @@ class _RootTabsState extends State<RootTabs> {
   }
 
   /// A notification body tap, or "Later": open the memo. An empty hash means
-  /// the notification carried no payload — land on the inbox rather than on
+  /// the notification carried no payload — land on Detections rather than on
   /// whatever tab was last open.
   Future<void> _presentReview(String hash) async {
     if (!mounted) return;
     if (hash.isEmpty) {
-      await Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const NeedsReviewInbox()));
+      TransactionsScreen.segment.value = 1;
+      setState(() => _tab = 2);
     } else {
       await showMemoReviewSheet(context, hash);
     }
@@ -312,22 +311,35 @@ class _RootTabsState extends State<RootTabs> {
       ReconciliationScreen(),
       SettingsScreen(),
     ];
+    final state = AppScope.of(context);
     return Scaffold(
       body: screens[_tab],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.bar_chart), label: 'Dashboard'),
-          NavigationDestination(
-              icon: Icon(Icons.calendar_month), label: 'Buckets'),
-          NavigationDestination(
-              icon: Icon(Icons.receipt_long), label: 'Transactions'),
-          NavigationDestination(
-              icon: Icon(Icons.compare_arrows), label: 'Reconcile'),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
-        ],
+      bottomNavigationBar: StreamBuilder<Snapshot>(
+        initialData: state.latest,
+        stream: state.snapshots,
+        builder: (context, snap) {
+          final waiting = snap.data?.detections.length ?? 0;
+          return NavigationBar(
+            selectedIndex: _tab,
+            onDestinationSelected: (i) => setState(() => _tab = i),
+            destinations: [
+              const NavigationDestination(
+                  icon: Icon(Icons.bar_chart), label: 'Dashboard'),
+              const NavigationDestination(
+                  icon: Icon(Icons.calendar_month), label: 'Buckets'),
+              NavigationDestination(
+                  icon: Badge(
+                      isLabelVisible: waiting > 0,
+                      label: Text('$waiting'),
+                      child: const Icon(Icons.receipt_long)),
+                  label: 'Transactions'),
+              const NavigationDestination(
+                  icon: Icon(Icons.compare_arrows), label: 'Reconcile'),
+              const NavigationDestination(
+                  icon: Icon(Icons.settings), label: 'Settings'),
+            ],
+          );
+        },
       ),
     );
   }

@@ -2,13 +2,19 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
 import '../theme.dart';
+import '../widgets/detection_views.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
+
+  /// 0 shows Transactions, 1 Detections. Shared so a notification with no
+  /// memo of its own can land on Detections.
+  static final segment = ValueNotifier<int>(0);
 
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
@@ -23,18 +29,34 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _monthFilter != null || _sourceFilter != null || _categoryFilter != null;
 
   @override
+  void initState() {
+    super.initState();
+    TransactionsScreen.segment.addListener(_onSegment);
+  }
+
+  @override
+  void dispose() {
+    TransactionsScreen.segment.removeListener(_onSegment);
+    super.dispose();
+  }
+
+  void _onSegment() => setState(() {});
+
+  @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
+    final segment = TransactionsScreen.segment.value;
     return StreamBuilder<Snapshot>(
       initialData: state.latest,
       stream: state.snapshots,
       builder: (context, snap) {
         final data = snap.data;
+        final waiting = data?.detections.length ?? 0;
         return Scaffold(
           appBar: AppBar(
             title: const Text('Transactions'),
             actions: [
-              if (data != null)
+              if (data != null && segment == 0)
                 IconButton(
                   icon: Icon(
                       _hasFilters
@@ -44,11 +66,42 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           _hasFilters ? HisabTheme.khataRed : null),
                   onPressed: () => _showFilters(data),
                 ),
+              if (segment == 1)
+                FutureBuilder<bool>(
+                  future: canFindInText,
+                  builder: (context, can) => can.data == true
+                      ? IconButton(
+                          tooltip: 'Find in text',
+                          icon: const Icon(Icons.content_paste_search),
+                          onPressed: () => showFindInText(context),
+                        )
+                      : const SizedBox.shrink(),
+                ),
             ],
           ),
           body: data == null
               ? const Center(child: CircularProgressIndicator())
-              : _list(data),
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(HisabSpace.gutter, 0,
+                          HisabSpace.gutter, HisabSpace.s8),
+                      child: SegmentedTabs(
+                        segments: [
+                          'Transactions',
+                          waiting == 0 ? 'Detections' : 'Detections · $waiting',
+                        ],
+                        selectedIndex: segment,
+                        onChanged: (i) => TransactionsScreen.segment.value = i,
+                      ),
+                    ),
+                    Expanded(
+                      child: segment == 0
+                          ? _list(data)
+                          : DetectionsList(data: data),
+                    ),
+                  ],
+                ),
         );
       },
     );
@@ -73,32 +126,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     ];
 
     if (txns.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _hasFilters
-                    ? 'No transactions match the active filters.'
-                    : 'No transactions yet — import a statement from the Dashboard.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.black54),
-              ),
-              if (_hasFilters)
-                TextButton(
-                  onPressed: () => setState(() {
-                    _monthFilter = null;
-                    _sourceFilter = null;
-                    _categoryFilter = null;
-                  }),
-                  child: const Text('Clear filters',
-                      style: TextStyle(color: HisabTheme.khataRed)),
-                ),
-            ],
-          ),
-        ),
+      return EmptyState(
+        icon: Icons.receipt_long_outlined,
+        title: _hasFilters ? 'Nothing matches' : 'No transactions yet',
+        message: _hasFilters
+            ? 'Try fewer filters.'
+            : 'Import a statement from the Dashboard.',
+        actionLabel: _hasFilters ? 'Clear filters' : null,
+        onAction: _hasFilters
+            ? () => setState(() {
+                  _monthFilter = null;
+                  _sourceFilter = null;
+                  _categoryFilter = null;
+                })
+            : null,
       );
     }
 
@@ -108,24 +149,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         final txn = txns[index];
         final category =
             Queries.effectiveCategory(txn, matcher, selfTransfers);
-        return ListTile(
-          leading: Icon(HisabTheme.sourceGlyph(sourceOf(txn)),
-              color: HisabTheme.khataRed),
-          title: Text(txn.counterparty,
-              maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(
-              '${istDayString(dateOf(txn))} · $category',
-              style: const TextStyle(fontSize: 12)),
-          trailing: Text(
-            Money.formatPaise(
-                directionOf(txn) == Direction.debit
-                    ? -txn.amountPaise
-                    : txn.amountPaise,
-                signed: true),
-            style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: HisabTheme.amountColor(directionOf(txn))),
-          ),
+        return TxnRow(
+          leading: MerchantAvatar(
+              name: txn.counterparty.isEmpty ? '?' : txn.counterparty),
+          title: txn.counterparty,
+          subtitle: '${istDayLabel(dateOf(txn))} · $category',
+          paise: txn.amountPaise,
+          tone: directionOf(txn) == Direction.credit
+              ? AmountTone.credit
+              : AmountTone.debit,
           onTap: () => _showDetail(txn, category, ruleList),
         );
       },

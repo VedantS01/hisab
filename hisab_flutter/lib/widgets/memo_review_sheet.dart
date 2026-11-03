@@ -12,6 +12,7 @@ import '../services/queries.dart';
 import '../state.dart';
 import '../storage/database.dart';
 import '../theme.dart';
+import 'detection_views.dart';
 
 /// "22 Sep 2026, 4:18 PM IST".
 ///
@@ -156,7 +157,7 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
         return Scaffold(
           backgroundColor: HisabTheme.kagaz,
           appBar: AppBar(
-            title: const Text('Review alert'),
+            title: Text(memo?.mergedTxnUuid == null ? 'Detection' : 'Alert'),
             actions: [
               TextButton(
                   onPressed: () => Navigator.of(context).maybePop(),
@@ -169,22 +170,16 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
     );
   }
 
-  Widget _gone() => Center(
+  Widget _gone() => const Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.inbox, size: 48, color: Colors.black26),
-              const SizedBox(height: 12),
-              const Text('This memo is gone.',
+              Icon(Icons.inbox, size: 48, color: Colors.black26),
+              SizedBox(height: 12),
+              Text('This detection is gone.',
                   style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(
-                  'It was merged into a statement row, or it expired after '
-                  '${PendingMemo.expiryDays} days.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.black54)),
             ],
           ),
         ),
@@ -242,14 +237,6 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
         const SizedBox(height: 16),
         const Text('Category',
             style: TextStyle(fontWeight: FontWeight.w600)),
-        const Text(
-            'The first few are what you spend on most; the rest are every '
-            'category your rules already use. Nothing here touches your '
-            'statements. An alert that carried a bank reference (a UPI or '
-            'IMPS ref, a NEFT UTR) is already in your ledger and is confirmed '
-            'when the statement arrives; any other memo is a label, not a '
-            'ledger entry, until then.',
-            style: TextStyle(fontSize: 12, color: Colors.black54)),
         const SizedBox(height: 8),
         Card(
           child: Column(
@@ -269,6 +256,10 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
         if (offer != null) ...[
           const SizedBox(height: 12),
           _offerCard(data, offer),
+        ],
+        if (memo.mergedTxnUuid == null) ...[
+          const SizedBox(height: 24),
+          DetectionActions(memo: memo, data: data),
         ],
         const SizedBox(height: 32),
       ],

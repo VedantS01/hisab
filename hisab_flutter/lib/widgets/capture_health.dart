@@ -1,5 +1,5 @@
-/// The capture-health line, the dashboard's "Needs review" card, and the
-/// inbox behind it. Twin of `Hisab/Views/NeedsReviewSection.swift`.
+/// The capture-health line on the dashboard. Was half of the Swift app's
+/// `NeedsReviewSection.swift`; captured alerts now wait in Detections.
 library;
 
 import 'package:flutter/material.dart';
@@ -7,11 +7,7 @@ import 'package:hisab_core/hisab_core.dart';
 
 import '../screens/capture_setup_screen.dart';
 import '../services/capture_prefs.dart';
-import '../services/memo_store.dart';
-import '../state.dart';
-import '../storage/database.dart';
 import '../theme.dart';
-import 'memo_review_sheet.dart';
 
 // MARK: - health
 
@@ -208,173 +204,6 @@ class _CaptureHealthBannerState extends State<CaptureHealthBanner> {
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// MARK: - the dashboard section
-
-/// Captured alerts Hisab could not categorize, on the dashboard.
-///
-/// Fed from the watched memo stream in [Snapshot], so a memo captured while
-/// the app is open — or a category assigned from a notification button — shows
-/// up without anything telling the view to look again.
-class NeedsReviewSection extends StatelessWidget {
-  final Snapshot data;
-  const NeedsReviewSection({super.key, required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final pending = data.pendingMemos;
-    if (pending.isEmpty) return const SizedBox.shrink();
-    return Card(
-      key: const Key('needs-review-section'),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Needs review',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-                Container(
-                  key: const Key('needs-review-count'),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 9, vertical: 3),
-                  decoration: const BoxDecoration(
-                      color: HisabTheme.khataRed,
-                      borderRadius: BorderRadius.all(Radius.circular(999))),
-                  child: Text('${pending.length}',
-                      style: const TextStyle(
-                          color: HisabTheme.kagaz,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                ),
-              ],
-            ),
-            for (final memo in pending.take(5))
-              InkWell(
-                onTap: () => showMemoReviewSheet(context, memo.captureHash),
-                child: MemoRow(memo: memo),
-              ),
-            if (pending.length > 5)
-              TextButton(
-                onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                        builder: (_) => const NeedsReviewInbox())),
-                child: Text('See all ${pending.length}',
-                    style: const TextStyle(color: HisabTheme.khataRed)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class MemoRow extends StatelessWidget {
-  final StoredPendingMemo memo;
-  final bool showsChevron;
-  const MemoRow({super.key, required this.memo, this.showsChevron = true});
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(memo.payee,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w500)),
-                  Text(
-                      istStamp(DateTime.fromMillisecondsSinceEpoch(
-                          memo.capturedAtMs,
-                          isUtc: true)),
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.black54)),
-                ],
-              ),
-            ),
-            Text(Money.formatPaise(memo.amountPaise),
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: HisabTheme.amountColor(memo.directionValue))),
-            if (showsChevron)
-              const Icon(Icons.chevron_right,
-                  size: 16, color: Colors.black26),
-          ],
-        ),
-      );
-}
-
-// MARK: - the inbox
-
-/// Where "See all" goes, and where a notification with no resolvable memo
-/// lands. A real list, never a blank screen.
-class NeedsReviewInbox extends StatelessWidget {
-  const NeedsReviewInbox({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final state = AppScope.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Needs review')),
-      body: StreamBuilder<Snapshot>(
-        initialData: state.latest,
-        stream: state.snapshots,
-        builder: (context, snap) {
-          final data = snap.data;
-          if (data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final pending = data.pendingMemos;
-          return ListView(
-            key: const Key('needs-review-inbox'),
-            padding: const EdgeInsets.all(16),
-            children: [
-              if (pending.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                      'Nothing waiting. Captured alerts Hisab cannot '
-                      'categorize show up here.',
-                      style: TextStyle(color: Colors.black54)),
-                )
-              else
-                Card(
-                  child: Column(
-                    children: [
-                      for (final memo in pending)
-                        InkWell(
-                          onTap: () =>
-                              showMemoReviewSheet(context, memo.captureHash),
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 14),
-                            child: MemoRow(memo: memo),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.tune, color: HisabTheme.khataRed),
-                  title: const Text('Capture setup'),
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                          builder: (_) => captureSetupPage())),
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }
