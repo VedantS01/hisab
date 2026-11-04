@@ -22,12 +22,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
 import '../services/capture_notifier.dart';
 import 'capture_shortcuts_screen.dart';
 import '../services/capture_prefs.dart';
 import '../services/notification_capture.dart';
 import '../state.dart';
-import '../theme.dart';
 
 /// The setup screen for this platform: Android's notification-access screen
 /// below, or the Shortcuts walkthrough on iOS.
@@ -91,7 +91,7 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'UPI ID and the last digits of the account.',
                 style: TextStyle(fontSize: 13)),
             const SizedBox(height: 6),
-            const Text(
+            Text(
                 'Only notifications from bank, UPI and SMS apps on a bundled '
                 'list are examined at all — a WhatsApp from a friend is never '
                 'read. Within those apps, the on-device reader sets aside '
@@ -99,7 +99,7 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'SMS. Nothing is sent anywhere, and the alert text itself is '
                 'never stored: only the amount, payee, UPI ID, account '
                 'digits, date and bank reference survive the read.',
-                style: TextStyle(fontSize: 13, color: Colors.black54)),
+                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
             const SizedBox(height: 6),
             Text(
                 'An alert that carries a bank reference — a UPI or IMPS ref, '
@@ -112,12 +112,11 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'matched to a row in an imported statement: that one is kept '
                 'so the same alert is never captured a second time. Erasing '
                 'all data in Settings removes every memo either way.',
-                style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
           ]),
           _section('Switch it on', [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              activeThumbColor: HisabTheme.khataRed,
               title: const Text('Capture bank alerts'),
               subtitle: const Text(
                   'With this off, nothing is captured at all — not a memo, '
@@ -151,7 +150,7 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
             Row(children: [
               FilledButton.icon(
                 style: FilledButton.styleFrom(
-                    backgroundColor: HisabTheme.khataRed),
+                    backgroundColor: context.hisab.brand),
                 onPressed: () async {
                   try {
                     await NotificationCapture.requestPermission();
@@ -170,8 +169,8 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: _accessGranted
-                          ? HisabTheme.hara
-                          : HisabTheme.khataRed)),
+                          ? context.hisab.credit
+                          : context.hisab.brandText)),
             ]),
           ]),
           _section('What can stop it', [
@@ -184,28 +183,28 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'build, not a setting you can change.',
                 style: TextStyle(fontSize: 13)),
             const SizedBox(height: 6),
-            const Text(
+            Text(
                 'Many Indian phones make this worse on purpose. Xiaomi/MIUI, '
                 'Oppo, Vivo, Realme and OnePlus ship aggressive battery '
                 'management that kills background work. If capture keeps '
                 'going quiet, set Hisab’s battery usage to '
                 '“Unrestricted” and enable Autostart where your '
                 'phone offers it.',
-                style: TextStyle(fontSize: 13, color: Colors.black54)),
+                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
             const SizedBox(height: 6),
             // The listener plugin forwards a notification's title and
             // EXTRA_TEXT only; for Gmail that is the sender and the subject,
             // so Gmail is deliberately not on the allowlist.
-            const Text(
+            Text(
                 'Bank emails are not captured on Android yet. Hisab sees only '
                 'a notification’s headline, and an email’s headline is its '
                 'subject, which rarely carries the amount.',
-                style: TextStyle(fontSize: 13, color: Colors.black54)),
+                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
             const SizedBox(height: 6),
-            const Text(
+            Text(
                 'The dashboard warns you after three days without an alert, '
                 'so this fails loudly rather than silently.',
-                style: TextStyle(fontSize: 13, color: Colors.black54)),
+                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
           ]),
         ],
       ),
@@ -218,8 +217,8 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600, color: HisabTheme.ink)),
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: context.hisab.textPrimary)),
             const SizedBox(height: 6),
             Card(
               child: Padding(
@@ -238,13 +237,13 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.notifications_off,
-                size: 16, color: HisabTheme.khataRed),
+            Icon(Icons.notifications_off,
+                size: 16, color: context.hisab.brandText),
             const SizedBox(width: 6),
             Expanded(
                 child: Text(text,
-                    style: const TextStyle(
-                        fontSize: 12, color: HisabTheme.khataRed))),
+                    style: TextStyle(
+                        fontSize: 12, color: context.hisab.brandText))),
           ],
         ),
       );

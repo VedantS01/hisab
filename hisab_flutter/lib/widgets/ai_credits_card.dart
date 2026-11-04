@@ -6,8 +6,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:hisab_agents/hisab_agents.dart';
 
+import '../design/design.dart';
 import '../services/hisab_model.dart';
-import '../theme.dart';
 
 class AiCreditsCard extends StatefulWidget {
   const AiCreditsCard({super.key});
@@ -29,7 +29,7 @@ class _AiCreditsCardState extends State<AiCreditsCard> {
             final account = snap.data;
             final failed = snap.hasError;
             return ListTile(
-              leading: const Icon(Icons.auto_awesome, color: HisabTheme.khataRed),
+              leading: const IconTile(Icons.auto_awesome),
               title: const Text('AI credits'),
               subtitle: Text(account != null
                   ? creditsLine(account)

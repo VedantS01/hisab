@@ -12,7 +12,7 @@ import '../services/insight_store.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
-import '../theme.dart';
+import '../design/design.dart';
 import '../widgets/ai_credits_card.dart';
 import 'capture_setup_screen.dart';
 
@@ -36,8 +36,8 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.delete_forever,
-                          color: HisabTheme.khataRed),
+                      leading: const IconTile(Icons.delete_forever_outlined,
+                          tone: HisabTone.spend),
                       title: const Text('Erase all data'),
                       onTap: () async {
                         final confirmed = await showDialog<bool>(
@@ -54,9 +54,9 @@ class SettingsScreen extends StatelessWidget {
                               TextButton(
                                   onPressed: () =>
                                       Navigator.pop(context, true),
-                                  child: const Text('Erase',
+                                  child: Text('Erase',
                                       style: TextStyle(
-                                          color: HisabTheme.khataRed))),
+                                          color: context.hisab.spend))),
                             ],
                           ),
                         );
@@ -96,10 +96,10 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 8),
               const CaptureSettingsCard(),
               const SizedBox(height: 8),
-              const Text('Categorization rules',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const Text('First match wins. Tap a rule to edit it.',
-                  style: TextStyle(fontSize: 12, color: Colors.black54)),
+              const Text('Categorization rules', style: HisabType.title),
+              Text('First match wins. Tap a rule to edit it.',
+                  style: HisabType.caption
+                      .copyWith(color: context.hisab.textSecondary)),
               const SizedBox(height: 8),
               if (data != null)
                 Card(
@@ -110,15 +110,12 @@ class SettingsScreen extends StatelessWidget {
                         ListTile(
                           dense: true,
                           title: Text(rule.pattern),
-                          trailing: Text(rule.category,
-                              style: const TextStyle(
-                                  color: HisabTheme.khataRed)),
+                          trailing: StatusTag(rule.category, tone: HisabTone.brand),
                           onTap: () => _editRule(context, rule),
                         ),
                       ListTile(
                         dense: true,
-                        leading:
-                            const Icon(Icons.add, color: HisabTheme.khataRed),
+                        leading: const IconTile(Icons.add),
                         title: const Text('Add rule'),
                         onTap: () => _editRule(context, null),
                       ),
@@ -128,14 +125,15 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 8),
               const AiCreditsCard(),
               const SizedBox(height: 16),
-              const Center(
+              Center(
                 child: Text(
                   'Your ledger stays on this device. AI features send only what you ask '
                   'about — pasted text, or a month\'s totals and merchant names — to '
                   'Hisab\'s gateway and its model provider; statements are read on the phone.\n'
                   'No account · no tracking · open source (Apache-2.0)',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                  style: HisabType.caption
+                      .copyWith(color: context.hisab.textSecondary),
                 ),
               ),
             ],
@@ -227,8 +225,8 @@ class SettingsScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 12),
                     child: Text(message,
                         key: const Key('rule-editor-validation'),
-                        style: const TextStyle(
-                            fontSize: 12, color: HisabTheme.khataRed)),
+                        style: HisabType.caption
+                            .copyWith(color: context.hisab.spend)),
                   ),
               ],
             ),
@@ -241,8 +239,8 @@ class SettingsScreen extends StatelessWidget {
                         .go();
                     if (context.mounted) Navigator.pop(context, false);
                   },
-                  child: const Text('Delete',
-                      style: TextStyle(color: HisabTheme.khataRed)),
+                  child: Text('Delete',
+                      style: TextStyle(color: context.hisab.spend)),
                 ),
               TextButton(
                   onPressed: () => Navigator.pop(context, false),
@@ -329,9 +327,7 @@ class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
       child: Column(
         children: [
           SwitchListTile(
-            activeThumbColor: HisabTheme.khataRed,
-            secondary: const Icon(Icons.notifications_active,
-                color: HisabTheme.khataRed),
+            secondary: const IconTile(Icons.notifications_active_outlined),
             title: const Text('Capture bank alerts'),
             subtitle: const Text(
                 'Files bank and UPI alerts from this phone.',
@@ -349,11 +345,11 @@ class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
             title: const Text('Last captured'),
             trailing: Text(
                 last == null ? 'Never' : istDayLabel(last),
-                style: const TextStyle(color: Colors.black54)),
+                style: TextStyle(color: context.hisab.textSecondary)),
           ),
           ListTile(
             dense: true,
-            leading: const Icon(Icons.tune, color: HisabTheme.khataRed),
+            leading: const IconTile(Icons.tune),
             title: const Text('Capture setup'),
             onTap: () async {
               await Navigator.of(context).push(MaterialPageRoute<void>(

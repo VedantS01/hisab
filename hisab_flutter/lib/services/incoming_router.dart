@@ -29,6 +29,12 @@ abstract final class IncomingRouter {
   static final ValueNotifier<IncomingFile?> file = ValueNotifier(null);
   static final ValueNotifier<LinkTarget?> link = ValueNotifier(null);
 
+  /// Debug builds: a tab index from a hisab://tab/<n> link.
+  static final ValueNotifier<int?> debugTab = ValueNotifier(null);
+
+  /// Debug builds: where the dashboard starts scrolled, from the same link.
+  static final ValueNotifier<double?> debugScroll = ValueNotifier(null);
+
   static Future<void> init() async {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'open') route(call.arguments);
@@ -54,6 +60,13 @@ abstract final class IncomingRouter {
         final value = uri.pathSegments.isEmpty ? '' : uri.pathSegments.last;
         if (uri.host == 'memo' && value.isNotEmpty) {
           CaptureRouter.reviewRequest.value = value;
+        }
+        // hisab://tab/<n>, debug builds only: a simulator screen tour
+        // (`xcrun simctl openurl booted hisab://tab/3`).
+        if (kDebugMode && uri.host == 'tab') {
+          debugScroll.value = double.tryParse(uri.queryParameters['scroll'] ?? '');
+          debugTab.value = int.tryParse(value);
+          return;
         }
         link.value = uri.host == 'transaction'
             ? LinkTarget.transactions

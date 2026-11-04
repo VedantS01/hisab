@@ -8,11 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../design/design.dart';
 import '../services/apple_model.dart';
 import '../services/import_service.dart';
 import '../services/password_store.dart';
 import '../state.dart';
-import '../theme.dart';
 
 Future<void> showImportFlow(BuildContext context) async {
   final result = await FilePicker.platform.pickFiles(withData: true);
@@ -115,19 +115,20 @@ void _showReadingColumns(BuildContext context) {
   showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (context) => const PopScope(
+    builder: (context) => PopScope(
       canPop: false,
       child: AlertDialog(
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Reading a new layout…', textAlign: TextAlign.center),
-            SizedBox(height: 8),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            const Text('Reading a new layout…', textAlign: TextAlign.center),
+            const SizedBox(height: 8),
             Text('Nothing is added unless every balance adds up.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.black54)),
+                style: HisabType.caption
+                    .copyWith(color: context.hisab.textSecondary)),
           ],
         ),
       ),
@@ -146,8 +147,8 @@ Future<String?> _askPassword(BuildContext context, String filename) {
         children: [
           Text(filename, style: const TextStyle(fontSize: 12)),
           TextField(controller: controller, obscureText: true, autofocus: true),
-          const Text('Remembered securely on this device.',
-              style: TextStyle(fontSize: 11, color: Colors.black54)),
+          Text('Remembered securely on this device.',
+              style: TextStyle(fontSize: 11, color: context.hisab.textSecondary)),
         ],
       ),
       actions: [
@@ -177,8 +178,8 @@ void _showReport(BuildContext context, ImportReport report) {
                     : Icons.verified,
                 size: 44,
                 color: report.duplicateOfExistingFile
-                    ? Colors.black45
-                    : HisabTheme.hara),
+                    ? context.hisab.textTertiary
+                    : context.hisab.credit),
             const SizedBox(height: 12),
             Text(
               report.duplicateOfExistingFile
@@ -193,7 +194,7 @@ void _showReport(BuildContext context, ImportReport report) {
                   ? 'This exact file is in your bahi already — nothing new to add.'
                   : '${report.source.displayName} · ${report.totalParsed} parsed · ${report.totalParsed - report.newCount} duplicates skipped',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black54),
+              style: TextStyle(color: context.hisab.textSecondary),
             ),
             if (report.monthsTouched.isNotEmpty)
               Padding(
@@ -201,7 +202,7 @@ void _showReport(BuildContext context, ImportReport report) {
                 child: Text(
                   'Months: ${report.monthsTouched.map((m) => m.displayName).join(', ')}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(fontSize: 12, color: context.hisab.textSecondary),
                 ),
               ),
           ],
@@ -226,7 +227,7 @@ void _showFormatRequest(BuildContext context, FormatFingerprint fingerprint,
                     ? Icons.help_outline
                     : Icons.gpp_maybe,
                 size: 44,
-                color: HisabTheme.khataRed),
+                color: context.hisab.brandText),
             const SizedBox(height: 12),
             Text(
               verificationDetail == null
@@ -245,7 +246,7 @@ void _showFormatRequest(BuildContext context, FormatFingerprint fingerprint,
                           : '') +
                       'Support for new formats arrives in app updates. The request email contains only column labels and value shapes — no transactions.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black54, fontSize: 13),
+              style: TextStyle(color: context.hisab.textSecondary, fontSize: 13),
             ),
             if (verificationDetail == null)
               Padding(
@@ -254,14 +255,14 @@ void _showFormatRequest(BuildContext context, FormatFingerprint fingerprint,
                   'Hisab reads today: ${supportedNames.join(', ')} — plus '
                   'most Indian bank statements that print a running balance.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.black54, fontSize: 11),
+                  style: TextStyle(color: context.hisab.textSecondary, fontSize: 11),
                 ),
               ),
             const SizedBox(height: 16),
             if (verificationDetail == null)
               FilledButton.icon(
                 style: FilledButton.styleFrom(
-                    backgroundColor: HisabTheme.khataRed),
+                    backgroundColor: context.hisab.brand),
                 onPressed: () {
                   launchUrl(fingerprint.mailtoUri(appVersion: '1.1.0'));
                   Navigator.pop(context);

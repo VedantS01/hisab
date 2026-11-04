@@ -10,6 +10,7 @@ export 'chips.dart';
 export 'feedback.dart';
 export 'headers.dart';
 export 'hisab_design.dart';
+export 'icon_tile.dart';
 export 'insight_carousel.dart';
 export 'segmented_tabs.dart';
 export 'sheet.dart';

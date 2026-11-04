@@ -6,7 +6,6 @@ import '../design/design.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
-import '../theme.dart';
 import '../widgets/detection_views.dart';
 
 class TransactionsScreen extends StatefulWidget {
@@ -80,7 +79,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           ? Icons.filter_alt
                           : Icons.filter_alt_outlined,
                       color:
-                          _hasFilters ? HisabTheme.khataRed : null),
+                          _hasFilters ? context.hisab.brandText : null),
                   onPressed: () => _showFilters(data),
                 ),
               if (segment == 1)
@@ -208,12 +207,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               if (txn.reference != null)
                 Text('Ref: ${txn.reference}',
                     style:
-                        const TextStyle(fontSize: 12, color: Colors.black54)),
+                        TextStyle(fontSize: 12, color: context.hisab.textSecondary)),
               const SizedBox(height: 8),
               Text(txn.narration,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  style: TextStyle(fontSize: 12, color: context.hisab.textSecondary)),
               const Divider(height: 24),
               const Text('Category',
                   style: TextStyle(fontWeight: FontWeight.w600)),
@@ -283,8 +282,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 });
                 Navigator.pop(sheetContext);
               },
-              child: const Text('Clear all',
-                  style: TextStyle(color: HisabTheme.khataRed)),
+              child: Text('Clear all',
+                  style: TextStyle(color: context.hisab.brandText)),
             ),
           ],
         ),

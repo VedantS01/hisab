@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show InsertMode, Value;
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
@@ -39,15 +40,10 @@ class BucketsScreen extends StatelessWidget {
   Widget _grid(BuildContext context, Snapshot data) {
     final grid = Queries.grid(Queries.statements(data.documents), data.pins);
     if (grid.months.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Text(
-            'No months yet. Import a statement to start.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.black54),
-          ),
-        ),
+      return const EmptyState(
+        icon: Icons.calendar_month_outlined,
+        title: 'No months yet',
+        message: 'Import a statement to start.',
       );
     }
     // Columns follow the user's actual imports; pin-only grids fall back to
@@ -58,17 +54,17 @@ class BucketsScreen extends StatelessWidget {
       children: [
         Row(
           children: [
-            const SizedBox(
+            SizedBox(
                 width: 76,
                 child: Text('Month',
-                    style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600))),
+                    style: HisabType.label
+                        .copyWith(color: context.hisab.textSecondary))),
             for (final source in columns)
               Expanded(
                 child: Text(_short(source),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: HisabType.label.copyWith(
+                        color: context.hisab.textSecondary)),
               ),
           ],
         ),
@@ -81,7 +77,8 @@ class BucketsScreen extends StatelessWidget {
                 SizedBox(
                     width: 76,
                     child: Text(month.displayName,
-                        style: const TextStyle(fontSize: 12))),
+                        style: HisabType.label.copyWith(
+                            fontFeatures: HisabType.tabular))),
                 for (final source in columns)
                   Expanded(
                     child: Padding(
@@ -116,27 +113,35 @@ class BucketsScreen extends StatelessWidget {
 
   Widget _cell(BuildContext context, Snapshot data, YearMonth month,
       Source source, CellState cellState) {
+    final c = context.hisab;
     if (cellState is CellPresent) {
-      return InkWell(
-        onTap: () => _showDocuments(context, data, month, source,
-            cellState.documentIDs),
-        child: Container(
-          height: 36,
-          decoration: BoxDecoration(
-            color: HisabTheme.sona.withValues(alpha: 0.16),
-            border:
-                Border.all(color: HisabTheme.sona.withValues(alpha: 0.6)),
-            borderRadius: BorderRadius.circular(8),
+      return Material(
+        color: c.creditSoft,
+        borderRadius: BorderRadius.circular(HisabRadius.r12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _showDocuments(context, data, month, source,
+              cellState.documentIDs),
+          child: SizedBox(
+            height: 40,
+            child: Icon(Icons.check_rounded, size: 18, color: c.credit),
           ),
-          child: const Icon(Icons.check, size: 16, color: HisabTheme.sona),
         ),
       );
     }
     return Container(
-      height: 36,
+      height: 40,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black26),
-        borderRadius: BorderRadius.circular(8),
+        color: c.sunken,
+        borderRadius: BorderRadius.circular(HisabRadius.r12),
+      ),
+      child: Center(
+        child: Container(
+          width: 6,
+          height: 6,
+          decoration:
+              BoxDecoration(color: c.outline, shape: BoxShape.circle),
+        ),
       ),
     );
   }
@@ -153,12 +158,11 @@ class BucketsScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             Text('${source.displayName} · ${month.displayName}',
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+                style: HisabType.title),
             const SizedBox(height: 8),
             for (final doc in docs)
               ListTile(
-                leading: Icon(HisabTheme.sourceGlyph(source),
-                    color: HisabTheme.khataRed),
+                leading: IconTile(HisabTheme.sourceGlyph(source)),
                 title: Text(doc.filename,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(

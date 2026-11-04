@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../design/design.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
-import '../theme.dart';
 
 Future<void> showSuggestionPrompt(
     BuildContext context, RuleSuggestion suggestion) async {
@@ -32,7 +32,7 @@ Future<void> showSuggestionPrompt(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.auto_awesome, size: 40, color: HisabTheme.sona),
+            Icon(Icons.auto_awesome, size: 40, color: context.hisab.gold),
             const SizedBox(height: 12),
             Text(
               "You've spent ${Money.formatPaise(suggestion.totalPaise)} on ${suggestion.displayMerchant} across ${suggestion.count} payments.",
@@ -40,8 +40,8 @@ Future<void> showSuggestionPrompt(
               style:
                   const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
-            const Text('Categorize these?',
-                style: TextStyle(color: Colors.black54)),
+            Text('Categorize these?',
+                style: TextStyle(color: context.hisab.textSecondary)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 6,
@@ -72,12 +72,12 @@ Future<void> showSuggestionPrompt(
                     }
                     if (context.mounted) Navigator.pop(context);
                   },
-                  child: const Text("Don't ask about this",
-                      style: TextStyle(color: Colors.black54)),
+                  child: Text("Don't ask about this",
+                      style: TextStyle(color: context.hisab.textSecondary)),
                 ),
                 FilledButton(
                   style: FilledButton.styleFrom(
-                      backgroundColor: HisabTheme.khataRed),
+                      backgroundColor: context.hisab.brand),
                   onPressed: () async {
                     final category = controller.text.trim();
                     if (category.isEmpty) return;

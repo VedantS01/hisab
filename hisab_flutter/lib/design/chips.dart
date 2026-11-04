@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'hisab_design.dart';
 import 'tokens.dart';
 
-/// 32 high pill; selected is brand-soft fill with a brand border.
+/// 32 high pill; selected is a solid brand fill.
 class HisabFilterChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -28,7 +28,7 @@ class HisabFilterChip extends StatelessWidget {
     return Semantics(
       selected: selected,
       child: Material(
-        color: selected ? c.brandSoft : c.surface,
+        color: selected ? c.brand : c.surface,
         shape: StadiumBorder(
             side: BorderSide(color: selected ? c.brand : c.outline)),
         clipBehavior: Clip.antiAlias,
@@ -47,8 +47,9 @@ class HisabFilterChip extends StatelessWidget {
               heightFactor: 1,
               child: Text(
                 label,
-                style: HisabType.label
-                    .copyWith(color: selected ? c.brandText : c.textPrimary),
+                style: HisabType.label.copyWith(
+                    color: selected ? c.onBrand : c.textPrimary,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500),
               ),
             ),
           ),

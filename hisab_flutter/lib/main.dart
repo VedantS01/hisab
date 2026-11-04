@@ -115,8 +115,9 @@ class HisabApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Hisab',
-      // Light only until every screen reads colours from the theme.
       theme: HisabDesign.light(),
+      darkTheme: HisabDesign.dark(),
+      themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
       home: const RootTabs(),
     );
@@ -199,6 +200,11 @@ class _RootTabsState extends State<RootTabs> {
     if (target != null) {
       IncomingRouter.link.value = null;
       setState(() => _tab = target == LinkTarget.transactions ? 2 : 0);
+    }
+    final debugTab = IncomingRouter.debugTab.value;
+    if (debugTab != null) {
+      IncomingRouter.debugTab.value = null;
+      setState(() => _tab = debugTab.clamp(0, 4));
     }
     final file = IncomingRouter.file.value;
     if (file == null) return;

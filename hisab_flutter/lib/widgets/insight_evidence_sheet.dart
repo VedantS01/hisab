@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
 
@@ -37,9 +38,9 @@ void showInsightEvidence(
                           fontSize: 18, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   Text(insight.detail,
-                      style: const TextStyle(color: Colors.black54)),
+                      style: TextStyle(color: context.hisab.textSecondary)),
                   const Divider(height: 28),
-                  _sectionHeader(
+                  _sectionHeader(context, 
                       committed ? 'Recurring payments' : 'Transactions'),
                   if (committed)
                     for (final entry in insight.series)
@@ -94,12 +95,8 @@ Widget _header(BuildContext context) => Padding(
       ),
     );
 
-Widget _sectionHeader(String text) => Padding(
+Widget _sectionHeader(BuildContext context, String text) => Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Text(text.toUpperCase(),
-          style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-              color: Colors.black54)),
+      child: Text(text,
+          style: HisabType.label.copyWith(color: context.hisab.textSecondary)),
     );

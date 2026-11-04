@@ -5,9 +5,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
 import '../screens/capture_setup_screen.dart';
 import '../services/capture_prefs.dart';
-import '../theme.dart';
 
 // MARK: - health
 
@@ -171,39 +171,21 @@ class _CaptureHealthBannerState extends State<CaptureHealthBanner> {
   Widget build(BuildContext context) {
     final message = _health.message;
     if (message == null) return const SizedBox.shrink();
-    return Card(
-      key: const Key('capture-health'),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.warning_amber_rounded,
-                    color: HisabTheme.sona, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: Text(message,
-                        style: const TextStyle(fontSize: 13))),
-              ],
-            ),
-            if (_health.offersSetup)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: () async {
-                    await Navigator.of(context).push(MaterialPageRoute<void>(
-                        builder: (_) => captureSetupPage()));
-                    await _refresh();
-                  },
-                  child: const Text('Check capture setup',
-                      style: TextStyle(color: HisabTheme.khataRed)),
-                ),
-              ),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: HisabSpace.s12),
+      child: InfoBanner(
+        key: const Key('capture-health'),
+        icon: Icons.notifications_paused_outlined,
+        message: message,
+        tone: HisabTone.neutral,
+        actionLabel: _health.offersSetup ? 'Check capture setup' : null,
+        onAction: _health.offersSetup
+            ? () async {
+                await Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => captureSetupPage()));
+                await _refresh();
+              }
+            : null,
       ),
     );
   }

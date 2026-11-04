@@ -36,6 +36,14 @@ class HisabColors extends ThemeExtension<HisabColors> {
   /// Nearing a limit (budget bar between brand and spend).
   final Color warn;
 
+  /// The one vibrant accent: marks, selected bars, fills. Not small text.
+  final Color gold;
+  final Color goldSoft;
+
+  /// The hero card's gradient stops; white text sits on both.
+  final Color heroStart;
+  final Color heroEnd;
+
   const HisabColors({
     required this.bg,
     required this.surface,
@@ -54,6 +62,10 @@ class HisabColors extends ThemeExtension<HisabColors> {
     required this.spend,
     required this.spendSoft,
     required this.warn,
+    required this.gold,
+    required this.goldSoft,
+    required this.heroStart,
+    required this.heroEnd,
   });
 
   static const light = HisabColors(
@@ -74,6 +86,10 @@ class HisabColors extends ThemeExtension<HisabColors> {
     spend: HisabPalette.spendLight,
     spendSoft: HisabPalette.spendSoftLight,
     warn: HisabPalette.warnLight,
+    gold: HisabPalette.goldLight,
+    goldSoft: HisabPalette.goldSoftLight,
+    heroStart: HisabPalette.heroStartLight,
+    heroEnd: HisabPalette.heroEndLight,
   );
 
   static const dark = HisabColors(
@@ -94,6 +110,10 @@ class HisabColors extends ThemeExtension<HisabColors> {
     spend: HisabPalette.spendDark,
     spendSoft: HisabPalette.spendSoftDark,
     warn: HisabPalette.warnDark,
+    gold: HisabPalette.goldDark,
+    goldSoft: HisabPalette.goldSoftDark,
+    heroStart: HisabPalette.heroStartDark,
+    heroEnd: HisabPalette.heroEndDark,
   );
 
   /// Debit amounts are plain ink; the sign carries the meaning.
@@ -126,6 +146,10 @@ class HisabColors extends ThemeExtension<HisabColors> {
     Color? spend,
     Color? spendSoft,
     Color? warn,
+    Color? gold,
+    Color? goldSoft,
+    Color? heroStart,
+    Color? heroEnd,
   }) =>
       HisabColors(
         bg: bg ?? this.bg,
@@ -145,6 +169,10 @@ class HisabColors extends ThemeExtension<HisabColors> {
         spend: spend ?? this.spend,
         spendSoft: spendSoft ?? this.spendSoft,
         warn: warn ?? this.warn,
+        gold: gold ?? this.gold,
+        goldSoft: goldSoft ?? this.goldSoft,
+        heroStart: heroStart ?? this.heroStart,
+        heroEnd: heroEnd ?? this.heroEnd,
       );
 
   @override
@@ -169,6 +197,10 @@ class HisabColors extends ThemeExtension<HisabColors> {
       spend: mix(spend, other.spend),
       spendSoft: mix(spendSoft, other.spendSoft),
       warn: mix(warn, other.warn),
+      gold: mix(gold, other.gold),
+      goldSoft: mix(goldSoft, other.goldSoft),
+      heroStart: mix(heroStart, other.heroStart),
+      heroEnd: mix(heroEnd, other.heroEnd),
     );
   }
 }

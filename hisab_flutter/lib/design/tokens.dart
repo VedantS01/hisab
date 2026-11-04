@@ -48,6 +48,20 @@ abstract final class HisabPalette {
   static const warnLight = Color(0xFFB7791F);
   static const warnDark = Color(0xFFF2C14E);
 
+  // The bahi-khata's gold (HisabTheme.sona) as the one vibrant accent: on the
+  // hero gradient, the selected bar, bank-verified marks.
+  static const goldLight = Color(0xFFC9951F); // 3.1:1 on white: marks and fills, not small text
+  static const goldDark = Color(0xFFF2C65C);
+  static const goldOnHero = Color(0xFFF6CD6A); // on the plum hero, 9:1
+  static const goldSoftLight = Color(0xFFFBF1DA);
+  static const goldSoftDark = Color(0xFF3F3420);
+
+  // The hero's gradient: plum into khata red (light), ember into plum (dark).
+  static const heroStartLight = Color(0xFF4A0F1E);
+  static const heroEndLight = Color(0xFFB92A45);
+  static const heroStartDark = Color(0xFF8A1E35);
+  static const heroEndDark = Color(0xFF2C0B14);
+
   // Tonal backgrounds: the tone at 10-16% over the surface.
   static const brandSoftDark = Color(0xFF422D2B);
   static const creditSoftLight = Color(0xFFE6F2EB);

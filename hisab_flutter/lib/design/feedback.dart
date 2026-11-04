@@ -87,28 +87,51 @@ class InfoBanner extends StatelessWidget {
         color: colors.bg,
         borderRadius: BorderRadius.circular(HisabRadius.r12),
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: colors.fg),
-          const SizedBox(width: HisabSpace.s12),
-          Expanded(
-            child: Text(message,
-                style: HisabType.label.copyWith(color: c.textPrimary)),
-          ),
-          if (actionLabel != null)
-            TextButton(
-              onPressed: onAction,
-              style: TextButton.styleFrom(
-                foregroundColor:
-                    tone == HisabTone.neutral ? c.brandText : colors.fg,
-                padding: const EdgeInsets.symmetric(horizontal: HisabSpace.s8),
-                textStyle:
-                    HisabType.label.copyWith(fontWeight: FontWeight.w600),
-              ),
-              child: Text(actionLabel!),
+      child: Builder(builder: (context) {
+        final action = actionLabel == null
+            ? null
+            : TextButton(
+                onPressed: onAction,
+                style: TextButton.styleFrom(
+                  foregroundColor:
+                      tone == HisabTone.neutral ? c.brandText : colors.fg,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: HisabSpace.s8),
+                  textStyle:
+                      HisabType.label.copyWith(fontWeight: FontWeight.w600),
+                ),
+                child: Text(actionLabel!),
+              );
+        // A sentence or two keeps its action inline; a paragraph gets it
+        // underneath, where it doesn't squeeze the text into a column.
+        final below = action != null && message.length > 60;
+        final row = Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Icon(icon, size: 20, color: colors.fg),
             ),
-        ],
-      ),
+            const SizedBox(width: HisabSpace.s12),
+            Expanded(
+              child: Text(message,
+                  style: HisabType.label.copyWith(color: c.textPrimary)),
+            ),
+            if (action != null && !below) action,
+          ],
+        );
+        if (!below) return row;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            row,
+            Padding(
+              padding: const EdgeInsets.only(left: HisabSpace.s24),
+              child: action,
+            ),
+          ],
+        );
+      }),
     );
   }
 }

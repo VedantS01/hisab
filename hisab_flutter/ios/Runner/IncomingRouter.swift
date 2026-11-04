@@ -11,7 +11,17 @@ final class IncomingRouter: NSObject, FlutterSceneLifeCycleDelegate {
     static let shared = IncomingRouter()
 
     private var channel: FlutterMethodChannel?
-    private var pending: [[String: String]] = []
+    private var pending: [[String: String]] = {
+        #if DEBUG
+        // `simctl launch … com.vedants.hisab --tab 3`: a screen tour without
+        // the "Open in Hisab?" prompt a hisab:// link gets on the simulator.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "--tab"), i + 1 < args.count {
+            return [["kind": "link", "url": "hisab://tab/\(args[i + 1])"]]
+        }
+        #endif
+        return []
+    }()
     private var dartListening = false
 
     func attach(to registrar: FlutterPluginRegistrar) {

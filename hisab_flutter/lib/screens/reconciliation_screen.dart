@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
 import '../services/queries.dart';
 import '../state.dart';
-import '../theme.dart';
 
 class ReconciliationScreen extends StatefulWidget {
   const ReconciliationScreen({super.key});
@@ -39,9 +39,10 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     }.toList()
       ..sort((a, b) => b.compareTo(a));
     if (months.isEmpty) {
-      return const Center(
-        child: Text('Import app and bank statements to reconcile.',
-            style: TextStyle(color: Colors.black54)),
+      return const EmptyState(
+        icon: Icons.compare_arrows_rounded,
+        title: 'Nothing to reconcile',
+        message: 'Import an app and a bank statement for the same month.',
       );
     }
     if (!months.contains(_month)) _month = months.first;
@@ -51,50 +52,62 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     final byUuid = {for (final txn in data.txns) txn.uuid: txn};
     final selfTransfers = Queries.selfTransferUuids(data.txns);
 
-    Widget section(String title, Color color, List<String> ids,
+    final c = context.hisab;
+    Widget section(String title, HisabTone tone, List<String> ids,
         {String empty = 'None'}) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('$title (${ids.length})',
-                  style:
-                      TextStyle(fontWeight: FontWeight.w600, color: color)),
-              if (ids.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(empty,
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.black54)),
-                ),
-              for (final id in ids.take(30))
-                if (byUuid[id] case final txn?)
+      final colors = c.tone(tone);
+      return Padding(
+        padding: const EdgeInsets.only(bottom: HisabSpace.s12),
+        child: SurfaceCard(
+          padding: EdgeInsets.zero,
+          child: Container(
+            decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: colors.fg, width: 4))),
+            padding: const EdgeInsets.fromLTRB(
+                HisabSpace.s12, HisabSpace.s16, HisabSpace.s16, HisabSpace.s16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(child: Text(title, style: HisabType.title)),
+                  StatusTag('${ids.length}', tone: tone),
+                ]),
+                if (ids.isEmpty)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${txn.counterparty}'
-                            '${selfTransfers.contains(id) ? '  ·  Self Transfer' : ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                        Text(Money.formatPaise(txn.amountPaise),
-                            style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
+                    padding: const EdgeInsets.only(top: HisabSpace.s4),
+                    child: Text(empty,
+                        style:
+                            HisabType.caption.copyWith(color: c.textSecondary)),
                   ),
-              if (ids.length > 30)
-                Text('…and ${ids.length - 30} more',
-                    style:
-                        const TextStyle(fontSize: 12, color: Colors.black54)),
-            ],
+                if (ids.isNotEmpty) const SizedBox(height: HisabSpace.s8),
+                for (final id in ids.take(30))
+                  if (byUuid[id] case final txn?)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              txn.counterparty,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: HisabType.label,
+                            ),
+                          ),
+                          if (selfTransfers.contains(id)) ...[
+                            const StatusTag('Self transfer'),
+                            const SizedBox(width: HisabSpace.s8),
+                          ],
+                          AmountText(txn.amountPaise, role: AmountRole.sm),
+                        ],
+                      ),
+                    ),
+                if (ids.length > 30)
+                  Text('…and ${ids.length - 30} more',
+                      style:
+                          HisabType.caption.copyWith(color: c.textSecondary)),
+              ],
+            ),
           ),
         ),
       );
@@ -111,8 +124,8 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
               for (final month in months)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(month.displayName),
+                  child: HisabFilterChip(
+                    label: month.displayName,
                     selected: month == _month,
                     onSelected: (_) => setState(() => _month = month),
                   ),
@@ -120,39 +133,38 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _stat('Matched', result.matches.length, HisabTheme.hara),
-                _stat('App only', result.appUnmatched.length, HisabTheme.sona),
-                _stat('Bank only', result.bankOnly.length, HisabTheme.khataRed),
-              ],
-            ),
-          ),
+        const SizedBox(height: HisabSpace.s12),
+        Row(
+          children: [
+            Expanded(
+                child:
+                    _stat('Matched', result.matches.length, HisabTone.credit)),
+            const SizedBox(width: HisabSpace.s8),
+            Expanded(
+                child: _stat(
+                    'App only', result.appUnmatched.length, HisabTone.brand)),
+            const SizedBox(width: HisabSpace.s8),
+            Expanded(
+                child: _stat(
+                    'Bank only', result.bankOnly.length, HisabTone.spend)),
+          ],
         ),
-        section('Bank confirms', HisabTheme.hara,
+        const SizedBox(height: HisabSpace.s12),
+        section('Bank confirms', HisabTone.credit,
             [for (final m in result.matches) m.appID],
             empty: 'No app payment matched a bank row yet.'),
-        section('App only — awaiting bank statement', HisabTheme.sona,
-            result.appUnmatched,
+        section(
+            'App only, awaiting the bank', HisabTone.brand, result.appUnmatched,
             empty: 'Every app payment is bank-confirmed.'),
-        section('Bank only — Miscellaneous / transfers', HisabTheme.khataRed,
-            result.bankOnly,
+        section('Bank only', HisabTone.spend, result.bankOnly,
             empty: 'No bank-only spending this month.'),
       ],
     );
   }
 
-  Widget _stat(String label, int count, Color color) => Column(
-        children: [
-          Text('$count',
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.w700, color: color)),
-          Text(label, style: const TextStyle(fontSize: 12)),
-        ],
+  Widget _stat(String label, int count, HisabTone tone) => BentoTile(
+        value: Text('$count',
+            style: TextStyle(color: context.hisab.tone(tone).fg)),
+        label: label,
       );
 }
