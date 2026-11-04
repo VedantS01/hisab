@@ -1,7 +1,7 @@
 /// The insights agent's cards for the month just ended: written on the
 /// first open after a month ends, or when the user asks, and kept until the
-/// next month ends. Runs where Apple's models do; elsewhere the dashboard
-/// keeps the native insights engine.
+/// next month ends. Runs where a model does (the cloud on credits, Apple's
+/// on iPhone); elsewhere the dashboard keeps the native insights engine.
 library;
 
 import 'dart:convert';
@@ -11,7 +11,7 @@ import 'package:hisab_agents/hisab_agents.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'apple_model.dart';
+import 'hisab_model.dart';
 
 class AgentInsightSet {
   final YearMonth month;
@@ -57,7 +57,7 @@ abstract final class AgentInsights {
     if (running.value) return;
     if (!force && current.value?.month == month) return;
     if (!records.any((r) => YearMonth.fromDate(r.date) == month)) return;
-    final model = runtime ?? appleModel;
+    final model = runtime ?? hisabModel;
     if (!(await model.status()).ready) return;
     running.value = true;
     try {

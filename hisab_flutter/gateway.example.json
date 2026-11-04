@@ -1,0 +1,4 @@
+{
+  "HISAB_GATEWAY_URL": "https://ai-gateway.draftsmith.workers.dev/v1/hisab",
+  "HISAB_GATEWAY_APP_KEY": "paste the APPKEY_HISAB Worker secret here"
+}

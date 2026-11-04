@@ -6,7 +6,7 @@ import '../design/design.dart';
 import '../feed/feed_view.dart';
 import '../feed/home_feed.dart';
 import '../services/agent_insights.dart';
-import '../services/apple_model.dart';
+import '../services/hisab_model.dart';
 import '../services/demo_data.dart';
 import '../services/insight_store.dart';
 import '../services/queries.dart';
@@ -297,7 +297,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             // On demand, where the agent can run and has something to read.
             FutureBuilder<bool>(
-              future: appleModelReady,
+              future: hisabModelReady,
               builder: (context, ready) => ready.data == true &&
                       records.any((r) => YearMonth.fromDate(r.date) == month)
                   ? Align(

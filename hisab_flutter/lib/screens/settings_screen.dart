@@ -13,6 +13,7 @@ import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
 import '../theme.dart';
+import '../widgets/ai_credits_card.dart';
 import 'capture_setup_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -124,10 +125,15 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+              const SizedBox(height: 8),
+              const AiCreditsCard(),
               const SizedBox(height: 16),
               const Center(
                 child: Text(
-                  'Your ledger stays on this device.\nNo account · no tracking · open source (Apache-2.0)',
+                  'Your ledger stays on this device. AI features send only what you ask '
+                  'about — pasted text, or a month\'s totals and merchant names — to '
+                  'Hisab\'s gateway and its model provider; statements are read on the phone.\n'
+                  'No account · no tracking · open source (Apache-2.0)',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),

@@ -9,9 +9,9 @@ import 'package:hisab_agents/hisab_agents.dart';
 import 'package:hisab_core/hisab_core.dart';
 
 import '../design/design.dart';
-import '../services/apple_model.dart';
 import '../services/detections.dart';
 import '../services/memo_store.dart';
+import '../services/hisab_model.dart';
 import '../services/queries.dart';
 import '../state.dart';
 import '../storage/database.dart';
@@ -21,7 +21,7 @@ DateTime _memoDate(StoredPendingMemo memo) =>
     DateTime.fromMillisecondsSinceEpoch(memo.dateMs, isUtc: true);
 
 /// Whether this phone can run the detection agent.
-Future<bool> get canFindInText => appleModelReady;
+Future<bool> get canFindInText => hisabModelReady;
 
 class DetectionsList extends StatelessWidget {
   final Snapshot data;
@@ -291,13 +291,15 @@ class _FindInTextState extends State<_FindInText> {
     String result;
     try {
       final now = DateTime.now();
-      final found = await DetectionAgent(appleModel)
+      final found = await DetectionAgent(hisabModel)
           .detect(_text.text, receivedAt: now);
       result = findSummary(await Detections.ingest(found, receivedAt: now, db: db));
     } on ModelFailure catch (e) {
       result = switch (e.code) {
         'context' => 'Too long. Paste less at a time.',
         'language' => 'Only English text for now.',
+        'quota' => 'No AI credits left today.',
+        'unavailable' || 'timeout' => "Couldn't reach the AI. Try again later.",
         _ => "Couldn't read that.",
       };
     }
