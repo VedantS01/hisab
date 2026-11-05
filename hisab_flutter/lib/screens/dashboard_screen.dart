@@ -2,15 +2,20 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
+import '../feed/feed_view.dart';
+import '../feed/home_feed.dart';
+import '../services/agent_insights.dart';
+import '../services/hisab_model.dart';
 import '../services/demo_data.dart';
 import '../services/insight_store.dart';
+import '../services/incoming_router.dart';
 import '../services/queries.dart';
 import '../state.dart';
-import '../theme.dart';
 import '../widgets/import_flow.dart';
 import '../widgets/insight_evidence_sheet.dart';
 import '../widgets/insight_strip.dart';
-import '../widgets/needs_review_section.dart';
+import '../widgets/capture_health.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -33,6 +38,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// one prune ever runs for this screen's lifetime.
   bool _pruned = false;
 
+  /// Whether this screen has offered the insights agent its run.
+  bool _agentAsked = false;
+
+  /// Debug builds start where a hisab://tab/0?scroll=N link says.
+  final _scroll = ScrollController(
+      initialScrollOffset: IncomingRouter.debugScroll.value ?? 0);
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
@@ -43,14 +61,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final data = snap.data;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('हिसाब',
+            title: Text('हिसाब',
                 style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
-                    color: HisabTheme.khataRed)),
+                    color: context.hisab.brandText)),
             actions: [
               IconButton(
-                icon: const Icon(Icons.add_circle, color: HisabTheme.khataRed),
+                icon: Icon(Icons.add_circle, color: context.hisab.brandText),
                 onPressed: () => showImportFlow(context),
               ),
             ],
@@ -81,41 +99,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           const CaptureHealthBanner(),
-          NeedsReviewSection(data: data),
           Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.menu_book, size: 56, color: HisabTheme.khataRed),
-              const SizedBox(height: 12),
-              const Text('Your bahi is empty.',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              const Text(
-                  'Import a statement to begin.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54)),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                    backgroundColor: HisabTheme.khataRed),
-                onPressed: () => showImportFlow(context),
-                icon: const Icon(Icons.add),
-                label: const Text('Import statement'),
-              ),
-              // Only on an empty ledger: how a first-time user (and App
-              // Review) can see every screen without importing their own
-              // statements. Gone once anything real is in.
-              TextButton(
-                onPressed: () =>
-                    DemoData.load(AppScope.of(context).importService),
-                child: const Text('Explore with sample data',
-                    style: TextStyle(color: HisabTheme.khataRed)),
-              ),
-            ],
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.menu_book, size: 56, color: context.hisab.brandText),
+                const SizedBox(height: 12),
+                const Text('Your bahi is empty.',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Text('Import a statement to begin.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: context.hisab.textSecondary)),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: context.hisab.brand),
+                  onPressed: () => showImportFlow(context),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Import statement'),
+                ),
+                // Only on an empty ledger: how a first-time user (and App
+                // Review) can see every screen without importing their own
+                // statements. Gone once anything real is in.
+                TextButton(
+                  onPressed: () =>
+                      DemoData.load(AppScope.of(context).importService),
+                  child: Text('Explore with sample data',
+                      style: TextStyle(color: context.hisab.brandText)),
+                ),
+              ],
+            ),
           ),
-        ),
         ],
       );
     }
@@ -130,18 +147,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!months.contains(_selected)) _selected = months.first;
     final stats = Analytics.monthStats(txns, _selected);
     final trend = Analytics.trend(txns, endingAt: _selected, count: 6);
-    final breakdown =
-        Analytics.categoryBreakdown(txns, _selected, top: 5);
+    final breakdown = Analytics.categoryBreakdown(txns, _selected, top: 5);
     final merchants = Analytics.topMerchants(txns, _selected, top: 5);
     final bankVerified = grid.sources.any((s) =>
-        s.kind == SourceKind.bank &&
-        grid.state(_selected, s) is CellPresent);
+        s.kind == SourceKind.bank && grid.state(_selected, s) is CellPresent);
 
     final state = AppScope.of(context);
+    final records = Queries.insightRecords(data.txns, data.matches, matcher,
+        selfTransfers: selfTransfers);
     final insights = InsightsEngine.generate(
       input: InsightsInput(
-        records: Queries.insightRecords(data.txns, data.matches, matcher,
-            selfTransfers: selfTransfers),
+        records: records,
         documentPeriods:
             Queries.insightPeriods(Queries.statements(data.documents)),
         now: DateTime.now(),
@@ -155,244 +171,507 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _pruned = true;
       InsightStore.prune(insights.allIDs);
     }
+    // The first open after a month ends writes that month's insights.
+    if (!_agentAsked) {
+      _agentAsked = true;
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => AgentInsights.maybeRun(records, now: DateTime.now()));
+    }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (data.documents.any((d) => DemoData.slotKeys.contains(d.fileSha256)))
-          _SampleDataBar(onClear: () => DemoData.eraseExisting(state.db)),
-        const CaptureHealthBanner(),
-        NeedsReviewSection(data: data),
-        // The strip sits above the month chips, matching iOS: it always
-        // speaks about the latest complete month, so mounting it under the
-        // chips would imply it follows the selection. Everything below the
-        // chip row does.
-        InsightStrip(
-          insights: insights.cards,
-          onOpen: (insight) =>
-              showInsightEvidence(context, insight, data.txns),
-          onDismiss: (insight) async {
-            await InsightStore.dismiss(insight.id);
-            final refreshed = await InsightStore.load();
-            if (mounted) setState(() => state.suppressions = refreshed);
-          },
-          onMute: (insight) async {
-            final target = insight.mute;
-            if (target == null) return;
-            await InsightStore.mute(target);
-            final refreshed = await InsightStore.load();
-            if (mounted) setState(() => state.suppressions = refreshed);
-          },
-        ),
-        if (insights.cards.isNotEmpty) const SizedBox(height: 8),
-        SizedBox(
-          height: 40,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final month in months)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(month.displayName),
-                    selected: month == _selected,
-                    selectedColor: HisabTheme.khataRed.withValues(alpha: 0.15),
-                    onSelected: (_) => setState(() => _selected = month),
-                  ),
-                ),
+    final now = DateTime.now();
+    List<Widget> section(FeedSection section) => switch (section.type) {
+          'sampleDataBar' => [
+              if (data.documents
+                  .any((d) => DemoData.slotKeys.contains(d.fileSha256)))
+                _SampleDataBar(onClear: () => DemoData.eraseExisting(state.db)),
             ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        _heroCard(stats, bankVerified),
-        _trendCard(trend),
-        _breakdownCard(breakdown),
-        _merchantsCard(merchants),
-      ],
-    );
-  }
-
-  Widget _heroCard(MonthStats stats, bool bankVerified) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${_selected.displayName} spend',
-                  style: const TextStyle(color: Colors.black54)),
-              Text(Money.formatPaise(stats.spendPaise),
-                  style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      color: HisabTheme.khataRed)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _pill('In ${Money.formatPaise(stats.incomePaise)}',
-                      HisabTheme.hara),
-                  const SizedBox(width: 8),
-                  _pill('Net ${Money.formatPaise(stats.netPaise, signed: true)}',
-                      HisabTheme.ink),
-                ],
-              ),
-              if (bankVerified)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Row(children: [
-                    Icon(Icons.verified, size: 16, color: HisabTheme.hara),
-                    SizedBox(width: 4),
-                    Text('Bank statement on file for this month',
-                        style:
-                            TextStyle(fontSize: 12, color: Colors.black54)),
-                  ]),
-                ),
-            ],
-          ),
-        ),
-      );
-
-  Widget _pill(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(text,
-            style: TextStyle(
-                color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-      );
-
-  Widget _trendCard(List<MonthStats> trend) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Six-month trend',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 12),
+          'captureHealth' => [const CaptureHealthBanner()],
+          // Above the month chips, matching iOS: insights speak about the
+          // month just ended, so mounting them under the chips would imply
+          // they follow the selection. Everything below the chip row does.
+          'insights' => [_insights(insights, data, records)],
+          'monthPicker' => [
               SizedBox(
-                height: 120,
-                child: BarChart(
-                  BarChartData(
-                    gridData: const FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
-                    titlesData: FlTitlesData(
-                      leftTitles: const AxisTitles(),
-                      rightTitles: const AxisTitles(),
-                      topTitles: const AxisTitles(),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            final index = value.toInt();
-                            if (index < 0 || index >= trend.length) {
-                              return const SizedBox.shrink();
-                            }
-                            return Text(
-                                trend[index].month.displayName.split(' ').first,
-                                style: const TextStyle(fontSize: 10));
-                          },
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final month in months)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: HisabFilterChip(
+                          label: month.displayName,
+                          selected: month == _selected,
+                          onSelected: (_) => setState(() => _selected = month),
                         ),
                       ),
-                    ),
-                    barGroups: [
-                      for (var i = 0; i < trend.length; i++)
-                        BarChartGroupData(x: i, barRods: [
-                          BarChartRodData(
-                            toY: trend[i].spendPaise / 100,
-                            color: trend[i].month == _selected
-                                ? HisabTheme.khataRed
-                                : HisabTheme.khataRed.withValues(alpha: 0.35),
-                            width: 18,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ]),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-
-  Widget _breakdownCard(List<CategorySlice> breakdown) {
-    final total = breakdown.fold<int>(0, (a, s) => a + s.paise);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Where it went',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            if (breakdown.isEmpty)
-              const Text('No spending this month',
-                  style: TextStyle(color: Colors.black54)),
-            for (final slice in breakdown)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(slice.category),
-                        Text(Money.formatPaise(slice.paise),
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    LinearProgressIndicator(
-                      value: total == 0 ? 0 : slice.paise / total,
-                      minHeight: 5,
-                      backgroundColor: HisabTheme.kagaz,
-                      color: HisabTheme.sona,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
                   ],
                 ),
               ),
-          ],
-        ),
+              const SizedBox(height: HisabSpace.s12),
+            ],
+          'hero' => [
+              _heroCard(stats, bankVerified),
+              const SizedBox(height: HisabSpace.s12)
+            ],
+          'trend' => [
+              _trendCard(trend),
+              const SizedBox(height: HisabSpace.s12)
+            ],
+          'breakdown' => [
+              _breakdownCard(breakdown),
+              const SizedBox(height: HisabSpace.s12)
+            ],
+          'merchants' => [
+              _merchantsCard(merchants),
+              const SizedBox(height: HisabSpace.s12)
+            ],
+          'card' => [
+              if (section.card!.until == null ||
+                  now.isBefore(section.card!.until!))
+                FeedCardView(card: section.card!),
+            ],
+          _ => const [],
+        };
+
+    return ValueListenableBuilder<HomeFeed>(
+      valueListenable: HomeFeed.current,
+      builder: (context, feed, _) => ListView(
+        controller: _scroll,
+        padding: const EdgeInsets.all(16),
+        children: [for (final s in feed.sections) ...section(s)],
       ),
     );
   }
 
-  Widget _merchantsCard(List<MerchantSlice> merchants) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  /// The insights agent's cards for the month just ended where Apple's
+  /// models run; the native engine's strip until then, and everywhere else.
+  Widget _insights(
+      InsightsResult native, Snapshot data, List<InsightRecord> records) {
+    final state = AppScope.of(context);
+    return ListenableBuilder(
+      listenable:
+          Listenable.merge([AgentInsights.current, AgentInsights.running]),
+      builder: (context, _) {
+        final now = DateTime.now();
+        final month = AgentInsights.monthFor(now);
+        final agent = AgentInsights.current.value;
+        final running = AgentInsights.running.value;
+        void rewrite() =>
+            AgentInsights.maybeRun(records, now: DateTime.now(), force: true);
+        if (agent != null && agent.month == month && agent.cards.isNotEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Top merchants',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              Row(children: [
+                Expanded(
+                    child: Text(month.displayName,
+                        style: Theme.of(context).textTheme.titleSmall)),
+                IconButton(
+                  tooltip: 'Write again',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: running ? null : rewrite,
+                ),
+              ]),
+              InsightCarousel(cards: [
+                for (final c in agent.cards)
+                  InsightCard(
+                    icon: FeedIcons.of(c.kind),
+                    title: c.title,
+                    body: c.body,
+                    onTap: c.category == null
+                        ? null
+                        : () => openFeedAction(context,
+                            FeedAction('transactions', category: c.category)),
+                  ),
+              ]),
               const SizedBox(height: 8),
-              if (merchants.isEmpty)
-                const Text('Nothing yet',
-                    style: TextStyle(color: Colors.black54)),
-              for (final merchant in merchants)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                          child: Text(merchant.merchant,
-                              overflow: TextOverflow.ellipsis)),
-                      Text(Money.formatPaise(merchant.paise),
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
-                    ],
+            ],
+          );
+        }
+        if (running) {
+          return const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: SkeletonBox(height: 124, radius: HisabRadius.r16),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InsightStrip(
+              insights: native.cards,
+              onOpen: (insight) =>
+                  showInsightEvidence(context, insight, data.txns),
+              onDismiss: (insight) async {
+                await InsightStore.dismiss(insight.id);
+                final refreshed = await InsightStore.load();
+                if (mounted) setState(() => state.suppressions = refreshed);
+              },
+              onMute: (insight) async {
+                final target = insight.mute;
+                if (target == null) return;
+                await InsightStore.mute(target);
+                final refreshed = await InsightStore.load();
+                if (mounted) setState(() => state.suppressions = refreshed);
+              },
+            ),
+            // On demand, where the agent can run and has something to read.
+            FutureBuilder<bool>(
+              future: hisabModelReady,
+              builder: (context, ready) => ready.data == true &&
+                      records.any((r) => YearMonth.fromDate(r.date) == month)
+                  ? Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: rewrite,
+                        icon: const Icon(Icons.auto_awesome, size: 18),
+                        label: Text('Insights for ${month.displayName}'),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            if (native.cards.isNotEmpty) const SizedBox(height: 8),
+          ],
+        );
+      },
+    );
+  }
+
+  /// The month in one card: spend on a plum-to-red gradient, income and net
+  /// as pills, the bank's confirmation in gold. The one loud thing on the
+  /// page; everything under it is quiet.
+  Widget _heroCard(MonthStats stats, bool bankVerified) {
+    final c = context.hisab;
+    final onHero = Colors.white.withValues(alpha: 0.78);
+    return Container(
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(HisabRadius.r28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [c.heroStart, c.heroEnd],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: c.heroEnd.withValues(alpha: 0.30),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -36,
+            top: -48,
+            child: _orb(168, Colors.white.withValues(alpha: 0.07)),
+          ),
+          Positioned(
+            right: 48,
+            bottom: -72,
+            child: _orb(132, HisabPalette.goldOnHero.withValues(alpha: 0.14)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                HisabSpace.s20, HisabSpace.s20, HisabSpace.s20, HisabSpace.s20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${_selected.displayName} spend',
+                    style: HisabType.label.copyWith(color: onHero)),
+                const SizedBox(height: HisabSpace.s4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: DefaultTextStyle(
+                    style: const TextStyle(color: Colors.white),
+                    child: AmountText(stats.spendPaise, role: AmountRole.hero),
                   ),
                 ),
-            ],
+                const SizedBox(height: HisabSpace.s16),
+                Wrap(
+                  spacing: HisabSpace.s8,
+                  runSpacing: HisabSpace.s8,
+                  children: [
+                    _heroPill('In', AmountText.format(stats.incomePaise),
+                        HisabPalette.goldOnHero),
+                    _heroPill(
+                        'Net',
+                        AmountText.format(stats.netPaise,
+                            tone: stats.netPaise >= 0
+                                ? AmountTone.credit
+                                : AmountTone.plain),
+                        Colors.white),
+                  ],
+                ),
+                if (bankVerified) ...[
+                  const SizedBox(height: HisabSpace.s16),
+                  Row(children: [
+                    const Icon(Icons.verified_rounded,
+                        size: 16, color: HisabPalette.goldOnHero),
+                    const SizedBox(width: HisabSpace.s4),
+                    Text('Bank statement on file for this month',
+                        style: HisabType.caption.copyWith(color: onHero)),
+                  ]),
+                ],
+              ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _orb(double size, Color color) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      );
+
+  Widget _heroPill(String label, String amount, Color tint) => Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: HisabSpace.s12, vertical: 6),
+        decoration: BoxDecoration(
+          color: tint.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(HisabRadius.pill),
+          border: Border.all(color: tint.withValues(alpha: 0.35)),
+        ),
+        child: Text.rich(
+          TextSpan(children: [
+            TextSpan(
+                text: '$label ',
+                style: TextStyle(color: tint.withValues(alpha: 0.85))),
+            TextSpan(text: amount),
+          ]),
+          style: HisabType.label.copyWith(
+              color: tint,
+              fontWeight: FontWeight.w600,
+              fontFeatures: HisabType.tabular),
         ),
       );
+
+  Widget _trendCard(List<MonthStats> trend) {
+    final c = context.hisab;
+    final peak = trend.fold<double>(
+        0, (m, s) => s.spendPaise > m ? s.spendPaise.toDouble() : m);
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Six-month trend', style: HisabType.title),
+          const SizedBox(height: HisabSpace.s12),
+          SizedBox(
+            height: 132,
+            child: BarChart(
+              BarChartData(
+                maxY: peak == 0 ? 1 : peak / 100 * 1.08,
+                gridData: const FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+                barTouchData: BarTouchData(
+                  enabled: true,
+                  handleBuiltInTouches: false,
+                  touchCallback: (event, response) {
+                    final index = response?.spot?.touchedBarGroupIndex;
+                    if (event is FlTapUpEvent && index != null) {
+                      setState(() => _selected = trend[index].month);
+                    }
+                  },
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  topTitles: const AxisTitles(),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= trend.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final selected = trend[index].month == _selected;
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            trend[index].month.displayName.split(' ').first,
+                            style: HisabType.caption.copyWith(
+                              color: selected ? c.brandText : c.textTertiary,
+                              fontWeight:
+                                  selected ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barGroups: [
+                  for (var i = 0; i < trend.length; i++)
+                    BarChartGroupData(x: i, barRods: [
+                      BarChartRodData(
+                        toY: trend[i].spendPaise / 100,
+                        width: 24,
+                        borderRadius: BorderRadius.circular(HisabRadius.r8),
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: trend[i].month == _selected
+                              ? [c.heroEnd, c.gold]
+                              : [
+                                  c.brand.withValues(alpha: 0.42),
+                                  c.brand.withValues(alpha: 0.16)
+                                ],
+                        ),
+                        backDrawRodData: BackgroundBarChartRodData(
+                          show: true,
+                          toY: peak == 0 ? 1 : peak / 100 * 1.08,
+                          color: c.sunken,
+                        ),
+                      ),
+                    ]),
+                ],
+              ),
+              duration: HisabMotion.medium,
+              curve: HisabMotion.curve,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A colour per category, stable within the month: the breakdown's bar,
+  /// legend and the merchant avatars read as one system.
+  static Color categoryHue(int index) =>
+      HisabPalette.avatarHues[index % HisabPalette.avatarHues.length];
+
+  Widget _breakdownCard(List<CategorySlice> breakdown) {
+    final c = context.hisab;
+    final total = breakdown.fold<int>(0, (a, s) => a + s.paise);
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Where it went', style: HisabType.title),
+          const SizedBox(height: HisabSpace.s12),
+          if (breakdown.isEmpty)
+            Text('No spending this month',
+                style: HisabType.body.copyWith(color: c.textSecondary))
+          else ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(HisabRadius.pill),
+              child: SizedBox(
+                height: 14,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < breakdown.length; i++)
+                      Expanded(
+                        flex: breakdown[i].paise.clamp(1, 1 << 30),
+                        child: Container(
+                          margin: EdgeInsets.only(
+                              right: i == breakdown.length - 1 ? 0 : 2),
+                          color: categoryHue(i),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: HisabSpace.s12),
+            for (var i = 0; i < breakdown.length; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                          color: categoryHue(i), shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: HisabSpace.s12),
+                    Expanded(
+                      child: Text(breakdown[i].category,
+                          overflow: TextOverflow.ellipsis,
+                          style: HisabType.body),
+                    ),
+                    Text(
+                      total == 0
+                          ? ''
+                          : '${(breakdown[i].paise * 100 / total).round()}%',
+                      style: HisabType.caption.copyWith(
+                          color: c.textTertiary,
+                          fontFeatures: HisabType.tabular),
+                    ),
+                    const SizedBox(width: HisabSpace.s12),
+                    AmountText(breakdown[i].paise, role: AmountRole.md),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _merchantsCard(List<MerchantSlice> merchants) {
+    final c = context.hisab;
+    final top = merchants.isEmpty ? 0 : merchants.first.paise;
+    return SurfaceCard(
+      padding: const EdgeInsets.fromLTRB(
+          HisabSpace.s16, HisabSpace.s16, HisabSpace.s16, HisabSpace.s8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Top merchants', style: HisabType.title),
+          const SizedBox(height: HisabSpace.s8),
+          if (merchants.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: HisabSpace.s8),
+              child: Text('Nothing yet',
+                  style: HisabType.body.copyWith(color: c.textSecondary)),
+            ),
+          for (var i = 0; i < merchants.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: HisabSpace.s8),
+              child: Row(
+                children: [
+                  MerchantAvatar(
+                      name: merchants[i].merchant, hue: categoryHue(i)),
+                  const SizedBox(width: HisabSpace.s12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(merchants[i].merchant,
+                            overflow: TextOverflow.ellipsis,
+                            style: HisabType.body
+                                .copyWith(fontWeight: FontWeight.w500)),
+                        const SizedBox(height: HisabSpace.s4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(HisabRadius.r4),
+                          child: LinearProgressIndicator(
+                            value: top == 0 ? 0 : merchants[i].paise / top,
+                            minHeight: 4,
+                            backgroundColor: c.sunken,
+                            color: categoryHue(i),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: HisabSpace.s12),
+                  AmountText(merchants[i].paise, role: AmountRole.md),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Shown while the sample statements are loaded, so they are never mistaken
@@ -402,13 +681,14 @@ class _SampleDataBar extends StatelessWidget {
   const _SampleDataBar({required this.onClear});
 
   @override
-  Widget build(BuildContext context) => Card(
-        color: HisabTheme.khataRed.withValues(alpha: 0.08),
-        child: ListTile(
-          dense: true,
-          leading: const Icon(Icons.science_outlined, color: HisabTheme.khataRed),
-          title: const Text('Sample data'),
-          trailing: TextButton(onPressed: onClear, child: const Text('Clear')),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: HisabSpace.s12),
+        child: InfoBanner(
+          icon: Icons.science_outlined,
+          message: 'Sample data',
+          tone: HisabTone.brand,
+          actionLabel: 'Clear',
+          onAction: onClear,
         ),
       );
 }

@@ -6,12 +6,13 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import '../design/design.dart';
 import '../services/capture_notifier.dart';
 import '../services/memo_store.dart';
 import '../services/queries.dart';
 import '../state.dart';
 import '../storage/database.dart';
-import '../theme.dart';
+import 'detection_views.dart';
 
 /// "22 Sep 2026, 4:18 PM IST".
 ///
@@ -154,9 +155,9 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
           if (row.captureHash == widget.captureHash) memo = row;
         }
         return Scaffold(
-          backgroundColor: HisabTheme.kagaz,
+          backgroundColor: context.hisab.bg,
           appBar: AppBar(
-            title: const Text('Review alert'),
+            title: Text(memo?.mergedTxnUuid == null ? 'Detection' : 'Alert'),
             actions: [
               TextButton(
                   onPressed: () => Navigator.of(context).maybePop(),
@@ -171,20 +172,14 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
 
   Widget _gone() => Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.inbox, size: 48, color: Colors.black26),
-              const SizedBox(height: 12),
-              const Text('This memo is gone.',
+              Icon(Icons.inbox, size: 48, color: context.hisab.outline),
+              SizedBox(height: 12),
+              Text('This detection is gone.',
                   style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(
-                  'It was merged into a statement row, or it expired after '
-                  '${PendingMemo.expiryDays} days.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.black54)),
             ],
           ),
         ),
@@ -205,14 +200,15 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Amount',
-                        style: TextStyle(color: Colors.black54)),
+                    Text('Amount',
+                        style: TextStyle(color: context.hisab.textSecondary)),
                     Text(Money.formatPaise(memo.amountPaise),
                         style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            color: HisabTheme.amountColor(
-                                memo.directionValue))),
+                            color: memo.directionValue == Direction.credit
+                                ? context.hisab.credit
+                                : context.hisab.textPrimary)),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -242,14 +238,6 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
         const SizedBox(height: 16),
         const Text('Category',
             style: TextStyle(fontWeight: FontWeight.w600)),
-        const Text(
-            'The first few are what you spend on most; the rest are every '
-            'category your rules already use. Nothing here touches your '
-            'statements. An alert that carried a bank reference (a UPI or '
-            'IMPS ref, a NEFT UTR) is already in your ledger and is confirmed '
-            'when the statement arrives; any other memo is a label, not a '
-            'ledger entry, until then.',
-            style: TextStyle(fontSize: 12, color: Colors.black54)),
         const SizedBox(height: 8),
         Card(
           child: Column(
@@ -259,7 +247,7 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
                   dense: true,
                   title: Text(category),
                   trailing: memo.assignedCategory == category
-                      ? const Icon(Icons.check, color: HisabTheme.khataRed)
+                      ? Icon(Icons.check, color: context.hisab.brandText)
                       : null,
                   onTap: () => _assign(data, memo, category),
                 ),
@@ -269,6 +257,10 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
         if (offer != null) ...[
           const SizedBox(height: 12),
           _offerCard(data, offer),
+        ],
+        if (memo.mergedTxnUuid == null) ...[
+          const SizedBox(height: 24),
+          DetectionActions(memo: memo, data: data),
         ],
         const SizedBox(height: 32),
       ],
@@ -280,7 +272,7 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(color: Colors.black54)),
+            Text(label, style: TextStyle(color: context.hisab.textSecondary)),
             Flexible(
                 child: Text(value,
                     textAlign: TextAlign.right,
@@ -296,13 +288,13 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Remember this?',
-                  style: TextStyle(color: Colors.black54)),
+              Text('Remember this?',
+                  style: TextStyle(color: context.hisab.textSecondary)),
               const SizedBox(height: 6),
               if (_ruleSaved)
                 Row(children: [
-                  const Icon(Icons.check_circle,
-                      color: HisabTheme.hara, size: 18),
+                  Icon(Icons.check_circle,
+                      color: context.hisab.credit, size: 18),
                   const SizedBox(width: 6),
                   Flexible(
                       child: Text(offer.count == 0
@@ -319,7 +311,7 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                         'This will also update ${_countPhrase(offer.count)}.',
-                        style: const TextStyle(color: Colors.black54)),
+                        style: TextStyle(color: context.hisab.textSecondary)),
                   ),
                 const SizedBox(height: 8),
                 Row(
@@ -330,12 +322,12 @@ class _MemoReviewContentState extends State<MemoReviewContent> {
                         await CaptureNotifier.clearOffer(offer.captureHash);
                         if (mounted) setState(() => _offer = null);
                       },
-                      child: const Text('Not now',
-                          style: TextStyle(color: Colors.black54)),
+                      child: Text('Not now',
+                          style: TextStyle(color: context.hisab.textSecondary)),
                     ),
                     FilledButton(
                       style: FilledButton.styleFrom(
-                          backgroundColor: HisabTheme.khataRed),
+                          backgroundColor: context.hisab.brand),
                       onPressed: () async {
                         await RuleOffers.createRule(
                             pattern: offer.pattern,
@@ -456,7 +448,7 @@ Future<void> showQueuedRuleOffer(BuildContext context, RuleOffer offer) async {
           key: const Key('queued-rule-offer'),
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.fact_check, size: 40, color: HisabTheme.sona),
+            Icon(Icons.fact_check, size: 40, color: context.hisab.gold),
             const SizedBox(height: 12),
             Text(
                 memo == null
@@ -468,11 +460,11 @@ Future<void> showQueuedRuleOffer(BuildContext context, RuleOffer offer) async {
                     fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             if (pattern.isEmpty)
-              const Text(
+              Text(
                   'That memo is gone, so there is nothing left to build a '
                   'rule from.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54))
+                  style: TextStyle(color: context.hisab.textSecondary))
             else ...[
               Text('Always categorize “$pattern” as ${offer.category}?',
                   textAlign: TextAlign.center),
@@ -483,12 +475,12 @@ Future<void> showQueuedRuleOffer(BuildContext context, RuleOffer offer) async {
                       'This will also update $count past '
                       '${count == 1 ? 'transaction' : 'transactions'}.',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.black54)),
+                      style: TextStyle(color: context.hisab.textSecondary)),
                 ),
               const SizedBox(height: 12),
               FilledButton(
                 style: FilledButton.styleFrom(
-                    backgroundColor: HisabTheme.khataRed),
+                    backgroundColor: context.hisab.brand),
                 onPressed: () async {
                   await RuleOffers.createRule(
                       pattern: pattern,
@@ -506,7 +498,7 @@ Future<void> showQueuedRuleOffer(BuildContext context, RuleOffer offer) async {
                 if (context.mounted) Navigator.pop(context);
               },
               child: Text(pattern.isEmpty ? 'OK' : 'Not now',
-                  style: const TextStyle(color: Colors.black54)),
+                  style: TextStyle(color: context.hisab.textSecondary)),
             ),
           ],
         ),

@@ -1,0 +1,337 @@
+{
+ "cases": [
+  {
+   "name": "hdfc-upi-debit",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Rs.450.00 debited from a/c XX1234 on 22-09-26 to VPA vedant@okaxis. Ref 123456789012. Not you? Call 18002586161",
+   "expected": [
+    {
+     "amountPaise": 45000,
+     "direction": "debit",
+     "date": "2026-09-22",
+     "reference": "123456789012",
+     "accountTail": "1234",
+     "counterparty": "vedant@okaxis"
+    }
+   ]
+  },
+  {
+   "name": "lakh-grouped-merchant",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "INR 1,23,456.78 debited from A/c no. XX9876 towards BLUE TOKAI COFFEE on 21/09/2026",
+   "expected": [
+    {
+     "amountPaise": 12345678,
+     "direction": "debit",
+     "date": "2026-09-21",
+     "reference": null,
+     "accountTail": "9876",
+     "counterparty": "BLUE TOKAI COFFEE"
+    }
+   ]
+  },
+  {
+   "name": "credit-not-debit",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "₹2,000 credited to your account XX1234 from RAHUL on 22Sep26",
+   "expected": [
+    {
+     "amountPaise": 200000,
+     "direction": "credit",
+     "date": "2026-09-22",
+     "reference": null,
+     "accountTail": "1234",
+     "counterparty": "RAHUL"
+    }
+   ]
+  },
+  {
+   "name": "no-date-falls-back-to-received",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Rs 99.00 debited from a/c XX1234 to ZEPTO",
+   "expected": [
+    {
+     "amountPaise": 9900,
+     "direction": "debit",
+     "date": "2026-09-22",
+     "reference": null,
+     "accountTail": "1234",
+     "counterparty": "ZEPTO"
+    }
+   ]
+  },
+  {
+   "name": "email-is-not-a-vpa",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Rs.450.00 debited from a/c XX1234 to SWIGGY. Queries: help@swiggy.in",
+   "expected": [
+    {
+     "amountPaise": 45000,
+     "direction": "debit",
+     "date": "2026-09-22",
+     "reference": null,
+     "accountTail": "1234",
+     "counterparty": "SWIGGY"
+    }
+   ]
+  },
+  {
+   "name": "stop-word-as-whole-word-in-merchant-name",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Rs.150.00 debited from a/c XX1234 to SHOP ON WHEELS on 22-09-26",
+   "expected": [
+    {
+     "amountPaise": 15000,
+     "direction": "debit",
+     "date": "2026-09-22",
+     "reference": null,
+     "accountTail": "1234",
+     "counterparty": "SHOP ON WHEELS"
+    }
+   ]
+  },
+  {
+   "name": "numeric-vpa",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Rs.150.00 debited from a/c XX1234 to VPA 9876543210@ybl on 22-09-26",
+   "expected": [
+    {
+     "amountPaise": 15000,
+     "direction": "debit",
+     "date": "2026-09-22",
+     "reference": null,
+     "accountTail": "1234",
+     "counterparty": "9876543210@ybl"
+    }
+   ]
+  },
+  {
+   "name": "via-upi-tail",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "You have paid Rs.450.00 to SWIGGY via UPI on 22-09-26",
+   "expected": [
+    {
+     "amountPaise": 45000,
+     "direction": "debit",
+     "date": "2026-09-22",
+     "reference": null,
+     "accountTail": null,
+     "counterparty": "SWIGGY"
+    }
+   ]
+  },
+  {
+   "name": "unreadable-numeric-candidate-does-not-veto-the-named-month-date",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Rs.100 debited to Cafe Mocha ref 12-34-5678 on 20Sep26",
+   "expected": [
+    {
+     "amountPaise": 10000,
+     "direction": "debit",
+     "date": "2026-09-20",
+     "reference": null,
+     "accountTail": null,
+     "counterparty": "Cafe Mocha"
+    }
+   ]
+  },
+  {
+   "name": "both-legs-reversal",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Your a/c XX1234: Rs.500.00 debited and Rs.500.00 credited on 22-09-26",
+   "expected": [
+    {
+     "amountPaise": 50000,
+     "direction": "debit",
+     "date": "2026-09-22",
+     "reference": null,
+     "accountTail": "1234",
+     "counterparty": null
+    },
+    {
+     "amountPaise": 50000,
+     "direction": "credit",
+     "date": "2026-09-22",
+     "reference": null,
+     "accountTail": "1234",
+     "counterparty": null
+    }
+   ]
+  },
+  {
+   "name": "rejected-2",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Your a/c XX1234 balance is Rs.12,345.67 as on 22-09-26",
+   "expected": []
+  },
+  {
+   "name": "rejected-3",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Payment debited from a/c XX1234 to VEDANT",
+   "expected": []
+  },
+  {
+   "name": "rejected-4",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Payment debited on 22.09.26 to ZEPTO",
+   "expected": []
+  },
+  {
+   "name": "rejected-5",
+   "receivedAt": "2026-09-22T14:30:00+05:30",
+   "text": "Get a personal loan instantly! Spend more and earn rewards.",
+   "expected": []
+  },
+  {
+   "name": "hdfc-email-upi",
+   "receivedAt": "2026-11-03T10:00:00+05:30",
+   "text": "Dear Customer,\nRs.1,499.00 has been debited from account **3293 to VPA netflix.upi@hdfcbank NETFLIX on 03-11-26.\nYour UPI transaction reference number is 630712345678.\nIf you did not authorize this transaction, please report it immediately.\nWarm Regards,\nHDFC Bank",
+   "expected": [
+    {
+     "amountPaise": 149900,
+     "direction": "debit",
+     "date": "2026-11-03",
+     "reference": "630712345678",
+     "accountTail": "3293",
+     "counterparty": "NETFLIX"
+    }
+   ]
+  },
+  {
+   "name": "card-spend",
+   "receivedAt": "2026-11-02T21:00:00+05:30",
+   "text": "INR 2,350.00 spent using ICICI Bank Card XX4321 on 02-Nov-26 on AMAZON PAY IN. Avl Limit: INR 1,12,345.00. If not you, call 18001080.",
+   "expected": [
+    {
+     "amountPaise": 235000,
+     "direction": "debit",
+     "date": "2026-11-02",
+     "reference": null,
+     "accountTail": "4321",
+     "counterparty": "AMAZON PAY IN"
+    }
+   ]
+  },
+  {
+   "name": "card-refund",
+   "receivedAt": "2026-11-01T12:00:00+05:30",
+   "text": "Refund of Rs 799.00 for your order from MYNTRA has been credited to your HDFC Bank Credit Card XX1122 on 01-11-2026.",
+   "expected": [
+    {
+     "amountPaise": 79900,
+     "direction": "credit",
+     "date": "2026-11-01",
+     "reference": null,
+     "accountTail": "1122",
+     "counterparty": "MYNTRA"
+    }
+   ]
+  },
+  {
+   "name": "failed-upi",
+   "receivedAt": "2026-11-01T12:00:00+05:30",
+   "text": "Your UPI transaction of Rs.500.00 to merchant@ybl failed. Amount if debited will be refunded in 3 working days.",
+   "expected": []
+  },
+  {
+   "name": "otp",
+   "receivedAt": "2026-11-01T12:00:00+05:30",
+   "text": "123456 is your OTP for txn of INR 2,000.00 at FLIPKART. Valid for 5 mins. Do not share.",
+   "expected": []
+  },
+  {
+   "name": "gpay-history",
+   "receivedAt": "2026-11-02T09:00:00+05:30",
+   "text": "Paid to Swiggy\n₹349\n1 Nov 2026, 8:14 pm\nUPI transaction ID: 630512398765\n\nReceived from Rahul Sharma\n₹1,200\n31 Oct 2026, 6:02 pm\nUPI transaction ID: 630498761234\n\nPaid to Uber India\n₹212.50\n30 Oct 2026, 9:40 am\nUPI transaction ID: 630387654321",
+   "expected": [
+    {
+     "amountPaise": 34900,
+     "direction": "debit",
+     "date": "2026-11-01",
+     "reference": "630512398765",
+     "accountTail": null,
+     "counterparty": "Swiggy"
+    },
+    {
+     "amountPaise": 120000,
+     "direction": "credit",
+     "date": "2026-10-31",
+     "reference": "630498761234",
+     "accountTail": null,
+     "counterparty": "Rahul Sharma"
+    },
+    {
+     "amountPaise": 21250,
+     "direction": "debit",
+     "date": "2026-10-30",
+     "reference": "630387654321",
+     "accountTail": null,
+     "counterparty": "Uber India"
+    }
+   ]
+  },
+  {
+   "name": "bill-due",
+   "receivedAt": "2026-11-01T12:00:00+05:30",
+   "text": "Your Airtel bill of Rs.599 is due on 05-Nov-26. Pay now at airtel.in/pay to avoid late fees.",
+   "expected": []
+  },
+  {
+   "name": "salary-neft",
+   "receivedAt": "2026-10-31T18:00:00+05:30",
+   "text": "Your A/c XX7788 is credited with INR 85,000.00 on 31-10-2026 by NEFT from ACME SOFTWARE PVT LTD. Ref No N304261234567890.",
+   "expected": [
+    {
+     "amountPaise": 8500000,
+     "direction": "credit",
+     "date": "2026-10-31",
+     "reference": "N304261234567890",
+     "accountTail": "7788",
+     "counterparty": "ACME SOFTWARE PVT LTD"
+    }
+   ]
+  },
+  {
+   "name": "atm",
+   "receivedAt": "2026-10-28T19:00:00+05:30",
+   "text": "Rs.5000 withdrawn at ATM S1AN0123 from A/c XX1234 on 28-Oct-26. Avl bal Rs.12,345.67",
+   "expected": [
+    {
+     "amountPaise": 500000,
+     "direction": "debit",
+     "date": "2026-10-28",
+     "reference": null,
+     "accountTail": "1234",
+     "counterparty": null
+    }
+   ]
+  },
+  {
+   "name": "autopay-mandate",
+   "receivedAt": "2026-11-01T12:00:00+05:30",
+   "text": "You have successfully set up a UPI AutoPay mandate of Rs 199.00 for SPOTIFY. First debit on 10-Nov-26.",
+   "expected": []
+  },
+  {
+   "name": "payment-request",
+   "receivedAt": "2026-11-01T12:00:00+05:30",
+   "text": "RAHUL SHARMA has requested Rs.300.00 via UPI. Approve in your UPI app.",
+   "expected": []
+  },
+  {
+   "name": "imps-credit",
+   "receivedAt": "2026-10-29T16:00:00+05:30",
+   "text": "Rs.10,000.00 credited to A/c XX5566 via IMPS from PRIYA K on 29/10/2026. IMPS Ref no 630211223344.",
+   "expected": [
+    {
+     "amountPaise": 1000000,
+     "direction": "credit",
+     "date": "2026-10-29",
+     "reference": "630211223344",
+     "accountTail": "5566",
+     "counterparty": "PRIYA K"
+    }
+   ]
+  }
+ ]
+}

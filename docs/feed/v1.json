@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "sections": [
+    {"type": "sampleDataBar"},
+    {"type": "captureHealth"},
+    {"type": "insights"},
+    {"type": "monthPicker"},
+    {"type": "hero"},
+    {"type": "trend"},
+    {"type": "breakdown"},
+    {"type": "merchants"}
+  ]
+}

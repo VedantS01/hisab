@@ -10,6 +10,7 @@ import 'package:drift/drift.dart';
 import 'package:hisab_core/hisab_core.dart';
 
 import '../storage/database.dart';
+import 'detections.dart';
 import 'memo_store.dart';
 import 'pdfkit_text.dart';
 import 'queries.dart';
@@ -251,7 +252,8 @@ class ImportService {
   /// use and widened to cover it, and its month is reconciled again so a
   /// statement row already imported confirms it at once. No memo is retired
   /// here: the memo from the same alert would claim its own row.
-  static Future<bool> insertCapturedAlert(ParsedTransaction row,
+  /// The new row's id, or null when the ledger already has this payment.
+  static Future<String?> insertCapturedAlert(ParsedTransaction row,
       {required AppDatabase db}) async {
     final hash = row.contentHash(Source.alert);
     final dateMs = row.date.toUtc().millisecondsSinceEpoch;
@@ -259,7 +261,7 @@ class ImportService {
       final existing = await (db.select(db.storedTransactions)
             ..where((t) => t.contentHash.equals(hash)))
           .getSingleOrNull();
-      if (existing != null) return false;
+      if (existing != null) return null;
 
       final ref = row.reference;
       if (ref != null) {
@@ -269,7 +271,7 @@ class ImportService {
                   t.direction.equals(row.direction.name)))
             .get();
         if (samePayment.any((t) => _supersedesAlerts(Source(t.sourceRaw)))) {
-          return false;
+          return null;
         }
       }
 
@@ -300,9 +302,10 @@ class ImportService {
           ));
         }
       }
+      final id = newId();
       await db.into(db.storedTransactions).insert(
           StoredTransactionsCompanion.insert(
-            uuid: newId(),
+            uuid: id,
             contentHash: hash,
             sourceRaw: Source.alert.rawValue,
             dateMs: dateMs,
@@ -313,9 +316,9 @@ class ImportService {
             narration: row.narration,
             documentId: documentId,
           ));
-      return true;
+      return id;
     });
-    if (inserted) {
+    if (inserted != null) {
       await Queries.recomputeMatches(db, YearMonth.fromDate(row.date));
     }
     return inserted;
@@ -346,10 +349,7 @@ class ImportService {
         candidates: candidates,
       );
       for (final entry in assignment.entries) {
-        await (db.update(db.storedPendingMemos)
-              ..where((t) => t.captureHash.equals(entry.key)))
-            .write(StoredPendingMemosCompanion(
-                mergedTxnUuid: Value(entry.value)));
+        await Detections.link(entry.key, entry.value, db: db);
       }
     }
 
@@ -364,6 +364,8 @@ class ImportService {
     // and `mergedTxnUuid` points at the row it belongs to — so the note is
     // reachable from the transaction the moment either core grows a place to
     // show it.
-    await MemoStore.expire(now: DateTime.now(), db: db);
+    //
+    // Memos are no longer expired here: one no statement row took is a
+    // Detection, and stays until the user completes, links or dismisses it.
   }
 }

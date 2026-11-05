@@ -27,11 +27,13 @@ import 'services/pdfkit_text.dart';
 import 'services/queries.dart';
 import 'services/statement_self_test.dart';
 import 'state.dart';
+import 'design/design.dart';
+import 'feed/home_feed.dart';
+import 'services/agent_insights.dart';
+import 'services/network.dart';
 import 'storage/database.dart';
-import 'theme.dart';
 import 'widgets/import_flow.dart';
 import 'widgets/memo_review_sheet.dart';
-import 'widgets/needs_review_section.dart';
 import 'widgets/suggestion_prompt.dart';
 
 Future<void> main() async {
@@ -57,6 +59,10 @@ Future<void> main() async {
   final insightsConfig = InsightsConfig.fromJsonString(
       await rootBundle.loadString('assets/insights/insights-config.json'));
   final suppressions = await InsightStore.load();
+  await AgentInsights.load();
+  // Not awaited past the cache: the site is fetched in the background.
+  await HomeFeed.load();
+  await Network.watch();
   final state = AppState(
     db: db,
     importService: ImportService(db: db, resolver: resolver),
@@ -109,7 +115,9 @@ class HisabApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Hisab',
-      theme: HisabTheme.light(),
+      theme: HisabDesign.light(),
+      darkTheme: HisabDesign.dark(),
+      themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
       home: const RootTabs(),
     );
@@ -193,6 +201,11 @@ class _RootTabsState extends State<RootTabs> {
       IncomingRouter.link.value = null;
       setState(() => _tab = target == LinkTarget.transactions ? 2 : 0);
     }
+    final debugTab = IncomingRouter.debugTab.value;
+    if (debugTab != null) {
+      IncomingRouter.debugTab.value = null;
+      setState(() => _tab = debugTab.clamp(0, 4));
+    }
     final file = IncomingRouter.file.value;
     if (file == null) return;
     IncomingRouter.file.value = null;
@@ -273,13 +286,13 @@ class _RootTabsState extends State<RootTabs> {
   }
 
   /// A notification body tap, or "Later": open the memo. An empty hash means
-  /// the notification carried no payload — land on the inbox rather than on
+  /// the notification carried no payload — land on Detections rather than on
   /// whatever tab was last open.
   Future<void> _presentReview(String hash) async {
     if (!mounted) return;
     if (hash.isEmpty) {
-      await Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const NeedsReviewInbox()));
+      TransactionsScreen.segment.value = 1;
+      setState(() => _tab = 2);
     } else {
       await showMemoReviewSheet(context, hash);
     }
@@ -312,22 +325,54 @@ class _RootTabsState extends State<RootTabs> {
       ReconciliationScreen(),
       SettingsScreen(),
     ];
+    final state = AppScope.of(context);
     return Scaffold(
       body: screens[_tab],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.bar_chart), label: 'Dashboard'),
-          NavigationDestination(
-              icon: Icon(Icons.calendar_month), label: 'Buckets'),
-          NavigationDestination(
-              icon: Icon(Icons.receipt_long), label: 'Transactions'),
-          NavigationDestination(
-              icon: Icon(Icons.compare_arrows), label: 'Reconcile'),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
-        ],
+      bottomNavigationBar: StreamBuilder<Snapshot>(
+        initialData: state.latest,
+        stream: state.snapshots,
+        builder: (context, snap) {
+          final waiting = snap.data?.detections.length ?? 0;
+          final nav = NavigationBar(
+            selectedIndex: _tab,
+            onDestinationSelected: (i) => setState(() => _tab = i),
+            destinations: [
+              const NavigationDestination(
+                  icon: Icon(Icons.bar_chart), label: 'Dashboard'),
+              const NavigationDestination(
+                  icon: Icon(Icons.calendar_month), label: 'Buckets'),
+              NavigationDestination(
+                  icon: Badge(
+                      isLabelVisible: waiting > 0,
+                      label: Text('$waiting'),
+                      child: const Icon(Icons.receipt_long)),
+                  label: 'Transactions'),
+              const NavigationDestination(
+                  icon: Icon(Icons.compare_arrows), label: 'Reconcile'),
+              const NavigationDestination(
+                  icon: Icon(Icons.settings), label: 'Settings'),
+            ],
+          );
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ValueListenableBuilder<bool>(
+                valueListenable: Network.offline,
+                builder: (context, offline, _) => offline
+                    ? const Padding(
+                        padding: EdgeInsets.fromLTRB(HisabSpace.gutter,
+                            HisabSpace.s8, HisabSpace.gutter, HisabSpace.s8),
+                        child: InfoBanner(
+                            icon: Icons.cloud_off_outlined,
+                            message: 'Your device is offline.',
+                            tone: HisabTone.neutral),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              nav,
+            ],
+          );
+        },
       ),
     );
   }

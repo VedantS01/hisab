@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Gateway app key for local builds: --dart-define-from-file=gateway.json
+gateway.json

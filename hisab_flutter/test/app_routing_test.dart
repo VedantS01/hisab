@@ -22,6 +22,8 @@ import 'package:hisab/services/import_service.dart';
 import 'package:hisab/services/memo_store.dart';
 import 'package:hisab/state.dart';
 import 'package:hisab/storage/database.dart';
+import 'package:hisab/screens/transactions_screen.dart';
+import 'package:hisab/widgets/detection_views.dart';
 import 'package:hisab/widgets/memo_review_sheet.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -102,12 +104,13 @@ void main() {
         reason: 'a request that has been answered must not stay pending');
   });
 
-  testWidgets('an empty payload opens the inbox', (tester) async {
+  testWidgets('an empty payload opens Detections', (tester) async {
     CaptureRouter.reviewRequest.value = '';
 
     await pumpApp(tester);
 
-    expect(find.text('Needs review'), findsWidgets);
+    expect(TransactionsScreen.segment.value, 1);
+    expect(find.byType(DetectionsList), findsOneWidget);
     expect(CaptureRouter.reviewRequest.value, isNull);
   });
 

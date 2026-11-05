@@ -10,6 +10,7 @@ import 'package:drift/drift.dart';
 import 'package:hisab_core/hisab_core.dart';
 
 import '../storage/database.dart';
+import 'detections.dart';
 
 int _ms(DateTime date) => date.toUtc().millisecondsSinceEpoch;
 
@@ -89,15 +90,25 @@ class MemoStore {
     return query.getSingleOrNull();
   }
 
+  /// Labels the memo, and the row it is linked to unless the user gave that
+  /// row a category of its own.
   static Future<void> assign({
     required String category,
     required StoredPendingMemo memo,
     required AppDatabase db,
-  }) async {
-    final update = db.update(db.storedPendingMemos)
-      ..where((t) => t.captureHash.equals(memo.captureHash));
-    await update.write(
-        StoredPendingMemosCompanion(assignedCategory: Value(category)));
+  }) {
+    return db.transaction(() async {
+      final current = await find(hash: memo.captureHash, db: db) ?? memo;
+      final update = db.update(db.storedPendingMemos)
+        ..where((t) => t.captureHash.equals(memo.captureHash));
+      await update.write(
+          StoredPendingMemosCompanion(assignedCategory: Value(category)));
+      final txn = current.mergedTxnUuid;
+      if (txn != null && txn != Detections.dismissed) {
+        await Detections.carryCategory(txn, category,
+            replacing: current.assignedCategory, db: db);
+      }
+    });
   }
 
   /// Drops memos no statement is going to retire. A merged memo is kept: it

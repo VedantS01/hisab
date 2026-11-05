@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:hisab_core/hisab_core.dart';
 
+import 'services/detections.dart';
 import 'services/import_service.dart';
 import 'storage/database.dart';
 
@@ -23,23 +24,15 @@ class Snapshot {
   /// The review sheet looks a memo up by hash over all of them, because
   /// assigning a category is precisely what removes it from the pending set —
   /// filtering here would make a sheet blank itself the moment the user
-  /// answered the question it is asking. `pendingMemos` is the filtered view
-  /// the inbox and the dashboard section want.
+  /// answered the question it is asking. [detections] is the filtered view
+  /// the Detections tab wants.
   final List<StoredPendingMemo> memos;
 
   const Snapshot(this.txns, this.matches, this.ruleRows, this.documents,
       this.pins, this.memos);
 
-  /// Unmerged, unlabelled memos, newest first — the same predicate
-  /// `MemoStore.pending` applies in SQL.
-  List<StoredPendingMemo> get pendingMemos {
-    final rows = [
-      for (final memo in memos)
-        if (memo.mergedTxnUuid == null && memo.assignedCategory == null) memo
-    ];
-    rows.sort((a, b) => b.capturedAtMs.compareTo(a.capturedAtMs));
-    return rows;
-  }
+  /// Memos that are no ledger row yet, latest first.
+  List<StoredPendingMemo> get detections => Detections.open(memos);
 }
 
 class AppState {

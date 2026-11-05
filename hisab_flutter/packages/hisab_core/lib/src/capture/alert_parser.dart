@@ -216,6 +216,10 @@ class AlertParser {
     'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
   };
 
+  /// The first alert-style date in [text]: the detection agent's fallback
+  /// when the model leaves a written date out.
+  static DateTime? dateIn(String text) => _date(text.toLowerCase());
+
   /// `22-09-26`, `22/09/2026`, `22Sep26`, `22-Sep-2026`. A two-digit year is
   /// 2000-based: these alerts are never historical.
   ///

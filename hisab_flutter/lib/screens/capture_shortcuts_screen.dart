@@ -8,11 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../design/design.dart';
 import '../services/capture_notifier.dart';
 import '../services/capture_prefs.dart';
 import '../services/notification_capture.dart';
 import '../state.dart';
-import '../theme.dart';
 
 class CaptureShortcutsScreen extends StatefulWidget {
   const CaptureShortcutsScreen({super.key});
@@ -94,8 +94,8 @@ class _CaptureShortcutsScreenState extends State<CaptureShortcutsScreen>
               alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: _report,
-                child: const Text('Report a problem',
-                    style: TextStyle(color: HisabTheme.khataRed)),
+                child: Text('Report a problem',
+                    style: TextStyle(color: context.hisab.brandText)),
               ),
             ),
           ]),
@@ -104,7 +104,6 @@ class _CaptureShortcutsScreenState extends State<CaptureShortcutsScreen>
               contentPadding: EdgeInsets.zero,
               title: const Text('Capture bank alerts'),
               value: _enabled,
-              activeThumbColor: HisabTheme.khataRed,
               onChanged: (value) async {
                 await CaptureNotifier.setEnabled(value,
                     db: state.db, ruleset: state.ruleset);
@@ -196,7 +195,7 @@ class _CaptureShortcutsScreenState extends State<CaptureShortcutsScreen>
         contentPadding: EdgeInsets.zero,
         dense: true,
         leading: Icon(ok ? Icons.check_circle : Icons.error_outline,
-            color: ok ? HisabTheme.hara : HisabTheme.khataRed),
+            color: ok ? context.hisab.credit : context.hisab.brandText),
         title: Text(label),
         subtitle: Text(detail),
       );
@@ -215,7 +214,7 @@ class _CaptureShortcutsScreenState extends State<CaptureShortcutsScreen>
   Widget _note(String text) => Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Text(text,
-            style: const TextStyle(fontSize: 13, color: Colors.black54)),
+            style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
       );
 
   Widget _section(String title, List<Widget> children) => Padding(

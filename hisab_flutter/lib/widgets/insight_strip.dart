@@ -5,7 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
-import '../theme.dart';
+import '../design/design.dart';
 
 class InsightStrip extends StatelessWidget {
   final List<Insight> insights;
@@ -88,13 +88,13 @@ class _InsightCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(_icon, size: 14, color: _accent),
+                    Icon(_icon, size: 14, color: _accent(context)),
                     const SizedBox(width: 4),
                     Text(_caption,
                         style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: _accent)),
+                            color: _accent(context))),
                     const Spacer(),
                     if (insight.kind != InsightKind.committedSpend)
                       // TalkBack announced a bare icon before; iOS has said
@@ -109,11 +109,11 @@ class _InsightCard extends StatelessWidget {
                         child: InkResponse(
                           onTap: onDismiss,
                           radius: 24,
-                          child: const SizedBox(
+                          child: SizedBox(
                             width: 48,
                             height: 48,
                             child: Icon(Icons.close,
-                                size: 14, color: Colors.black45),
+                                size: 14, color: context.hisab.textTertiary),
                           ),
                         ),
                       ),
@@ -127,7 +127,7 @@ class _InsightCard extends StatelessWidget {
                 Expanded(
                   child: Text(insight.detail,
                       style:
-                          const TextStyle(fontSize: 13, color: Colors.black54)),
+                          TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
                 ),
               ],
             ),
@@ -177,14 +177,14 @@ class _InsightCard extends StatelessWidget {
         InsightKind.outlierAmount => Icons.warning_amber,
       };
 
-  Color get _accent => switch (insight.kind) {
+  Color _accent(BuildContext context) => switch (insight.kind) {
         InsightKind.trend =>
-          _isDrop ? HisabTheme.hara : HisabTheme.khataRed,
+          _isDrop ? context.hisab.credit : context.hisab.brandText,
         InsightKind.recurringNew || InsightKind.recurringChanged =>
-          HisabTheme.ink,
+          context.hisab.textPrimary,
         InsightKind.committedSpend ||
         InsightKind.possibleDuplicate ||
         InsightKind.outlierAmount =>
-          HisabTheme.sona,
+          context.hisab.gold,
       };
 }
