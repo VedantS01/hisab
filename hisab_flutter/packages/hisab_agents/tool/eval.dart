@@ -34,12 +34,12 @@ Future<void> main(List<String> args) async {
       stderr.writeln('--gateway needs HISAB_GATEWAY_APP_KEY in the environment');
       exit(2);
     }
-    runtime = GatewayRuntime(
+    runtime = _Paced(GatewayRuntime(
       base: Uri.parse(Platform.environment['HISAB_GATEWAY_URL'] ??
           'https://ai-gateway.draftsmith.workers.dev/v1/hisab'),
       appKey: appKey,
       tokens: MemoryTokenStore(),
-    );
+    ));
   } else {
     final process = await ProcessRuntime.start(cli, cloud: args.contains('--cloud'));
     runtime = process;
@@ -269,4 +269,28 @@ bool _same(List<ParsedTransaction> a, List<ParsedTransaction> b) {
   final x = a.map(key).toList()..sort();
   final y = b.map(key).toList()..sort();
   return x.length == y.length && [for (var i = 0; i < x.length; i++) x[i] == y[i]].every((e) => e);
+}
+
+
+/// Calls at least [gap] apart: a free provider tier allows a handful a
+/// minute, and the eval is after a score, not a stress test.
+class _Paced implements ModelRuntime {
+  final ModelRuntime inner;
+  static const gap = Duration(seconds: 7);
+  DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
+  _Paced(this.inner);
+
+  @override
+  Future<ModelStatus> status() => inner.status();
+
+  @override
+  Future<ModelReply> respond(ModelRequest request) async {
+    final wait = gap - DateTime.now().difference(_last);
+    if (wait > Duration.zero) await Future<void>.delayed(wait);
+    try {
+      return await inner.respond(request);
+    } finally {
+      _last = DateTime.now();
+    }
+  }
 }
