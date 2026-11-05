@@ -151,8 +151,11 @@ void main() {
   });
 
   test('gateway errors map to quota, context and unavailable; a lost token re-registers', () async {
+    GatewayRuntime.retryDelays = const [Duration.zero, Duration.zero];
     Future<String> code(http.Response response) async {
-      final gateway = runtime(Script([(_) => response]), tokens: MemoryTokenStore('tok'));
+      // Three copies: a 503 is retried twice before it counts.
+      final gateway = runtime(Script([for (var i = 0; i < 3; i++) (_) => response]),
+          tokens: MemoryTokenStore('tok'));
       try {
         await gateway.respond(const ModelRequest(instructions: 'i', prompt: 'p'));
         return 'ok';
@@ -177,6 +180,26 @@ void main() {
     expect(reply0.content, 'hello');
     expect(tokens.token, 'tok-1');
     expect(script.calls[2].headers['Authorization'], 'Bearer tok-1');
+  });
+
+  test('an upstream 503 is retried, then given up as unavailable', () async {
+    GatewayRuntime.retryDelays = const [Duration.zero, Duration.zero];
+    final recovers = Script([
+      (_) => error(503, 'upstream', 'no model answered (m 429: quota)'),
+      (_) => ok(reply('fine')),
+    ]);
+    final reply0 = await runtime(recovers, tokens: MemoryTokenStore('tok'))
+        .respond(const ModelRequest(instructions: 'i', prompt: 'p'));
+    expect(reply0.content, 'fine');
+    expect(recovers.calls, hasLength(2));
+
+    final down = Script([for (var i = 0; i < 3; i++) (_) => error(503, 'upstream', 'down')]);
+    await expectLater(
+      runtime(down, tokens: MemoryTokenStore('tok'))
+          .respond(const ModelRequest(instructions: 'i', prompt: 'p')),
+      throwsA(isA<ModelFailure>().having((e) => e.code, 'code', 'unavailable')),
+    );
+    expect(down.calls, hasLength(3));
   });
 
   test('an on-device-only request is refused without a call', () async {

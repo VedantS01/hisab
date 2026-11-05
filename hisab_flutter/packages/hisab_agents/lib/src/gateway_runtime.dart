@@ -106,6 +106,9 @@ class GatewayRuntime implements ModelRuntime {
   /// How long a balance is believed before `/me` is asked again.
   static const accountTtl = Duration(seconds: 60);
 
+  /// Waits before retrying an upstream 503 (provider rate limit or outage).
+  static List<Duration> retryDelays = const [Duration(seconds: 3), Duration(seconds: 8)];
+
   GatewayAccount? _account;
   DateTime? _accountAt;
 
@@ -248,6 +251,12 @@ class GatewayRuntime implements ModelRuntime {
     if (response.statusCode == 401) {
       await tokens.clear();
       token = await _register();
+      response = await _post(token, body);
+    }
+    // A provider's rate limit is a blip, not an answer: wait it out twice
+    // before giving up. Nothing was charged for the failed calls.
+    for (var attempt = 0; response.statusCode == 503 && attempt < retryDelays.length; attempt++) {
+      await Future<void>.delayed(retryDelays[attempt]);
       response = await _post(token, body);
     }
     if (response.statusCode != 200) throw _failure(response);
