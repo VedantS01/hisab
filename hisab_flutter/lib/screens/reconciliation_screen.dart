@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:hisab_core/hisab_core.dart';
 
 import '../design/design.dart';
+import '../services/detections.dart';
+import '../services/memo_store.dart';
 import '../services/queries.dart';
 import '../state.dart';
+import '../storage/database.dart';
+import '../widgets/detection_edit_sheet.dart';
 
 class ReconciliationScreen extends StatefulWidget {
   const ReconciliationScreen({super.key});
@@ -38,11 +42,18 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
       for (final txn in data.txns) YearMonth.fromDate(dateOf(txn))
     }.toList()
       ..sort((a, b) => b.compareTo(a));
-    if (months.isEmpty) {
+    final detections = data.detections;
+    if (months.isEmpty && detections.isEmpty) {
       return const EmptyState(
         icon: Icons.compare_arrows_rounded,
         title: 'Nothing to reconcile',
         message: 'Import an app and a bank statement for the same month.',
+      );
+    }
+    if (months.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(HisabSpace.gutter),
+        children: _detectionSection(data, detections),
       );
     }
     if (!months.contains(_month)) _month = months.first;
@@ -116,6 +127,7 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        ..._detectionSection(data, detections),
         SizedBox(
           height: 40,
           child: ListView(
@@ -159,6 +171,73 @@ class _ReconciliationScreenState extends State<ReconciliationScreen> {
         section('Bank only', HisabTone.spend, result.bankOnly,
             empty: 'No bank-only spending this month.'),
       ],
+    );
+  }
+
+  /// Open detections first: each one editable, with the row it most likely
+  /// is offered right there. Empty when there are none.
+  List<Widget> _detectionSection(
+      Snapshot data, List<StoredPendingMemo> detections) {
+    if (detections.isEmpty) return const [];
+    final c = context.hisab;
+    return [
+      SectionHeader(title: 'Detections'),
+      Text(
+        'Payments Hisab saw that are not in the ledger yet. Tap one to '
+        'correct it or add a reference; link it when the bank row is here.',
+        style: HisabType.caption.copyWith(color: c.textSecondary),
+      ),
+      const SizedBox(height: HisabSpace.s8),
+      for (final memo in detections.take(20)) _detectionCard(data, memo),
+      const SizedBox(height: HisabSpace.s12),
+    ];
+  }
+
+  Widget _detectionCard(Snapshot data, StoredPendingMemo memo) {
+    final suggestions = Detections.suggestions(memo, data);
+    final best = suggestions.firstOrNull;
+    final db = AppScope.of(context).db;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: HisabSpace.s8),
+      child: SurfaceCard(
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            TxnRow(
+              leading: MerchantAvatar(name: memo.payee.isEmpty ? '?' : memo.payee),
+              title: memo.payee.isEmpty ? 'Unnamed' : memo.payee,
+              subtitle: [
+                istDayLabel(
+                    DateTime.fromMillisecondsSinceEpoch(memo.dateMs, isUtc: true)),
+                if (memo.accountTail != null) '••${memo.accountTail}',
+                if (best == null) 'no match yet',
+              ].join(' · '),
+              paise: memo.amountPaise,
+              tone: memo.directionValue == Direction.credit
+                  ? AmountTone.credit
+                  : AmountTone.debit,
+              status: memo.assignedCategory == null
+                  ? null
+                  : StatusTag(memo.assignedCategory!, tone: HisabTone.brand),
+              onTap: () => showDetectionEditSheet(context, memo.captureHash),
+            ),
+            if (best != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    HisabSpace.s16, 0, HisabSpace.s8, HisabSpace.s8),
+                child: SuggestionRow(
+                  txn: best.$1,
+                  verdict: best.$2,
+                  busy: false,
+                  onLink: () =>
+                      Detections.link(memo.captureHash, best.$1.uuid, db: db),
+                  onReject: () =>
+                      Detections.reject(memo.captureHash, best.$1.uuid, db: db),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

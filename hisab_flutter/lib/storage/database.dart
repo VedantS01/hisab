@@ -89,6 +89,15 @@ class StoredPendingMemos extends Table {
   Set<Column> get primaryKey => {captureHash};
 }
 
+/// A suggested link the user said no to, so it is not offered again.
+class RejectedLinks extends Table {
+  TextColumn get captureHash => text()();
+  TextColumn get txnUuid => text()();
+
+  @override
+  Set<Column> get primaryKey => {captureHash, txnUuid};
+}
+
 @DriftDatabase(tables: [
   StoredDocuments,
   StoredTransactions,
@@ -96,12 +105,13 @@ class StoredPendingMemos extends Table {
   StoredMatches,
   PinnedMonths,
   StoredPendingMemos,
+  RejectedLinks,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   /// There was no MigrationStrategy before v2, so every install in the field
   /// carries a v1 database with no pending-memo table. Without this, opening
@@ -115,6 +125,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 3) {
             await m.addColumn(storedDocuments, storedDocuments.importedAtMs);
+          }
+          if (from < 4) {
+            await m.createTable(rejectedLinks);
           }
         },
       );

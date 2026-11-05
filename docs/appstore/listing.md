@@ -38,9 +38,12 @@ breakdown with editable rules, top merchants. Amounts in proper Indian
 notation (₹1,23,456.78).
 
 • PRIVATE BY ARCHITECTURE — no account, no analytics, no tracking.
-Your ledger stays in the app's private storage on your device; its
-language features run on Apple's models, on device or on Apple's
-Private Cloud Compute. The entire app is open source (Apache-2.0).
+Your ledger stays in the app's private storage on your device and
+statements are read on the phone. The two AI features — Find in text
+and monthly insights — send only the text you ask about, or a month's
+totals and merchant names, to Hisab's gateway and its model provider,
+on a free credit balance every install starts with. The entire app is
+open source (Apache-2.0).
 
 Made for India's statement formats. Missing your bank? The parser
 framework is open — contribute one on GitHub.
@@ -63,8 +66,13 @@ user, and does no tracking.
 ## Notes for App Review
 
 Hisab analyses statement files the user already possesses; it has no
-login. Its only network request fetches the home-screen layout, a
-public JSON file on the app's GitHub Pages site. To evaluate every
+login. Network use: the home-screen layout, a public JSON file on the
+app's GitHub Pages site; and the two AI features ("Find in text" under
+Transactions › Detections, and "Insights for <month>" on the dashboard),
+which send only the pasted text or that month's totals to the
+developer's gateway (ai-gateway.draftsmith.workers.dev) and a model
+provider, on an anonymous per-install credit balance (Settings › AI
+credits). No account is created. To evaluate every
 screen without Indian bank statements: on the empty dashboard, "Explore
 with sample data" fills seven months of synthetic statements
 (dashboard, buckets grid, transactions, and the reconciliation screen
