@@ -3,6 +3,7 @@
 ///
 ///   (cd ../../tool/apple_model_cli && swift build -c release)
 ///   dart run tool/eval.dart [columns|detection|insights|all] [--cloud]
+///   HISAB_GATEWAY_APP_KEY=… dart run tool/eval.dart detection --gateway
 ///
 /// Each suite prints one line per case and a score; the exit code is
 /// non-zero when a suite scores below its bar, so it can gate changes to
@@ -22,16 +23,38 @@ const formats = '../../assets/formats';
 
 Future<void> main(List<String> args) async {
   final suite = args.firstWhere((a) => !a.startsWith('--'), orElse: () => 'all');
-  final runtime = await ProcessRuntime.start(cli, cloud: args.contains('--cloud'));
+  // --gateway: the cloud models through the live ai-gateway instead of
+  // Apple's, with HISAB_GATEWAY_APP_KEY (and optionally HISAB_GATEWAY_URL)
+  // in the environment. Spends this Mac's credits like a phone would.
+  final ModelRuntime runtime;
+  Future<void> Function() close = () async {};
+  if (args.contains('--gateway')) {
+    final appKey = Platform.environment['HISAB_GATEWAY_APP_KEY'];
+    if (appKey == null || appKey.isEmpty) {
+      stderr.writeln('--gateway needs HISAB_GATEWAY_APP_KEY in the environment');
+      exit(2);
+    }
+    runtime = GatewayRuntime(
+      base: Uri.parse(Platform.environment['HISAB_GATEWAY_URL'] ??
+          'https://ai-gateway.draftsmith.workers.dev/v1/hisab'),
+      appKey: appKey,
+      tokens: MemoryTokenStore(),
+    );
+  } else {
+    final process = await ProcessRuntime.start(cli, cloud: args.contains('--cloud'));
+    runtime = process;
+    close = process.close;
+  }
   final status = await runtime.status();
-  stdout.writeln('models: on-device ${status.onDevice}, cloud ${status.cloud}');
+  stdout.writeln('models: on-device ${status.onDevice}, cloud ${status.cloud}'
+      '${status.quota == null ? '' : ' (quota ${status.quota})'}');
   var passed = true;
   try {
     if (suite == 'columns' || suite == 'all') passed &= await columns(runtime);
     if (suite == 'detection' || suite == 'all') passed &= await detection(runtime);
     if (suite == 'insights' || suite == 'all') passed &= await insights(runtime);
   } finally {
-    await runtime.close();
+    await close();
   }
   exit(passed ? 0 : 1);
 }
