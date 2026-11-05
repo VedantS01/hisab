@@ -205,7 +205,20 @@ class GatewayRuntime implements ModelRuntime {
         if (request.schema != null && tools.isEmpty) 'response_format': {'type': 'json_object'},
         if (request.greedy) 'temperature': 0,
       };
-      final message = await _chat(body);
+      Map<String, Object?> message;
+      try {
+        message = await _chat(body);
+      } on ModelFailure catch (e) {
+        // gpt-oss hands in its final answer as a pseudo-tool named "json"
+        // once the real tools are done, and Groq refuses the unknown tool.
+        // Ask for the object outright, with what the tools said so far.
+        if (tools.isEmpty || request.schema == null || !_isUnknownToolError(e)) rethrow;
+        message = await _chat({
+          'messages': messages,
+          'response_format': {'type': 'json_object'},
+          if (request.greedy) 'temperature': 0,
+        });
+      }
       final calls = message['tool_calls'] as List? ?? const [];
       if (calls.isEmpty) {
         final content = message['content'] as String? ?? '';
@@ -285,6 +298,11 @@ class GatewayRuntime implements ModelRuntime {
           ..headers['Content-Type'] = 'application/json'
           ..body = jsonEncode(body),
       );
+
+  static bool _isUnknownToolError(ModelFailure e) =>
+      e.code == 'failed' &&
+      e.message.toLowerCase().contains('tool') &&
+      e.message.toLowerCase().contains('not in request.tools');
 
   /// The gateway's coded errors as [ModelFailure] codes.
   static ModelFailure _failure(http.Response response) {

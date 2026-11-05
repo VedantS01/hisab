@@ -202,6 +202,34 @@ void main() {
     expect(down.calls, hasLength(3));
   });
 
+  test("a provider refusing the model's pseudo-tool 'json' is asked for the object without tools",
+      () async {
+    final tool = AgentTool(
+      name: 'recurring',
+      description: 'series',
+      parameters: Schema.object('Args', {'month': Schema.string()}),
+      run: (_) async => 'Netflix 649',
+    );
+    final script = Script([
+      (_) => ok(reply('', toolCalls: [
+            {'id': 'c1', 'type': 'function', 'function': {'name': 'recurring', 'arguments': '{"month":"2026-10"}'}},
+          ])),
+      (_) => http.Response(jsonEncode({'error': {'message': "Tool call validation failed: attempted to call tool 'json' which was not in request.tools"}}), 400),
+      (_) => ok(reply('{"insights":[{"title":"Netflix 649"}]}')),
+    ]);
+    final reply0 = await runtime(script, tokens: MemoryTokenStore('tok')).respond(ModelRequest(
+      instructions: 'i',
+      prompt: 'p',
+      schema: Schema.object('Insights', {'insights': Schema.array(Schema.string())}),
+      tools: [tool],
+    ));
+    expect(reply0.json['insights'], hasLength(1));
+    final last = script.body(2);
+    expect(last['tools'], isNull);
+    expect(last['response_format'], {'type': 'json_object'});
+    expect((last['messages'] as List).length, 4, reason: 'the tool round is kept');
+  });
+
   test('an on-device-only request is refused without a call', () async {
     final script = Script([]);
     expect(
