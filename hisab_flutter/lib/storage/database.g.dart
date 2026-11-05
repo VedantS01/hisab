@@ -2387,6 +2387,201 @@ class StoredPendingMemosCompanion extends UpdateCompanion<StoredPendingMemo> {
   }
 }
 
+class $RejectedLinksTable extends RejectedLinks
+    with TableInfo<$RejectedLinksTable, RejectedLink> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RejectedLinksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _captureHashMeta =
+      const VerificationMeta('captureHash');
+  @override
+  late final GeneratedColumn<String> captureHash = GeneratedColumn<String>(
+      'capture_hash', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _txnUuidMeta =
+      const VerificationMeta('txnUuid');
+  @override
+  late final GeneratedColumn<String> txnUuid = GeneratedColumn<String>(
+      'txn_uuid', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [captureHash, txnUuid];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'rejected_links';
+  @override
+  VerificationContext validateIntegrity(Insertable<RejectedLink> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('capture_hash')) {
+      context.handle(
+          _captureHashMeta,
+          captureHash.isAcceptableOrUnknown(
+              data['capture_hash']!, _captureHashMeta));
+    } else if (isInserting) {
+      context.missing(_captureHashMeta);
+    }
+    if (data.containsKey('txn_uuid')) {
+      context.handle(_txnUuidMeta,
+          txnUuid.isAcceptableOrUnknown(data['txn_uuid']!, _txnUuidMeta));
+    } else if (isInserting) {
+      context.missing(_txnUuidMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {captureHash, txnUuid};
+  @override
+  RejectedLink map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RejectedLink(
+      captureHash: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}capture_hash'])!,
+      txnUuid: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}txn_uuid'])!,
+    );
+  }
+
+  @override
+  $RejectedLinksTable createAlias(String alias) {
+    return $RejectedLinksTable(attachedDatabase, alias);
+  }
+}
+
+class RejectedLink extends DataClass implements Insertable<RejectedLink> {
+  final String captureHash;
+  final String txnUuid;
+  const RejectedLink({required this.captureHash, required this.txnUuid});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['capture_hash'] = Variable<String>(captureHash);
+    map['txn_uuid'] = Variable<String>(txnUuid);
+    return map;
+  }
+
+  RejectedLinksCompanion toCompanion(bool nullToAbsent) {
+    return RejectedLinksCompanion(
+      captureHash: Value(captureHash),
+      txnUuid: Value(txnUuid),
+    );
+  }
+
+  factory RejectedLink.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RejectedLink(
+      captureHash: serializer.fromJson<String>(json['captureHash']),
+      txnUuid: serializer.fromJson<String>(json['txnUuid']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'captureHash': serializer.toJson<String>(captureHash),
+      'txnUuid': serializer.toJson<String>(txnUuid),
+    };
+  }
+
+  RejectedLink copyWith({String? captureHash, String? txnUuid}) => RejectedLink(
+        captureHash: captureHash ?? this.captureHash,
+        txnUuid: txnUuid ?? this.txnUuid,
+      );
+  RejectedLink copyWithCompanion(RejectedLinksCompanion data) {
+    return RejectedLink(
+      captureHash:
+          data.captureHash.present ? data.captureHash.value : this.captureHash,
+      txnUuid: data.txnUuid.present ? data.txnUuid.value : this.txnUuid,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RejectedLink(')
+          ..write('captureHash: $captureHash, ')
+          ..write('txnUuid: $txnUuid')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(captureHash, txnUuid);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RejectedLink &&
+          other.captureHash == this.captureHash &&
+          other.txnUuid == this.txnUuid);
+}
+
+class RejectedLinksCompanion extends UpdateCompanion<RejectedLink> {
+  final Value<String> captureHash;
+  final Value<String> txnUuid;
+  final Value<int> rowid;
+  const RejectedLinksCompanion({
+    this.captureHash = const Value.absent(),
+    this.txnUuid = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RejectedLinksCompanion.insert({
+    required String captureHash,
+    required String txnUuid,
+    this.rowid = const Value.absent(),
+  })  : captureHash = Value(captureHash),
+        txnUuid = Value(txnUuid);
+  static Insertable<RejectedLink> custom({
+    Expression<String>? captureHash,
+    Expression<String>? txnUuid,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (captureHash != null) 'capture_hash': captureHash,
+      if (txnUuid != null) 'txn_uuid': txnUuid,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RejectedLinksCompanion copyWith(
+      {Value<String>? captureHash, Value<String>? txnUuid, Value<int>? rowid}) {
+    return RejectedLinksCompanion(
+      captureHash: captureHash ?? this.captureHash,
+      txnUuid: txnUuid ?? this.txnUuid,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (captureHash.present) {
+      map['capture_hash'] = Variable<String>(captureHash.value);
+    }
+    if (txnUuid.present) {
+      map['txn_uuid'] = Variable<String>(txnUuid.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RejectedLinksCompanion(')
+          ..write('captureHash: $captureHash, ')
+          ..write('txnUuid: $txnUuid, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2400,6 +2595,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PinnedMonthsTable pinnedMonths = $PinnedMonthsTable(this);
   late final $StoredPendingMemosTable storedPendingMemos =
       $StoredPendingMemosTable(this);
+  late final $RejectedLinksTable rejectedLinks = $RejectedLinksTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2410,7 +2606,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         storedCategoryRules,
         storedMatches,
         pinnedMonths,
-        storedPendingMemos
+        storedPendingMemos,
+        rejectedLinks
       ];
 }
 
@@ -3639,6 +3836,134 @@ typedef $$StoredPendingMemosTableProcessedTableManager = ProcessedTableManager<
     ),
     StoredPendingMemo,
     PrefetchHooks Function()>;
+typedef $$RejectedLinksTableCreateCompanionBuilder = RejectedLinksCompanion
+    Function({
+  required String captureHash,
+  required String txnUuid,
+  Value<int> rowid,
+});
+typedef $$RejectedLinksTableUpdateCompanionBuilder = RejectedLinksCompanion
+    Function({
+  Value<String> captureHash,
+  Value<String> txnUuid,
+  Value<int> rowid,
+});
+
+class $$RejectedLinksTableFilterComposer
+    extends Composer<_$AppDatabase, $RejectedLinksTable> {
+  $$RejectedLinksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get captureHash => $composableBuilder(
+      column: $table.captureHash, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get txnUuid => $composableBuilder(
+      column: $table.txnUuid, builder: (column) => ColumnFilters(column));
+}
+
+class $$RejectedLinksTableOrderingComposer
+    extends Composer<_$AppDatabase, $RejectedLinksTable> {
+  $$RejectedLinksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get captureHash => $composableBuilder(
+      column: $table.captureHash, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get txnUuid => $composableBuilder(
+      column: $table.txnUuid, builder: (column) => ColumnOrderings(column));
+}
+
+class $$RejectedLinksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RejectedLinksTable> {
+  $$RejectedLinksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get captureHash => $composableBuilder(
+      column: $table.captureHash, builder: (column) => column);
+
+  GeneratedColumn<String> get txnUuid =>
+      $composableBuilder(column: $table.txnUuid, builder: (column) => column);
+}
+
+class $$RejectedLinksTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $RejectedLinksTable,
+    RejectedLink,
+    $$RejectedLinksTableFilterComposer,
+    $$RejectedLinksTableOrderingComposer,
+    $$RejectedLinksTableAnnotationComposer,
+    $$RejectedLinksTableCreateCompanionBuilder,
+    $$RejectedLinksTableUpdateCompanionBuilder,
+    (
+      RejectedLink,
+      BaseReferences<_$AppDatabase, $RejectedLinksTable, RejectedLink>
+    ),
+    RejectedLink,
+    PrefetchHooks Function()> {
+  $$RejectedLinksTableTableManager(_$AppDatabase db, $RejectedLinksTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RejectedLinksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RejectedLinksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RejectedLinksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> captureHash = const Value.absent(),
+            Value<String> txnUuid = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              RejectedLinksCompanion(
+            captureHash: captureHash,
+            txnUuid: txnUuid,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String captureHash,
+            required String txnUuid,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              RejectedLinksCompanion.insert(
+            captureHash: captureHash,
+            txnUuid: txnUuid,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$RejectedLinksTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $RejectedLinksTable,
+    RejectedLink,
+    $$RejectedLinksTableFilterComposer,
+    $$RejectedLinksTableOrderingComposer,
+    $$RejectedLinksTableAnnotationComposer,
+    $$RejectedLinksTableCreateCompanionBuilder,
+    $$RejectedLinksTableUpdateCompanionBuilder,
+    (
+      RejectedLink,
+      BaseReferences<_$AppDatabase, $RejectedLinksTable, RejectedLink>
+    ),
+    RejectedLink,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3655,4 +3980,6 @@ class $AppDatabaseManager {
       $$PinnedMonthsTableTableManager(_db, _db.pinnedMonths);
   $$StoredPendingMemosTableTableManager get storedPendingMemos =>
       $$StoredPendingMemosTableTableManager(_db, _db.storedPendingMemos);
+  $$RejectedLinksTableTableManager get rejectedLinks =>
+      $$RejectedLinksTableTableManager(_db, _db.rejectedLinks);
 }

@@ -59,15 +59,22 @@
     <li><strong>Your ledger stays on your device.</strong> Statements you
         import, alerts Hisab captures, and the categories you set are parsed
         and stored only in the app's private storage on your device.</li>
-    <li><strong>Language models.</strong> Reading an unfamiliar statement's
-        columns, finding payments in text you paste, and writing monthly
-        insights use Apple's language models on iPhone (Google's Gemini Nano
-        on Android). They run on your device. On iPhone, where Apple
-        Private Cloud Compute is available, a request may instead be
-        processed on Apple's servers: Apple uses it only to answer that
-        request, does not store it, and cannot see it. The developer never
-        receives these requests.</li>
-    <li><strong>One network request.</strong> Hisab downloads the layout of
+    <li><strong>Statements are read on your phone.</strong> Reading an
+        unfamiliar statement's columns uses Apple's language model on iPhone
+        (Google's Gemini Nano on Android), on the device. Your statement
+        rows never leave it.</li>
+    <li><strong>AI features send only what you ask about.</strong> "Find in
+        text" sends the text you pasted, and monthly insights send that
+        month's category totals, recurring payments and merchant names, to
+        Hisab's gateway (a Cloudflare Worker run by the developer) and on to
+        the model provider that answers (currently Groq; Google's Gemini as
+        a fallback). The gateway keeps no copy of the text and no account:
+        each install holds an anonymous token and a credit balance. The
+        provider processes the request under its API terms and does not
+        train on it. Nothing is sent unless you use these features; on
+        iPhone, when the gateway is unreachable or out of credits, Apple's
+        on-device model answers instead.</li>
+    <li><strong>Home-screen layout.</strong> Hisab downloads the layout of
         its home screen, a public file, from this website (GitHub Pages).
         It sends nothing about you; like any website, GitHub sees the
         request's IP address.</li>

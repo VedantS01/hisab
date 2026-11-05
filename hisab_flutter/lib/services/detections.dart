@@ -11,6 +11,7 @@ import 'package:drift/drift.dart';
 import 'package:hisab_agents/hisab_agents.dart' show Detection;
 import 'package:hisab_core/hisab_core.dart';
 
+import '../state.dart';
 import '../storage/database.dart';
 import 'import_service.dart';
 import 'memo_store.dart';
@@ -31,6 +32,151 @@ abstract final class Detections {
   /// `mergedTxnUuid` of a dismissed detection: resolved, with no row. No row
   /// has this id, and a memo carrying it is never merged or shown again.
   static const dismissed = 'dismissed';
+
+  /// `mergedTxnUuid` prefix of a detection folded into an earlier one of
+  /// the same payment: resolved, its fields carried, no row of its own.
+  static const intoPrefix = 'memo:';
+
+  static MatchSide sideOfMemo(StoredPendingMemo memo) => MatchSide(
+        id: memo.captureHash,
+        amountPaise: memo.amountPaise,
+        direction: memo.directionValue,
+        date: _memoDate(memo),
+        accountTail: memo.accountTail,
+        vpa: memo.vpa,
+        payee: memo.payee,
+      );
+
+  static MatchSide sideOfRow(StoredTransaction txn) => MatchSide(
+        id: txn.uuid,
+        amountPaise: txn.amountPaise,
+        direction: directionOf(txn),
+        date: dateOf(txn),
+        payee: txn.counterparty,
+        narration: txn.narration,
+        reference: txn.reference,
+        isLedgerRow: true,
+      );
+
+  static DateTime _memoDate(StoredPendingMemo memo) =>
+      DateTime.fromMillisecondsSinceEpoch(memo.dateMs, isUtc: true);
+
+  /// After a detection lands or changes: another open detection of the same
+  /// payment is folded into whichever came first, and the one ledger row it
+  /// is, if exactly one qualifies, takes it. Rows the user said no to are
+  /// never offered again. Nothing happens on doubt; the Reconcile tab shows
+  /// the suggestions instead.
+  static Future<void> settle(String captureHash,
+      {required AppDatabase db}) async {
+    var memo = await MemoStore.find(hash: captureHash, db: db);
+    if (memo == null || memo.mergedTxnUuid != null) return;
+    final open = [
+      for (final m in await MemoStore.all(db))
+        if (m.mergedTxnUuid == null && m.captureHash != captureHash) m
+    ];
+    final twinId = DetectionMatcher.pair(
+        [sideOfMemo(memo)], [for (final m in open) sideOfMemo(m)])[captureHash];
+    if (twinId != null) {
+      final twin = open.firstWhere((m) => m.captureHash == twinId);
+      final earlier = twin.capturedAtMs <= memo.capturedAtMs ? twin : memo;
+      final later = identical(earlier, twin) ? memo : twin;
+      await _fold(later, into: earlier, db: db);
+      memo = await MemoStore.find(hash: earlier.captureHash, db: db);
+      if (memo == null) return;
+    }
+    final kept = memo;
+    final txns = await db.select(db.storedTransactions).get();
+    final matches = await db.select(db.storedMatches).get();
+    final rejected = {
+      for (final r in await (db.select(db.rejectedLinks)
+            ..where((t) => t.captureHash.equals(kept.captureHash)))
+          .get())
+        r.txnUuid
+    };
+    final rows = [
+      for (final t in Queries.visible(txns, matches))
+        if (!rejected.contains(t.uuid)) sideOfRow(t)
+    ];
+    final rowId = DetectionMatcher.pair([sideOfMemo(kept)], rows)[kept.captureHash];
+    if (rowId != null) await link(kept.captureHash, rowId, db: db);
+  }
+
+  /// [later] becomes part of [earlier]: the fields the earlier lacks come
+  /// from it, its category too, and it is hidden behind the earlier one.
+  static Future<void> _fold(StoredPendingMemo later,
+      {required StoredPendingMemo into, required AppDatabase db}) {
+    final earlier = into;
+    return db.transaction(() async {
+      final merged =
+          DetectionMatcher.union(sideOfMemo(earlier), sideOfMemo(later));
+      await (db.update(db.storedPendingMemos)
+            ..where((t) => t.captureHash.equals(earlier.captureHash)))
+          .write(StoredPendingMemosCompanion(
+        payee: Value(merged.payee),
+        payeeNormalized: Value(SuggestionEngine.normalize(merged.payee)),
+        vpa: Value(merged.vpa),
+        accountTail: Value(merged.accountTail),
+        note: Value(earlier.note ?? later.note),
+        assignedCategory:
+            Value(earlier.assignedCategory ?? later.assignedCategory),
+      ));
+      await (db.update(db.storedPendingMemos)
+            ..where((t) => t.captureHash.equals(later.captureHash)))
+          .write(StoredPendingMemosCompanion(
+              mergedTxnUuid: Value('$intoPrefix${earlier.captureHash}')));
+    });
+  }
+
+  /// Rows [memo] might be, best first, with how sure the matcher is; rows
+  /// the user turned down are left out.
+  static List<(StoredTransaction, MatchVerdict)> suggestions(
+      StoredPendingMemo memo, Snapshot data) {
+    final rejected = {
+      for (final r in data.rejectedLinks)
+        if (r.captureHash == memo.captureHash) r.txnUuid
+    };
+    final byId = {
+      for (final t in Queries.visible(data.txns, data.matches))
+        if (!rejected.contains(t.uuid)) t.uuid: t
+    };
+    return [
+      for (final (side, verdict) in DetectionMatcher.suggestions(
+          sideOfMemo(memo), [for (final t in byId.values) sideOfRow(t)]))
+        (byId[side.id]!, verdict)
+    ];
+  }
+
+  /// The user said [txnUuid] is not this detection.
+  static Future<void> reject(String captureHash, String txnUuid,
+          {required AppDatabase db}) =>
+      db.into(db.rejectedLinks).insert(
+          RejectedLinksCompanion.insert(
+              captureHash: captureHash, txnUuid: txnUuid),
+          mode: InsertMode.insertOrIgnore);
+
+  /// The user corrected a detection; it is matched again with what they
+  /// wrote, which later sightings never overwrite.
+  static Future<void> edit(StoredPendingMemo memo,
+      {int? amountPaise,
+      DateTime? date,
+      String? payee,
+      String? accountTail,
+      required AppDatabase db}) async {
+    final name = payee?.trim();
+    await (db.update(db.storedPendingMemos)
+          ..where((t) => t.captureHash.equals(memo.captureHash)))
+        .write(StoredPendingMemosCompanion(
+      amountPaise: Value.absentIfNull(amountPaise),
+      dateMs: Value.absentIfNull(date?.toUtc().millisecondsSinceEpoch),
+      payee: Value.absentIfNull(name),
+      payeeNormalized:
+          Value.absentIfNull(name == null ? null : SuggestionEngine.normalize(name)),
+      accountTail: accountTail == null
+          ? const Value.absent()
+          : Value(accountTail.trim().isEmpty ? null : accountTail.trim()),
+    ));
+    await settle(memo.captureHash, db: db);
+  }
 
   /// Unlinked memos, latest first.
   static List<StoredPendingMemo> open(Iterable<StoredPendingMemo> memos) => [
@@ -150,7 +296,14 @@ abstract final class Detections {
       final memoNew = await MemoStore.insert(memo, db: db);
       final reference = d.reference;
       if (reference == null) {
-        memoNew ? waiting++ : known++;
+        if (!memoNew) {
+          known++;
+          continue;
+        }
+        // Another sighting of a payment already here, or the row it is.
+        await settle(memo.captureHash, db: db);
+        final after = await MemoStore.find(hash: memo.captureHash, db: db);
+        after?.mergedTxnUuid == null ? waiting++ : known++;
         continue;
       }
       final rowId = await ImportService.insertCapturedAlert(

@@ -344,9 +344,21 @@ class ImportService {
         if (row.mergedTxnUuid == null) row
     ];
     if (unmerged.isNotEmpty && candidates.isNotEmpty) {
-      final assignment = MemoMerger.merge(
-        memos: [for (final row in unmerged) row.asMemo],
-        candidates: candidates,
+      // The same rules as a detection meeting a row anywhere else
+      // (DetectionMatcher): amount, time, tail, counterparty; one row each.
+      final assignment = DetectionMatcher.pair(
+        [for (final row in unmerged) Detections.sideOfMemo(row)],
+        [
+          for (final c in candidates)
+            MatchSide(
+              id: c.id,
+              amountPaise: c.amountPaise,
+              direction: c.direction,
+              date: c.date,
+              narration: c.narration,
+              isLedgerRow: true,
+            )
+        ],
       );
       for (final entry in assignment.entries) {
         await Detections.link(entry.key, entry.value, db: db);

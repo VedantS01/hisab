@@ -28,8 +28,12 @@ class Snapshot {
   /// the Detections tab wants.
   final List<StoredPendingMemo> memos;
 
+  /// Suggested links the user turned down.
+  final List<RejectedLink> rejectedLinks;
+
   const Snapshot(this.txns, this.matches, this.ruleRows, this.documents,
-      this.pins, this.memos);
+      this.pins, this.memos,
+      [this.rejectedLinks = const []]);
 
   /// Memos that are no ledger row yet, latest first.
   List<StoredPendingMemo> get detections => Detections.open(memos);
@@ -67,6 +71,7 @@ class AppState {
     List<StoredDocument>? documents;
     List<PinnedMonth>? pins;
     List<StoredPendingMemo>? memos;
+    List<RejectedLink>? rejected;
     final subs = <StreamSubscription>[];
 
     void emit() {
@@ -75,9 +80,10 @@ class AppState {
           rules != null &&
           documents != null &&
           pins != null &&
-          memos != null) {
-        latest =
-            Snapshot(txns!, matches!, rules!, documents!, pins!, memos!);
+          memos != null &&
+          rejected != null) {
+        latest = Snapshot(
+            txns!, matches!, rules!, documents!, pins!, memos!, rejected!);
         controller.add(latest!);
       }
     }
@@ -111,6 +117,10 @@ class AppState {
         // This is the Flutter equivalent of iOS's `@Query`.
         subs.add(db.select(db.storedPendingMemos).watch().listen((v) {
           memos = v;
+          emit();
+        }));
+        subs.add(db.select(db.rejectedLinks).watch().listen((v) {
+          rejected = v;
           emit();
         }));
       },

@@ -78,6 +78,11 @@ abstract final class CaptureIntake {
             await Detections.rowWith(row.reference!, row.direction, db: db);
         if (txn != null) await Detections.link(memo.captureHash, txn, db: db);
       }
+      // No reference: another sighting of a payment already here, or the
+      // one row it is, takes it; otherwise it waits in Detections.
+      if (memo != null && memoInserted && row == null) {
+        await Detections.settle(memo.captureHash, db: db);
+      }
     } catch (error) {
       // A store that could not be written is NOT a duplicate. Saying "already
       // logged" would promise the spend is filed when nothing was written,
