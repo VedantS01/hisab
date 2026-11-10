@@ -196,7 +196,8 @@ void main() {
     expect(row.direction, 'debit');
     expect(row.reference, '627775786529');
     expect(row.counterparty, 'MUNCHMART TECHNOLOGIES PR');
-    expect(row.dateMs, ist(2026, 10, 4).millisecondsSinceEpoch);
+    expect(row.dateMs, now.millisecondsSinceEpoch,
+        reason: 'dated the day it arrived: the arrival time, not midnight');
 
     final doc = (await alertDocs()).single;
     expect(doc.filename, 'Captured alerts');
@@ -309,7 +310,7 @@ void main() {
 
     final doc = (await alertDocs()).single;
     expect(doc.periodStartMs, ist(2026, 9, 22).millisecondsSinceEpoch);
-    expect(doc.periodEndMs, ist(2026, 10, 4).millisecondsSinceEpoch);
+    expect(doc.periodEndMs, now.millisecondsSinceEpoch);
     expect({for (final r in await alertRows()) r.documentId}, {doc.id});
 
     final documents = await db.select(db.storedDocuments).get();

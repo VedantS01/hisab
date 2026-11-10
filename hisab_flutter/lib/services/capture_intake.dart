@@ -142,8 +142,8 @@ abstract final class CaptureIntake {
       try {
         final alert = await extractor.extract(text);
         return (
-          AlertCapture.memo(alert, receivedAt: now),
-          AlertCapture.ledgerRow(alert, receivedAt: now),
+          AlertCapture.memo(alert, receivedAt: now, text: text),
+          AlertCapture.ledgerRow(alert, receivedAt: now, text: text),
         );
       } catch (error) {
         // The type only: an error's message could quote the text.
