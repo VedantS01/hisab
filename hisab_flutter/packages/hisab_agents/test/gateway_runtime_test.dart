@@ -63,9 +63,20 @@ void main() {
     expect((await gateway.status()).cloudReady, isTrue);
   });
 
-  test('status is quota when the balance is spent, unavailable offline', () async {
-    final spent = runtime(Script([
+  test("today's free allowance is spendable with nothing banked, and the bank after it", () async {
+    final freeLeft = runtime(Script([
       (_) => ok({'credits': 0, 'granted': 300, 'spent': 300, 'dailyCap': 60, 'dailyUsed': 3, 'model': 'm'}),
+    ]), tokens: MemoryTokenStore('tok'));
+    expect((await freeLeft.status()).cloudReady, isTrue);
+    final bankLeft = runtime(Script([
+      (_) => ok({'credits': 40, 'granted': 300, 'spent': 320, 'dailyCap': 60, 'dailyUsed': 60, 'model': 'm'}),
+    ]), tokens: MemoryTokenStore('tok'));
+    expect((await bankLeft.status()).cloudReady, isTrue);
+  });
+
+  test('status is quota when today and the bank are both spent, unavailable offline', () async {
+    final spent = runtime(Script([
+      (_) => ok({'credits': 0, 'granted': 300, 'spent': 300, 'dailyCap': 60, 'dailyUsed': 60, 'model': 'm'}),
     ]), tokens: MemoryTokenStore('tok'));
     final status = await spent.status();
     expect(status.cloud, 'quota');
