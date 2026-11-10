@@ -14,6 +14,7 @@ import '../storage/database.dart';
 import '../state.dart';
 import '../design/design.dart';
 import '../widgets/ai_credits_card.dart';
+import '../widgets/rules_section.dart';
 import 'capture_setup_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -32,98 +33,13 @@ class SettingsScreen extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Card(
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const IconTile(Icons.delete_forever_outlined,
-                          tone: HisabTone.spend),
-                      title: const Text('Erase all data'),
-                      onTap: () async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Erase everything?'),
-                            content: const Text(
-                                'All imported statements, transactions, captured memos, and rules will be removed from this device.'),
-                            actions: [
-                              TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  child: const Text('Cancel')),
-                              TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, true),
-                                  child: Text('Erase',
-                                      style: TextStyle(
-                                          color: context.hisab.spend))),
-                            ],
-                          ),
-                        );
-                        if (confirmed == true) {
-                          await DemoData.eraseAll(state.db);
-                          // The Swift app's backup and statement copies
-                          // (iOS, after the 2.0 migration) are data too.
-                          await LegacyMigration.eraseLeftovers();
-                          // Suppressions are keyed by insight id and merchant
-                          // key; surviving an erase would silently hide cards
-                          // about data the user no longer has.
-                          await InsightStore.clearAll();
-                          // The agent's cards quote the ledger's numbers.
-                          await AgentInsights.clear();
-                          // Same reason, one layer over: the capture health
-                          // timestamps — and, once Task 16 lands, a pending
-                          // rule offer naming a payee — are things Hisab
-                          // learned from the user's alerts, and they live in
-                          // SharedPreferences where eraseAll cannot reach
-                          // them.
-                          await CapturePrefs.clearCapturedData();
-                          // The same reasoning, one layer further out: a
-                          // banner already in the notification shade reads
-                          // "₹450.00 to Chaiwala Junction", and a quiet-hours
-                          // hold is a banner scheduled for tomorrow morning
-                          // naming a payee whose memo this erase just
-                          // removed. Both queues go with everything else.
-                          await CaptureNotifier.eraseUserData();
-                          state.suppressions = const Suppressions();
-                          await Queries.categoryRules(state.db, state.ruleset);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
               const CaptureSettingsCard(),
               const SizedBox(height: 8),
-              const Text('Categorization rules', style: HisabType.title),
-              Text('First match wins. Tap a rule to edit it.',
-                  style: HisabType.caption
-                      .copyWith(color: context.hisab.textSecondary)),
-              const SizedBox(height: 8),
-              if (data != null)
-                Card(
-                  child: Column(
-                    children: [
-                      for (final rule in List.of(data.ruleRows)
-                        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)))
-                        ListTile(
-                          dense: true,
-                          title: Text(rule.pattern),
-                          trailing: StatusTag(rule.category, tone: HisabTone.brand),
-                          onTap: () => _editRule(context, rule),
-                        ),
-                      ListTile(
-                        dense: true,
-                        leading: const IconTile(Icons.add),
-                        title: const Text('Add rule'),
-                        onTap: () => _editRule(context, null),
-                      ),
-                    ],
-                  ),
-                ),
+              if (data != null) RulesSection(rules: data.ruleRows),
               const SizedBox(height: 8),
               const AiCreditsCard(),
+              const SizedBox(height: 24),
+              const _DangerZone(),
               const SizedBox(height: 16),
               Center(
                 child: Text(
@@ -187,7 +103,7 @@ class SettingsScreen extends StatelessWidget {
     return null;
   }
 
-  Future<void> _editRule(
+  static Future<void> editRule(
       BuildContext context, StoredCategoryRule? rule) async {
     final state = AppScope.of(context);
     final patternController = TextEditingController(text: rule?.pattern ?? '');
@@ -208,13 +124,12 @@ class SettingsScreen extends StatelessWidget {
                 TextField(
                     controller: patternController,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
-                        labelText: 'Pattern (contains)')),
+                    decoration:
+                        const InputDecoration(labelText: 'Pattern (contains)')),
                 TextField(
                     controller: categoryController,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration:
-                        const InputDecoration(labelText: 'Category')),
+                    decoration: const InputDecoration(labelText: 'Category')),
                 // Held back until the user has typed something: an editor
                 // that opens already complaining is scolding them for not
                 // having started.
@@ -329,8 +244,7 @@ class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
           SwitchListTile(
             secondary: const IconTile(Icons.notifications_active_outlined),
             title: const Text('Capture bank alerts'),
-            subtitle: const Text(
-                'Files bank and UPI alerts from this phone.',
+            subtitle: const Text('Files bank and UPI alerts from this phone.',
                 style: TextStyle(fontSize: 12)),
             value: _enabled,
             onChanged: (value) async {
@@ -343,8 +257,7 @@ class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
           ListTile(
             dense: true,
             title: const Text('Last captured'),
-            trailing: Text(
-                last == null ? 'Never' : istDayLabel(last),
+            trailing: Text(last == null ? 'Never' : istDayLabel(last),
                 style: TextStyle(color: context.hisab.textSecondary)),
           ),
           ListTile(
@@ -352,13 +265,88 @@ class _CaptureSettingsCardState extends State<CaptureSettingsCard> {
             leading: const IconTile(Icons.tune),
             title: const Text('Capture setup'),
             onTap: () async {
-              await Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => captureSetupPage()));
+              await Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => captureSetupPage()));
               await _refresh();
             },
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Erase all data, last on the page and in red: the one action here that
+/// cannot be undone.
+class _DangerZone extends StatelessWidget {
+  const _DangerZone();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final red = context.hisab.spend;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text('DANGER ZONE',
+              style: HisabType.caption.copyWith(
+                  color: red, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+        ),
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(HisabRadius.r16),
+            side: BorderSide(color: red.withValues(alpha: 0.5)),
+          ),
+          color: red.withValues(alpha: 0.06),
+          child: ListTile(
+            leading: Icon(Icons.delete_forever_outlined, color: red),
+            title: Text('Erase all data',
+                style: TextStyle(color: red, fontWeight: FontWeight.w600)),
+            subtitle: const Text(
+                'Statements, transactions, memos and rules on this phone.',
+                style: TextStyle(fontSize: 12)),
+            onTap: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Erase everything?'),
+                  content: const Text(
+                      'All imported statements, transactions, captured memos, and rules will be removed from this device.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel')),
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text('Erase', style: TextStyle(color: red))),
+                  ],
+                ),
+              );
+              if (confirmed != true) return;
+              await DemoData.eraseAll(state.db);
+              // The Swift app's backup and statement copies (iOS, after the
+              // 2.0 migration) are data too.
+              await LegacyMigration.eraseLeftovers();
+              // Suppressions are keyed by insight id and merchant key;
+              // surviving an erase would silently hide cards about data the
+              // user no longer has.
+              await InsightStore.clearAll();
+              // The agent's cards quote the ledger's numbers.
+              await AgentInsights.clear();
+              // Capture health timestamps and a pending rule offer naming a
+              // payee live in SharedPreferences, where eraseAll cannot reach.
+              await CapturePrefs.clearCapturedData();
+              // A banner already in the shade, or a quiet-hours hold, names a
+              // payee whose memo this erase just removed.
+              await CaptureNotifier.eraseUserData();
+              state.suppressions = const Suppressions();
+              await Queries.categoryRules(state.db, state.ruleset);
+            },
+          ),
+        ),
+      ],
     );
   }
 }

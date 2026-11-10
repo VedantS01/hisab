@@ -23,22 +23,36 @@ class AnalyticsTxn {
   });
 }
 
+/// A month's money. Debits split three ways: [spendPaise] is what was
+/// consumed; [investedPaise] and [insuredPaise] (the [Analytics.investments]
+/// and [Analytics.insurance] categories) left the account but were set aside,
+/// not spent. [outPaise] is all three.
 class MonthStats {
   final YearMonth month;
   final int spendPaise;
   final int incomePaise;
+  final int investedPaise;
+  final int insuredPaise;
   const MonthStats(
-      {required this.month, required this.spendPaise, required this.incomePaise});
-  int get netPaise => incomePaise - spendPaise;
+      {required this.month,
+      required this.spendPaise,
+      required this.incomePaise,
+      this.investedPaise = 0,
+      this.insuredPaise = 0});
+  int get outPaise => spendPaise + investedPaise + insuredPaise;
+  int get netPaise => incomePaise - outPaise;
 
   @override
   bool operator ==(Object other) =>
       other is MonthStats &&
       other.month == month &&
       other.spendPaise == spendPaise &&
-      other.incomePaise == incomePaise;
+      other.incomePaise == incomePaise &&
+      other.investedPaise == investedPaise &&
+      other.insuredPaise == insuredPaise;
   @override
-  int get hashCode => Object.hash(month, spendPaise, incomePaise);
+  int get hashCode =>
+      Object.hash(month, spendPaise, incomePaise, investedPaise, insuredPaise);
 }
 
 class CategorySlice {
@@ -54,18 +68,30 @@ class MerchantSlice {
 }
 
 class Analytics {
+  /// Debits in these categories are set aside, not spent.
+  static const investments = 'Investments';
+  static const insurance = 'Insurance';
+
   static MonthStats monthStats(List<AnalyticsTxn> txns, YearMonth month) {
-    var spend = 0;
-    var income = 0;
+    var spend = 0, income = 0, invested = 0, insured = 0;
     for (final txn in txns) {
       if (txn.month != month) continue;
-      if (txn.direction == Direction.debit) {
-        spend += txn.amountPaise;
-      } else {
+      if (txn.direction == Direction.credit) {
         income += txn.amountPaise;
+      } else if (txn.category == investments) {
+        invested += txn.amountPaise;
+      } else if (txn.category == insurance) {
+        insured += txn.amountPaise;
+      } else {
+        spend += txn.amountPaise;
       }
     }
-    return MonthStats(month: month, spendPaise: spend, incomePaise: income);
+    return MonthStats(
+        month: month,
+        spendPaise: spend,
+        incomePaise: income,
+        investedPaise: invested,
+        insuredPaise: insured);
   }
 
   static List<MonthStats> trend(List<AnalyticsTxn> txns,

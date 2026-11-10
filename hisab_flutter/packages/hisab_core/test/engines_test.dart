@@ -111,6 +111,21 @@ void main() {
       expect(stats.netPaise, 150);
     });
 
+    test('investments and insurance leave the account but are not spend', () {
+      final stats = Analytics.monthStats([
+        t(4, 100, Direction.debit),
+        t(4, 500, Direction.debit, cat: 'Investments'),
+        t(4, 70, Direction.debit, cat: 'Insurance'),
+        t(4, 1000, Direction.credit, cat: 'Investments'),
+      ], YearMonth(2026, 4));
+      expect(stats.spendPaise, 100);
+      expect(stats.investedPaise, 500);
+      expect(stats.insuredPaise, 70);
+      expect(stats.outPaise, 670);
+      expect(stats.incomePaise, 1000);
+      expect(stats.netPaise, 330);
+    });
+
     test('trend spans count months ending at the anchor', () {
       final trend = Analytics.trend([t(4, 100, Direction.debit)],
           endingAt: YearMonth(2026, 5), count: 3);
