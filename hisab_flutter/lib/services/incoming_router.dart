@@ -54,7 +54,8 @@ abstract final class IncomingRouter {
     final item = Map<String, Object?>.from(arguments as Map);
     switch (item['kind']) {
       case 'file':
-        file.value = IncomingFile(item['path'] as String, item['name'] as String);
+        file.value =
+            IncomingFile(item['path'] as String, item['name'] as String);
       case 'link':
         final uri = Uri.parse(item['url'] as String);
         final value = uri.pathSegments.isEmpty ? '' : uri.pathSegments.last;
@@ -64,10 +65,13 @@ abstract final class IncomingRouter {
         // hisab://tab/<n>, debug builds only: a simulator screen tour
         // (`xcrun simctl openurl booted hisab://tab/3`).
         if (kDebugMode && uri.host == 'tab') {
-          debugScroll.value = double.tryParse(uri.queryParameters['scroll'] ?? '');
+          debugScroll.value =
+              double.tryParse(uri.queryParameters['scroll'] ?? '');
           debugTab.value = int.tryParse(value);
           return;
         }
+        // The setup tests' way back from Shortcuts: just come to the front.
+        if (uri.host == 'capture-test') return;
         link.value = uri.host == 'transaction'
             ? LinkTarget.transactions
             : LinkTarget.dashboard;
