@@ -27,6 +27,24 @@ void main() {
       expect(result.bankOnly, isEmpty);
     });
 
+    test('a refund sharing the payment reference never takes its bank row', () {
+      final result = Reconciler.reconcile(
+        app: [
+          txn('refund', 3, 100, Direction.credit, 'R1'),
+          txn('pay', 1, 100, Direction.debit, 'R1'),
+        ],
+        bank: [
+          txn('b-pay', 1, 100, Direction.debit, 'R1'),
+          txn('b-refund', 3, 100, Direction.credit, 'R1'),
+        ],
+      );
+      expect(result.matches, unorderedEquals([
+        const MatchPair(appID: 'pay', bankID: 'b-pay', tier: MatchTier.reference),
+        const MatchPair(
+            appID: 'refund', bankID: 'b-refund', tier: MatchTier.reference),
+      ]));
+    });
+
     test('tier 2 picks the closest date within ±2 days, consuming once', () {
       final result = Reconciler.reconcile(
         app: [txn('a1', 5, 100, Direction.debit, 'X1')],

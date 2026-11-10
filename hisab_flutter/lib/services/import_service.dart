@@ -144,49 +144,54 @@ class ImportService {
 
     final period = parsed.effectivePeriod;
     final documentId = newId();
-    await db.into(db.storedDocuments).insert(StoredDocumentsCompanion.insert(
-          id: documentId,
-          sourceRaw: source.rawValue,
-          filename: filename,
-          fileSha256: fileHash,
-          periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
-          periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
-          importedAtMs: Value(DateTime.now().toUtc().millisecondsSinceEpoch),
-        ));
     final inserted = <MemoMergeCandidate>[];
     final insertedRefs = <String>{};
-    await db.batch((batch) {
-      for (final index in newIndices) {
-        final txn = parsed.transactions[index];
-        final uuid = newId();
-        final ref = txn.reference;
-        if (ref != null && ref.isNotEmpty) {
-          insertedRefs.add(_paymentKey(ref, txn.direction.name));
+    // The document and its rows land together or not at all: a document
+    // with no rows would turn every later import of the file into
+    // "already imported".
+    await db.transaction(() async {
+      await db.into(db.storedDocuments).insert(StoredDocumentsCompanion.insert(
+            id: documentId,
+            sourceRaw: source.rawValue,
+            filename: filename,
+            fileSha256: fileHash,
+            periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
+            periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
+            importedAtMs: Value(DateTime.now().toUtc().millisecondsSinceEpoch),
+          ));
+      await db.batch((batch) {
+        for (final index in newIndices) {
+          final txn = parsed.transactions[index];
+          final uuid = newId();
+          final ref = txn.reference;
+          if (ref != null && ref.isNotEmpty) {
+            insertedRefs.add(_paymentKey(ref, txn.direction.name));
+          }
+          inserted.add(MemoMergeCandidate(
+            id: uuid,
+            date: txn.date,
+            amountPaise: txn.amountPaise,
+            direction: txn.direction,
+            // The exact text `Queries.effectiveCategory` categorizes on, so the
+            // VPA and payee gates see the string the rule matcher sees.
+            narration: '${txn.counterparty} ${txn.narration}',
+          ));
+          batch.insert(
+              db.storedTransactions,
+              StoredTransactionsCompanion.insert(
+                uuid: uuid,
+                contentHash: txn.contentHash(source),
+                sourceRaw: source.rawValue,
+                dateMs: txn.date.toUtc().millisecondsSinceEpoch,
+                amountPaise: txn.amountPaise,
+                direction: txn.direction.name,
+                counterparty: txn.counterparty,
+                reference: Value(txn.reference),
+                narration: txn.narration,
+                documentId: documentId,
+              ));
         }
-        inserted.add(MemoMergeCandidate(
-          id: uuid,
-          date: txn.date,
-          amountPaise: txn.amountPaise,
-          direction: txn.direction,
-          // The exact text `Queries.effectiveCategory` categorizes on, so the
-          // VPA and payee gates see the string the rule matcher sees.
-          narration: '${txn.counterparty} ${txn.narration}',
-        ));
-        batch.insert(
-            db.storedTransactions,
-            StoredTransactionsCompanion.insert(
-              uuid: uuid,
-              contentHash: txn.contentHash(source),
-              sourceRaw: source.rawValue,
-              dateMs: txn.date.toUtc().millisecondsSinceEpoch,
-              amountPaise: txn.amountPaise,
-              direction: txn.direction.name,
-              counterparty: txn.counterparty,
-              reference: Value(txn.reference),
-              narration: txn.narration,
-              documentId: documentId,
-            ));
-      }
+      });
     });
 
     final months = period.months;

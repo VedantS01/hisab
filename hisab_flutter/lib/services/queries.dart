@@ -69,7 +69,12 @@ class Queries {
       for (final txn in txns)
         if (txn.sourceRaw == Source.alert.rawValue &&
             (txn.reference ?? '').isNotEmpty)
-          (id: txn.uuid, reference: txn.reference!, direction: directionOf(txn))
+          (
+            id: txn.uuid,
+            reference: txn.reference!,
+            direction: directionOf(txn),
+            amountPaise: txn.amountPaise
+          )
     ];
     return {
       ...flagged,
