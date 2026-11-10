@@ -365,6 +365,24 @@ void main() {
         reason: 'the memo is untouched');
   });
 
+  test('(f2) the category given to the alert row, and its memo link, move to '
+      'the export row that replaces it', () async {
+    await handle(upiDebit);
+    final alert = (await alertRows()).single;
+    await (db.update(db.storedTransactions)
+          ..where((t) => t.uuid.equals(alert.uuid)))
+        .write(const StoredTransactionsCompanion(
+            categoryOverride: Value('Food')));
+    await (db.update(db.storedPendingMemos))
+        .write(StoredPendingMemosCompanion(mergedTxnUuid: Value(alert.uuid)));
+
+    await importGpay();
+
+    final gpay = (await gpayRows()).single;
+    expect(gpay.categoryOverride, 'Food');
+    expect((await MemoStore.all(db)).single.mergedTxnUuid, gpay.uuid);
+  });
+
   test('(g) the app export first, then the capture: no alert row', () async {
     await statementRow(paise: 10000, date: ist(2026, 10, 2));
     await importGpay();

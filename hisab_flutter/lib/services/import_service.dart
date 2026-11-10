@@ -145,7 +145,8 @@ class ImportService {
     final period = parsed.effectivePeriod;
     final documentId = newId();
     final inserted = <MemoMergeCandidate>[];
-    final insertedRefs = <String>{};
+    // Payment key → the new row's uuid, for the alert rows it replaces.
+    final insertedRefs = <String, String>{};
     // The document and its rows land together or not at all: a document
     // with no rows would turn every later import of the file into
     // "already imported".
@@ -165,7 +166,7 @@ class ImportService {
           final uuid = newId();
           final ref = txn.reference;
           if (ref != null && ref.isNotEmpty) {
-            insertedRefs.add(_paymentKey(ref, txn.direction.name));
+            insertedRefs[_paymentKey(ref, txn.direction.name)] = uuid;
           }
           inserted.add(MemoMergeCandidate(
             id: uuid,
@@ -235,18 +236,33 @@ class ImportService {
 
   /// Deletes the captured-alert rows whose payment an export just inserted,
   /// with their matches, and returns their months for reconciling again.
-  Future<Set<YearMonth>> _dropSupersededAlerts(Set<String> refs) async {
+  /// What the user gave the alert row — a category, a linked memo — moves to
+  /// the export row that replaces it ([refs] maps payment key to its uuid).
+  Future<Set<YearMonth>> _dropSupersededAlerts(Map<String, String> refs) async {
     if (refs.isEmpty) return const {};
     final superseded = [
       for (final txn in await (db.select(db.storedTransactions)
             ..where((t) => t.sourceRaw.equals(Source.alert.rawValue)))
           .get())
         if (txn.reference != null &&
-            refs.contains(_paymentKey(txn.reference!, txn.direction)))
+            refs.containsKey(_paymentKey(txn.reference!, txn.direction)))
           txn
     ];
     if (superseded.isEmpty) return const {};
     final uuids = [for (final txn in superseded) txn.uuid];
+    for (final alert in superseded) {
+      final replacement = refs[_paymentKey(alert.reference!, alert.direction)]!;
+      if (alert.categoryOverride != null) {
+        await (db.update(db.storedTransactions)
+              ..where((t) => t.uuid.equals(replacement)))
+            .write(StoredTransactionsCompanion(
+                categoryOverride: Value(alert.categoryOverride)));
+      }
+      await (db.update(db.storedPendingMemos)
+            ..where((m) => m.mergedTxnUuid.equals(alert.uuid)))
+          .write(
+              StoredPendingMemosCompanion(mergedTxnUuid: Value(replacement)));
+    }
     await (db.delete(db.storedMatches)..where((m) => m.appUuid.isIn(uuids)))
         .go();
     await (db.delete(db.storedTransactions)..where((t) => t.uuid.isIn(uuids)))

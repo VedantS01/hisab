@@ -86,6 +86,21 @@ void main() {
         [sms.captureHash]);
   });
 
+  test('a category given to the folded sighting lands on the detection the user sees',
+      () async {
+    final sms = memo(payee: 'Ram', tail: '1234', at: ist(2026, 9, 22, 9));
+    final email = memo(
+        payee: 'Ram Kumar', vpa: 'ram@okhdfc', tail: 'XX1234', at: ist(2026, 9, 22, 9, 4));
+    await MemoStore.insert(sms, db: db);
+    await Detections.settle(sms.captureHash, db: db);
+    await MemoStore.insert(email, db: db);
+    await Detections.settle(email.captureHash, db: db);
+
+    await MemoStore.assign(category: 'Food', memo: await stored(email), db: db);
+
+    expect((await stored(sms)).assignedCategory, 'Food');
+  });
+
   test('different account tails never fold, same payee a day apart or not', () async {
     // A day apart so the two are distinct captures (the capture hash is by
     // day); the payee alone would merge them, the tails forbid it.
