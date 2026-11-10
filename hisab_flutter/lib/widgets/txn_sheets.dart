@@ -11,6 +11,7 @@ import '../design/design.dart';
 import '../services/queries.dart';
 import '../storage/database.dart';
 import '../state.dart';
+import 'memo_review_sheet.dart' show istStamp;
 
 /// Every category a row can be given, Uncategorized (which clears an
 /// override) included.
@@ -61,6 +62,15 @@ Future<String?> pickCategory(
   ),
 );
 
+/// The day, with the time when the row has one (statement rows are dated to
+/// the day, IST midnight; captured alerts and app exports carry a time).
+String _when(DateTime date) {
+  final clock = istClock(date);
+  return clock.hour == 0 && clock.minute == 0
+      ? istDayString(date)
+      : istStamp(date);
+}
+
 void showTxnDetail(
   BuildContext context,
   StoredTransaction txn,
@@ -97,7 +107,7 @@ void showTxnDetail(
             ],
           ),
           const SizedBox(height: 4),
-          Text('${sourceOf(txn).displayName} · ${istDayString(dateOf(txn))}'),
+          Text('${sourceOf(txn).displayName} · ${_when(dateOf(txn))}'),
           if (txn.reference != null)
             Text(
               'Ref: ${txn.reference}',
