@@ -61,7 +61,8 @@ class ImportService {
     if (duplicate != null) return duplicate;
 
     await PdfKitText.prepare(data, password);
-    final parsed = _parsed(resolver.resolve(data: data, filename: filename, password: password));
+    final parsed = _parsed(
+        resolver.resolve(data: data, filename: filename, password: password));
     final source = overrideSource ?? parsed.source;
     return insertParsedDocument(
         parsed: parsed, source: source, filename: filename, fileHash: fileHash);
@@ -82,15 +83,22 @@ class ImportService {
     if (duplicate != null) return duplicate;
     await PdfKitText.prepare(data, password);
     final parsed = _parsed(await resolver.resolveWithProposer(
-        data: data, filename: filename, password: password, proposer: proposer));
+        data: data,
+        filename: filename,
+        password: password,
+        proposer: proposer));
     return insertParsedDocument(
-        parsed: parsed, source: parsed.source, filename: filename, fileHash: fileHash);
+        parsed: parsed,
+        source: parsed.source,
+        filename: filename,
+        fileHash: fileHash);
   }
 
   static ParsedDocument _parsed(Resolution resolution) => switch (resolution) {
         ResolutionParsed(document: final doc) => doc,
         ResolutionPasswordRequired() => throw const PasswordRequiredException(),
-        ResolutionUnsupported(fingerprint: final fp) => throw UnsupportedFormatException(fp),
+        ResolutionUnsupported(fingerprint: final fp) =>
+          throw UnsupportedFormatException(fp),
         ResolutionUnverified(fingerprint: final fp, detail: final detail) =>
           throw UnverifiedStatementException(fp, detail),
       };
@@ -143,8 +151,7 @@ class ImportService {
           fileSha256: fileHash,
           periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
           periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
-          importedAtMs:
-              Value(DateTime.now().toUtc().millisecondsSinceEpoch),
+          importedAtMs: Value(DateTime.now().toUtc().millisecondsSinceEpoch),
         ));
     final inserted = <MemoMergeCandidate>[];
     final insertedRefs = <String>{};
@@ -188,7 +195,11 @@ class ImportService {
       if (_supersedesAlerts(source))
         ...await _dropSupersededAlerts(insertedRefs),
     };
-    for (final month in recompute) {
+    // The neighbours too: their payments may settle against this file's
+    // bank rows across the month boundary.
+    for (final month in {
+      for (final m in recompute) ...[m.advancedBy(-1), m, m.advancedBy(1)]
+    }) {
       await Queries.recomputeMatches(db, month);
     }
 
@@ -281,7 +292,9 @@ class ImportService {
       final String documentId;
       if (doc == null) {
         documentId = newId();
-        await db.into(db.storedDocuments).insert(StoredDocumentsCompanion.insert(
+        await db
+            .into(db.storedDocuments)
+            .insert(StoredDocumentsCompanion.insert(
               id: documentId,
               sourceRaw: Source.alert.rawValue,
               filename: Source.alert.displayName,
@@ -303,8 +316,9 @@ class ImportService {
         }
       }
       final id = newId();
-      await db.into(db.storedTransactions).insert(
-          StoredTransactionsCompanion.insert(
+      await db
+          .into(db.storedTransactions)
+          .insert(StoredTransactionsCompanion.insert(
             uuid: id,
             contentHash: hash,
             sourceRaw: Source.alert.rawValue,
