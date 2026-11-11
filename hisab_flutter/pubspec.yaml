@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # versionName+versionCode for Android; CFBundleShortVersionString+CFBundleVersion
 # for iOS (the Swift app shipped 1.5.0 (7), so builds continue from 8).
-version: 2.1.1+11
+version: 2.2.0+12
 
 environment:
   sdk: ^3.6.0
