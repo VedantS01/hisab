@@ -61,13 +61,15 @@ class GatewayAccount {
         model: json['model'] as String? ?? '',
       );
 
+  /// Today's free allowance left. The gateway spends it before [credits],
+  /// the banked balance, which only pays once today's allowance is gone.
   int get dailyRemaining => (dailyCap - dailyUsed).clamp(0, dailyCap);
-  bool get canSpend => credits > 0 && dailyRemaining > 0;
+  bool get canSpend => dailyRemaining > 0 || credits > 0;
 
   /// approaching | reached | null, in the words [ModelStatus.quota] uses.
   String? get quota => !canSpend
       ? 'reached'
-      : credits <= 20 || dailyRemaining <= 5
+      : dailyRemaining <= 5 && credits <= 20
           ? 'approaching'
           : null;
 

@@ -196,7 +196,8 @@ void main() {
     expect(row.direction, 'debit');
     expect(row.reference, '627775786529');
     expect(row.counterparty, 'MUNCHMART TECHNOLOGIES PR');
-    expect(row.dateMs, ist(2026, 10, 4).millisecondsSinceEpoch);
+    expect(row.dateMs, now.millisecondsSinceEpoch,
+        reason: 'dated the day it arrived: the arrival time, not midnight');
 
     final doc = (await alertDocs()).single;
     expect(doc.filename, 'Captured alerts');
@@ -309,7 +310,7 @@ void main() {
 
     final doc = (await alertDocs()).single;
     expect(doc.periodStartMs, ist(2026, 9, 22).millisecondsSinceEpoch);
-    expect(doc.periodEndMs, ist(2026, 10, 4).millisecondsSinceEpoch);
+    expect(doc.periodEndMs, now.millisecondsSinceEpoch);
     expect({for (final r in await alertRows()) r.documentId}, {doc.id});
 
     final documents = await db.select(db.storedDocuments).get();
@@ -362,6 +363,24 @@ void main() {
         reason: 'one payment, counted once');
     expect(await MemoStore.all(db), hasLength(1),
         reason: 'the memo is untouched');
+  });
+
+  test('(f2) the category given to the alert row, and its memo link, move to '
+      'the export row that replaces it', () async {
+    await handle(upiDebit);
+    final alert = (await alertRows()).single;
+    await (db.update(db.storedTransactions)
+          ..where((t) => t.uuid.equals(alert.uuid)))
+        .write(const StoredTransactionsCompanion(
+            categoryOverride: Value('Food')));
+    await (db.update(db.storedPendingMemos))
+        .write(StoredPendingMemosCompanion(mergedTxnUuid: Value(alert.uuid)));
+
+    await importGpay();
+
+    final gpay = (await gpayRows()).single;
+    expect(gpay.categoryOverride, 'Food');
+    expect((await MemoStore.all(db)).single.mergedTxnUuid, gpay.uuid);
   });
 
   test('(g) the app export first, then the capture: no alert row', () async {

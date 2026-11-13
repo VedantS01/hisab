@@ -38,7 +38,9 @@ class MerchantAvatar extends StatelessWidget {
         hue ?? hues[name.codeUnits.fold(0, (a, b) => a + b) % hues.length];
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = Color.alphaBlend(
-        base.withValues(alpha: isDark ? 0.28 : 0.12), c.surface);
+      base.withValues(alpha: isDark ? 0.28 : 0.12),
+      c.surface,
+    );
     final fg = isDark ? Color.lerp(base, Colors.white, 0.55)! : base;
     return ExcludeSemantics(
       child: Container(
@@ -49,8 +51,10 @@ class MerchantAvatar extends StatelessWidget {
         child: Text(
           monogram(name),
           maxLines: 1,
-          style:
-              HisabType.label.copyWith(color: fg, fontWeight: FontWeight.w600),
+          style: HisabType.label.copyWith(
+            color: fg,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
@@ -67,6 +71,10 @@ class TxnRow extends StatelessWidget {
   final String? time;
   final StatusTag? status;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  /// In a multi-select: the leading slot shows a check and the row is tinted.
+  final bool selected;
 
   const TxnRow({
     super.key,
@@ -78,74 +86,98 @@ class TxnRow extends StatelessWidget {
     this.time,
     this.status,
     this.onTap,
+    this.onLongPress,
+    this.selected = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = context.hisab;
     final secondary = HisabType.caption.copyWith(color: c.textSecondary);
-    return InkWell(
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 64),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: HisabSpace.gutter, vertical: HisabSpace.s12),
-          // The amount never takes more than 40% of the row; past that it
-          // scales down rather than squeezing the title out.
-          child: LayoutBuilder(
-            builder: (context, constraints) => Row(
-              children: [
-                leading,
-                const SizedBox(width: HisabSpace.s12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: HisabType.body.copyWith(
-                            fontWeight: FontWeight.w500, color: c.textPrimary),
-                      ),
-                      if (subtitle != null || status != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: HisabSpace.s2),
-                          child: _SubtitleLine(
+    return Material(
+      color: selected ? c.brand.withValues(alpha: 0.10) : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 64),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: HisabSpace.gutter,
+              vertical: HisabSpace.s12,
+            ),
+            // The amount never takes more than 40% of the row; past that it
+            // scales down rather than squeezing the title out.
+            child: LayoutBuilder(
+              builder: (context, constraints) => Row(
+                children: [
+                  selected
+                      ? SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Icon(
+                            Icons.check_circle,
+                            color: c.brandText,
+                            size: 28,
+                          ),
+                        )
+                      : leading,
+                  const SizedBox(width: HisabSpace.s12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: HisabType.body.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: c.textPrimary,
+                          ),
+                        ),
+                        if (subtitle != null || status != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: HisabSpace.s2),
+                            child: _SubtitleLine(
                               subtitle: subtitle,
                               style: secondary,
-                              status: status),
-                        ),
-                    ],
+                              status: status,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: HisabSpace.s12),
-                ConstrainedBox(
-                  constraints:
-                      BoxConstraints(maxWidth: constraints.maxWidth * 0.4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: AmountText(paise, tone: tone),
-                      ),
-                      if (time != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: HisabSpace.s2),
-                          child: Text(time!,
+                  const SizedBox(width: HisabSpace.s12),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * 0.4,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: AmountText(paise, tone: tone),
+                        ),
+                        if (time != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: HisabSpace.s2),
+                            child: Text(
+                              time!,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: secondary),
-                        ),
-                    ],
+                              style: secondary,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -175,15 +207,22 @@ class _SubtitleLine extends StatelessWidget {
         children: [
           if (subtitle != null)
             Flexible(
-              child: Text(subtitle!,
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+              child: Text(
+                subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
             ),
           SizedBox(width: gap),
           if (status != null)
             ConstrainedBox(
               constraints: BoxConstraints(
-                  maxWidth:
-                      (constraints.maxWidth - gap).clamp(0, double.infinity)),
+                maxWidth: (constraints.maxWidth - gap).clamp(
+                  0,
+                  double.infinity,
+                ),
+              ),
               child: status,
             ),
         ],

@@ -1,6 +1,6 @@
 /// The install's AI credits, as the gateway reports them: what Find in text
 /// and monthly insights spend. In-app purchases will top this up; until then
-/// every install's free grant and daily allowance are all there is.
+/// every install's daily allowance (spent first) and free grant are all there is.
 library;
 
 import 'package:flutter/material.dart';
@@ -43,11 +43,11 @@ class _AiCreditsCardState extends State<AiCreditsCard> {
         ),
       );
 
-  /// "287 left · 58 more today" / "None left · more tomorrow".
+  /// "58 free today · 287 banked" / "None free today · 287 banked".
   static String creditsLine(GatewayAccount a) {
-    if (a.credits <= 0) return 'None left. Top-ups are coming soon.';
-    if (a.dailyRemaining <= 0) return '${a.credits} left · more tomorrow';
-    return '${a.credits} left · ${a.dailyRemaining} more today';
+    if (!a.canSpend) return 'None left today. More tomorrow; top-ups are coming soon.';
+    final today = a.dailyRemaining > 0 ? '${a.dailyRemaining} free today' : 'None free today';
+    return '$today · ${a.credits} banked';
   }
 
   Future<void> _explain(BuildContext context, GatewayAccount? account) async {
@@ -65,10 +65,11 @@ class _AiCreditsCardState extends State<AiCreditsCard> {
             Text(
               'Find in text and monthly insights ask a cloud model through Hisab\'s '
               'gateway. Each question costs one credit; an insights run asks a few. '
-              'Every install starts with ${account?.granted ?? 300} and a day allows '
-              '${account?.dailyCap ?? 60}.'
-              '${account != null ? '\n\nYou have ${account.credits} left and have used '
-                  '${account.dailyUsed} today.' : ''}',
+              'Every day brings ${account?.dailyCap ?? 60} free credits, spent first. '
+              'Only once those are gone does Hisab draw on your banked credits; '
+              'every install starts with ${account?.granted ?? 300}.'
+              '${account != null ? '\n\nToday: ${account.dailyRemaining} of ${account.dailyCap} '
+                  'free left. Banked: ${account.credits}.' : ''}',
             ),
             const SizedBox(height: 16),
             Row(

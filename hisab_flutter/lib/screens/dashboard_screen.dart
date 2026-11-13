@@ -16,6 +16,7 @@ import '../widgets/import_flow.dart';
 import '../widgets/insight_evidence_sheet.dart';
 import '../widgets/insight_strip.dart';
 import '../widgets/capture_health.dart';
+import '../widgets/txn_sheets.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -43,10 +44,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Debug builds start where a hisab://tab/0?scroll=N link says.
   final _scroll = ScrollController(
-      initialScrollOffset: IncomingRouter.debugScroll.value ?? 0);
+    initialScrollOffset: IncomingRouter.debugScroll.value ?? 0,
+  );
+
+  /// The trend shows six months at a time and scrolls through the rest.
+  final _trendScroll = ScrollController();
+
+  /// The month the trend last scrolled into view, so it only moves when the
+  /// selection does, never under the user's own scrolling.
+  YearMonth? _trendShows;
 
   @override
   void dispose() {
+    _trendScroll.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -61,11 +71,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final data = snap.data;
         return Scaffold(
           appBar: AppBar(
-            title: Text('हिसाब',
-                style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                    color: context.hisab.brandText)),
+            title: Text(
+              'हिसाब',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w600,
+                color: context.hisab.brandText,
+              ),
+            ),
             actions: [
               IconButton(
                 icon: Icon(Icons.add_circle, color: context.hisab.brandText),
@@ -87,8 +100,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // compares every bank debit against every bank credit, and `_body` runs
     // on every build.
     final selfTransfers = Queries.selfTransferUuids(data.txns);
-    final txns = Queries.analytics(data.txns, data.matches, matcher,
-        selfTransfers: selfTransfers);
+    final txns = Queries.analytics(
+      data.txns,
+      data.matches,
+      matcher,
+      selfTransfers: selfTransfers,
+    );
     if (txns.isEmpty) {
       // The capture line and the needs-review card are mounted here too, not
       // only below. A user who relies on capture and has imported nothing yet
@@ -106,17 +123,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Icon(Icons.menu_book, size: 56, color: context.hisab.brandText),
                 const SizedBox(height: 12),
-                const Text('Your bahi is empty.',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const Text(
+                  'Your bahi is empty.',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 8),
-                Text('Import a statement to begin.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: context.hisab.textSecondary)),
+                Text(
+                  'Import a statement to begin.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: context.hisab.textSecondary),
+                ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   style: FilledButton.styleFrom(
-                      backgroundColor: context.hisab.brand),
+                    backgroundColor: context.hisab.brand,
+                  ),
                   onPressed: () => showImportFlow(context),
                   icon: const Icon(Icons.add),
                   label: const Text('Import statement'),
@@ -127,8 +148,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 TextButton(
                   onPressed: () =>
                       DemoData.load(AppScope.of(context).importService),
-                  child: Text('Explore with sample data',
-                      style: TextStyle(color: context.hisab.brandText)),
+                  child: Text(
+                    'Explore with sample data',
+                    style: TextStyle(color: context.hisab.brandText),
+                  ),
                 ),
               ],
             ),
@@ -146,20 +169,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
         : grid.months;
     if (!months.contains(_selected)) _selected = months.first;
     final stats = Analytics.monthStats(txns, _selected);
-    final trend = Analytics.trend(txns, endingAt: _selected, count: 6);
+    // Every month on file, oldest to newest; the card shows six at a time.
+    final trend = Analytics.trend(
+      txns,
+      endingAt: months.first,
+      count: months.first.compareTo(months.last) + 1,
+    );
     final breakdown = Analytics.categoryBreakdown(txns, _selected, top: 5);
     final merchants = Analytics.topMerchants(txns, _selected, top: 5);
-    final bankVerified = grid.sources.any((s) =>
-        s.kind == SourceKind.bank && grid.state(_selected, s) is CellPresent);
+    final bankVerified = grid.sources.any(
+      (s) =>
+          s.kind == SourceKind.bank && grid.state(_selected, s) is CellPresent,
+    );
 
     final state = AppScope.of(context);
-    final records = Queries.insightRecords(data.txns, data.matches, matcher,
-        selfTransfers: selfTransfers);
+    final records = Queries.insightRecords(
+      data.txns,
+      data.matches,
+      matcher,
+      selfTransfers: selfTransfers,
+    );
     final insights = InsightsEngine.generate(
       input: InsightsInput(
         records: records,
-        documentPeriods:
-            Queries.insightPeriods(Queries.statements(data.documents)),
+        documentPeriods: Queries.insightPeriods(
+          Queries.statements(data.documents),
+        ),
         now: DateTime.now(),
       ),
       config: state.insightsConfig,
@@ -175,64 +210,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!_agentAsked) {
       _agentAsked = true;
       WidgetsBinding.instance.addPostFrameCallback(
-          (_) => AgentInsights.maybeRun(records, now: DateTime.now()));
+        (_) => AgentInsights.maybeRun(records, now: DateTime.now()),
+      );
     }
 
     final now = DateTime.now();
     List<Widget> section(FeedSection section) => switch (section.type) {
-          'sampleDataBar' => [
-              if (data.documents
-                  .any((d) => DemoData.slotKeys.contains(d.fileSha256)))
-                _SampleDataBar(onClear: () => DemoData.eraseExisting(state.db)),
-            ],
-          'captureHealth' => [const CaptureHealthBanner()],
-          // Above the month chips, matching iOS: insights speak about the
-          // month just ended, so mounting them under the chips would imply
-          // they follow the selection. Everything below the chip row does.
-          'insights' => [_insights(insights, data, records)],
-          'monthPicker' => [
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    for (final month in months)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: HisabFilterChip(
-                          label: month.displayName,
-                          selected: month == _selected,
-                          onSelected: (_) => setState(() => _selected = month),
-                        ),
-                      ),
-                  ],
+      'sampleDataBar' => [
+        if (data.documents.any((d) => DemoData.slotKeys.contains(d.fileSha256)))
+          _SampleDataBar(onClear: () => DemoData.eraseExisting(state.db)),
+      ],
+      'captureHealth' => [const CaptureHealthBanner()],
+      // Above the month chips, matching iOS: insights speak about the
+      // month just ended, so mounting them under the chips would imply
+      // they follow the selection. Everything below the chip row does.
+      'insights' => [_insights(insights, data, records)],
+      'monthPicker' => [
+        SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final month in months)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: HisabFilterChip(
+                    label: month.displayName,
+                    selected: month == _selected,
+                    onSelected: (_) => setState(() => _selected = month),
+                  ),
                 ),
-              ),
-              const SizedBox(height: HisabSpace.s12),
             ],
-          'hero' => [
-              _heroCard(stats, bankVerified),
-              const SizedBox(height: HisabSpace.s12)
-            ],
-          'trend' => [
-              _trendCard(trend),
-              const SizedBox(height: HisabSpace.s12)
-            ],
-          'breakdown' => [
-              _breakdownCard(breakdown),
-              const SizedBox(height: HisabSpace.s12)
-            ],
-          'merchants' => [
-              _merchantsCard(merchants),
-              const SizedBox(height: HisabSpace.s12)
-            ],
-          'card' => [
-              if (section.card!.until == null ||
-                  now.isBefore(section.card!.until!))
-                FeedCardView(card: section.card!),
-            ],
-          _ => const [],
-        };
+          ),
+        ),
+        const SizedBox(height: HisabSpace.s12),
+      ],
+      'hero' => [
+        _heroCard(stats, bankVerified),
+        const SizedBox(height: HisabSpace.s12),
+      ],
+      'trend' => [_trendCard(trend), const SizedBox(height: HisabSpace.s12)],
+      'breakdown' => [
+        _breakdownCard(breakdown),
+        const SizedBox(height: HisabSpace.s12),
+      ],
+      'merchants' => [
+        _merchantsCard(merchants),
+        const SizedBox(height: HisabSpace.s12),
+      ],
+      'card' => [
+        if (section.card!.until == null || now.isBefore(section.card!.until!))
+          FeedCardView(card: section.card!),
+      ],
+      _ => const [],
+    };
 
     return ValueListenableBuilder<HomeFeed>(
       valueListenable: HomeFeed.current,
@@ -247,11 +278,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// The insights agent's cards for the month just ended where Apple's
   /// models run; the native engine's strip until then, and everywhere else.
   Widget _insights(
-      InsightsResult native, Snapshot data, List<InsightRecord> records) {
+    InsightsResult native,
+    Snapshot data,
+    List<InsightRecord> records,
+  ) {
     final state = AppScope.of(context);
     return ListenableBuilder(
-      listenable:
-          Listenable.merge([AgentInsights.current, AgentInsights.running]),
+      listenable: Listenable.merge([
+        AgentInsights.current,
+        AgentInsights.running,
+      ]),
       builder: (context, _) {
         final now = DateTime.now();
         final month = AgentInsights.monthFor(now);
@@ -263,28 +299,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(children: [
-                Expanded(
-                    child: Text(month.displayName,
-                        style: Theme.of(context).textTheme.titleSmall)),
-                IconButton(
-                  tooltip: 'Write again',
-                  icon: const Icon(Icons.refresh),
-                  onPressed: running ? null : rewrite,
-                ),
-              ]),
-              InsightCarousel(cards: [
-                for (final c in agent.cards)
-                  InsightCard(
-                    icon: FeedIcons.of(c.kind),
-                    title: c.title,
-                    body: c.body,
-                    onTap: c.category == null
-                        ? null
-                        : () => openFeedAction(context,
-                            FeedAction('transactions', category: c.category)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      month.displayName,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                   ),
-              ]),
+                  IconButton(
+                    tooltip: 'Write again',
+                    icon: const Icon(Icons.auto_awesome),
+                    onPressed: running ? null : rewrite,
+                  ),
+                ],
+              ),
+              InsightCarousel(
+                cards: [
+                  for (final c in agent.cards)
+                    InsightCard(
+                      icon: FeedIcons.of(c.kind),
+                      title: c.title,
+                      body: c.body,
+                      onTap: c.category == null
+                          ? null
+                          : () => openFeedAction(
+                              context,
+                              FeedAction('transactions', category: c.category),
+                            ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 8),
             ],
           );
@@ -318,7 +363,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // On demand, where the agent can run and has something to read.
             FutureBuilder<bool>(
               future: hisabModelReady,
-              builder: (context, ready) => ready.data == true &&
+              builder: (context, ready) =>
+                  ready.data == true &&
                       records.any((r) => YearMonth.fromDate(r.date) == month)
                   ? Align(
                       alignment: Alignment.centerLeft,
@@ -337,9 +383,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// The month in one card: spend on a plum-to-red gradient, income and net
-  /// as pills, the bank's confirmation in gold. The one loud thing on the
-  /// page; everything under it is quiet.
+  /// The month in one card: what was truly spent on a plum-to-red gradient,
+  /// money in and out as pills, and what went out but was set aside
+  /// (investments, insurance) as a split of the outflow. The one loud thing
+  /// on the page; everything under it is quiet.
   Widget _heroCard(MonthStats stats, bool bankVerified) {
     final c = context.hisab;
     final onHero = Colors.white.withValues(alpha: 0.78);
@@ -374,13 +421,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: _orb(132, HisabPalette.goldOnHero.withValues(alpha: 0.14)),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-                HisabSpace.s20, HisabSpace.s20, HisabSpace.s20, HisabSpace.s20),
+            padding: const EdgeInsets.all(HisabSpace.s20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${_selected.displayName} spend',
-                    style: HisabType.label.copyWith(color: onHero)),
+                Text(
+                  '${_selected.displayName} spend',
+                  style: HisabType.label.copyWith(color: onHero),
+                ),
                 const SizedBox(height: HisabSpace.s4),
                 FittedBox(
                   fit: BoxFit.scaleDown,
@@ -395,26 +443,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   spacing: HisabSpace.s8,
                   runSpacing: HisabSpace.s8,
                   children: [
-                    _heroPill('In', AmountText.format(stats.incomePaise),
-                        HisabPalette.goldOnHero),
                     _heroPill(
-                        'Net',
-                        AmountText.format(stats.netPaise,
-                            tone: stats.netPaise >= 0
-                                ? AmountTone.credit
-                                : AmountTone.plain),
-                        Colors.white),
+                      Icons.south_west_rounded,
+                      'In',
+                      AmountText.format(stats.incomePaise),
+                      HisabPalette.goldOnHero,
+                    ),
+                    _heroPill(
+                      Icons.north_east_rounded,
+                      'Out',
+                      AmountText.format(stats.outPaise),
+                      Colors.white,
+                    ),
                   ],
                 ),
+                if (stats.investedPaise + stats.insuredPaise > 0) ...[
+                  const SizedBox(height: HisabSpace.s16),
+                  _setAside(stats, onHero),
+                ],
                 if (bankVerified) ...[
                   const SizedBox(height: HisabSpace.s16),
-                  Row(children: [
-                    const Icon(Icons.verified_rounded,
-                        size: 16, color: HisabPalette.goldOnHero),
-                    const SizedBox(width: HisabSpace.s4),
-                    Text('Bank statement on file for this month',
-                        style: HisabType.caption.copyWith(color: onHero)),
-                  ]),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.verified_rounded,
+                        size: 16,
+                        color: HisabPalette.goldOnHero,
+                      ),
+                      const SizedBox(width: HisabSpace.s4),
+                      Text(
+                        'Bank statement on file for this month',
+                        style: HisabType.caption.copyWith(color: onHero),
+                      ),
+                    ],
+                  ),
                 ],
               ],
             ),
@@ -424,119 +486,268 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _orb(double size, Color color) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-      );
+  /// Where the month's outflow went: a bar split into spent, invested and
+  /// insured, with the set-aside parts named under it.
+  Widget _setAside(MonthStats stats, Color onHero) {
+    const invested = HisabPalette.goldOnHero;
+    final insured = Colors.lightBlueAccent.shade100;
+    final parts = [
+      (stats.spendPaise, Colors.white.withValues(alpha: 0.55)),
+      (stats.investedPaise, invested),
+      (stats.insuredPaise, insured),
+    ];
+    Widget legend(IconData icon, Color tint, String label, int paise) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: tint),
+        const SizedBox(width: HisabSpace.s4),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: '$label '),
+              TextSpan(
+                text: AmountText.format(paise),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          style: HisabType.caption.copyWith(
+            color: onHero,
+            fontFeatures: HisabType.tabular,
+          ),
+        ),
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(HisabRadius.pill),
+          child: SizedBox(
+            height: 6,
+            child: Row(
+              children: [
+                for (final (paise, color) in parts)
+                  if (paise > 0)
+                    Expanded(
+                      flex: paise.clamp(1, 1 << 30),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 2),
+                        color: color,
+                      ),
+                    ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: HisabSpace.s8),
+        Wrap(
+          spacing: HisabSpace.s16,
+          runSpacing: HisabSpace.s4,
+          children: [
+            if (stats.investedPaise > 0)
+              legend(
+                Icons.trending_up_rounded,
+                invested,
+                'Invested',
+                stats.investedPaise,
+              ),
+            if (stats.insuredPaise > 0)
+              legend(
+                Icons.shield_outlined,
+                insured,
+                'Insured',
+                stats.insuredPaise,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 
-  Widget _heroPill(String label, String amount, Color tint) => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: HisabSpace.s12, vertical: 6),
+  Widget _orb(double size, Color color) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+  );
+
+  Widget _heroPill(IconData icon, String label, String amount, Color tint) =>
+      Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: HisabSpace.s12,
+          vertical: 6,
+        ),
         decoration: BoxDecoration(
           color: tint.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(HisabRadius.pill),
           border: Border.all(color: tint.withValues(alpha: 0.35)),
         ),
-        child: Text.rich(
-          TextSpan(children: [
-            TextSpan(
-                text: '$label ',
-                style: TextStyle(color: tint.withValues(alpha: 0.85))),
-            TextSpan(text: amount),
-          ]),
-          style: HisabType.label.copyWith(
-              color: tint,
-              fontWeight: FontWeight.w600,
-              fontFeatures: HisabType.tabular),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: tint.withValues(alpha: 0.85)),
+            const SizedBox(width: HisabSpace.s4),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$label ',
+                    style: TextStyle(color: tint.withValues(alpha: 0.85)),
+                  ),
+                  TextSpan(text: amount),
+                ],
+              ),
+              style: HisabType.label.copyWith(
+                color: tint,
+                fontWeight: FontWeight.w600,
+                fontFeatures: HisabType.tabular,
+              ),
+            ),
+          ],
         ),
       );
 
   Widget _trendCard(List<MonthStats> trend) {
     final c = context.hisab;
     final peak = trend.fold<double>(
-        0, (m, s) => s.spendPaise > m ? s.spendPaise.toDouble() : m);
+      0,
+      (m, s) => s.spendPaise > m ? s.spendPaise.toDouble() : m,
+    );
     return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Six-month trend', style: HisabType.title),
+          Text('Monthly spend', style: HisabType.title),
           const SizedBox(height: HisabSpace.s12),
-          SizedBox(
-            height: 132,
-            child: BarChart(
-              BarChartData(
-                maxY: peak == 0 ? 1 : peak / 100 * 1.08,
-                gridData: const FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  handleBuiltInTouches: false,
-                  touchCallback: (event, response) {
-                    final index = response?.spot?.touchedBarGroupIndex;
-                    if (event is FlTapUpEvent && index != null) {
-                      setState(() => _selected = trend[index].month);
-                    }
-                  },
-                ),
-                titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(),
-                  rightTitles: const AxisTitles(),
-                  topTitles: const AxisTitles(),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      getTitlesWidget: (value, meta) {
-                        final index = value.toInt();
-                        if (index < 0 || index >= trend.length) {
-                          return const SizedBox.shrink();
-                        }
-                        final selected = trend[index].month == _selected;
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            trend[index].month.displayName.split(' ').first,
-                            style: HisabType.caption.copyWith(
-                              color: selected ? c.brandText : c.textTertiary,
-                              fontWeight:
-                                  selected ? FontWeight.w700 : FontWeight.w500,
-                            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final slot = constraints.maxWidth / 6;
+              final width = trend.length <= 6
+                  ? constraints.maxWidth
+                  : slot * trend.length;
+              final at = trend.indexWhere((s) => s.month == _selected);
+              if (_trendShows != _selected && at >= 0) {
+                final first = _trendShows == null;
+                _trendShows = _selected;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!_trendScroll.hasClients) return;
+                  final position = _trendScroll.position;
+                  // Selected month as the fourth of six, clamped to the ends.
+                  final target = (slot * (at - 3)).clamp(
+                    0.0,
+                    position.maxScrollExtent,
+                  );
+                  final visible =
+                      target >= _trendScroll.offset - 0.5 &&
+                      at * slot >= _trendScroll.offset &&
+                      (at + 1) * slot <=
+                          _trendScroll.offset + constraints.maxWidth;
+                  if (first) {
+                    _trendScroll.jumpTo(target);
+                  } else if (!visible) {
+                    _trendScroll.animateTo(
+                      target,
+                      duration: HisabMotion.medium,
+                      curve: HisabMotion.curve,
+                    );
+                  }
+                });
+              }
+              return SingleChildScrollView(
+                controller: _trendScroll,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: width,
+                  height: 132,
+                  child: BarChart(
+                    BarChartData(
+                      maxY: peak == 0 ? 1 : peak / 100 * 1.08,
+                      gridData: const FlGridData(show: false),
+                      borderData: FlBorderData(show: false),
+                      barTouchData: BarTouchData(
+                        enabled: true,
+                        handleBuiltInTouches: false,
+                        touchCallback: (event, response) {
+                          final index = response?.spot?.touchedBarGroupIndex;
+                          if (event is FlTapUpEvent && index != null) {
+                            setState(() => _selected = trend[index].month);
+                          }
+                        },
+                      ),
+                      titlesData: FlTitlesData(
+                        leftTitles: const AxisTitles(),
+                        rightTitles: const AxisTitles(),
+                        topTitles: const AxisTitles(),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 22,
+                            getTitlesWidget: (value, meta) {
+                              final index = value.toInt();
+                              if (index < 0 || index >= trend.length) {
+                                return const SizedBox.shrink();
+                              }
+                              final selected = trend[index].month == _selected;
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  trend[index].month.displayName
+                                      .split(' ')
+                                      .first,
+                                  style: HisabType.caption.copyWith(
+                                    color: selected
+                                        ? c.brandText
+                                        : c.textTertiary,
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                barGroups: [
-                  for (var i = 0; i < trend.length; i++)
-                    BarChartGroupData(x: i, barRods: [
-                      BarChartRodData(
-                        toY: trend[i].spendPaise / 100,
-                        width: 24,
-                        borderRadius: BorderRadius.circular(HisabRadius.r8),
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: trend[i].month == _selected
-                              ? [c.heroEnd, c.gold]
-                              : [
-                                  c.brand.withValues(alpha: 0.42),
-                                  c.brand.withValues(alpha: 0.16)
-                                ],
-                        ),
-                        backDrawRodData: BackgroundBarChartRodData(
-                          show: true,
-                          toY: peak == 0 ? 1 : peak / 100 * 1.08,
-                          color: c.sunken,
                         ),
                       ),
-                    ]),
-                ],
-              ),
-              duration: HisabMotion.medium,
-              curve: HisabMotion.curve,
-            ),
+                      barGroups: [
+                        for (var i = 0; i < trend.length; i++)
+                          BarChartGroupData(
+                            x: i,
+                            barRods: [
+                              BarChartRodData(
+                                toY: trend[i].spendPaise / 100,
+                                width: 24,
+                                borderRadius: BorderRadius.circular(
+                                  HisabRadius.r8,
+                                ),
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: trend[i].month == _selected
+                                      ? [c.heroEnd, c.gold]
+                                      : [
+                                          c.brand.withValues(alpha: 0.42),
+                                          c.brand.withValues(alpha: 0.16),
+                                        ],
+                                ),
+                                backDrawRodData: BackgroundBarChartRodData(
+                                  show: true,
+                                  toY: peak == 0 ? 1 : peak / 100 * 1.08,
+                                  color: c.sunken,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                    duration: HisabMotion.medium,
+                    curve: HisabMotion.curve,
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -548,6 +759,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static Color categoryHue(int index) =>
       HisabPalette.avatarHues[index % HisabPalette.avatarHues.length];
 
+  /// A month's debits under one category, or — for the breakdown's "Other" —
+  /// under every category not named above it.
+  void _openCategory(String category, List<CategorySlice> breakdown) {
+    final month = _selected;
+    final named = {for (final s in breakdown) s.category}..remove('Other');
+    final other = category == 'Other' && !named.contains('Other');
+    showTxnListSheet(
+      context,
+      title: '$category · ${month.displayName}',
+      where: (txn, c) =>
+          directionOf(txn) == Direction.debit &&
+          YearMonth.fromDate(dateOf(txn)) == month &&
+          (other ? !named.contains(c) : c == category),
+    );
+  }
+
   Widget _breakdownCard(List<CategorySlice> breakdown) {
     final c = context.hisab;
     final total = breakdown.fold<int>(0, (a, s) => a + s.paise);
@@ -558,8 +785,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text('Where it went', style: HisabType.title),
           const SizedBox(height: HisabSpace.s12),
           if (breakdown.isEmpty)
-            Text('No spending this month',
-                style: HisabType.body.copyWith(color: c.textSecondary))
+            Text(
+              'No spending this month',
+              style: HisabType.body.copyWith(color: c.textSecondary),
+            )
           else ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(HisabRadius.pill),
@@ -572,7 +801,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         flex: breakdown[i].paise.clamp(1, 1 << 30),
                         child: Container(
                           margin: EdgeInsets.only(
-                              right: i == breakdown.length - 1 ? 0 : 2),
+                            right: i == breakdown.length - 1 ? 0 : 2,
+                          ),
                           color: categoryHue(i),
                         ),
                       ),
@@ -582,33 +812,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: HisabSpace.s12),
             for (var i = 0; i < breakdown.length; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                          color: categoryHue(i), shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: HisabSpace.s12),
-                    Expanded(
-                      child: Text(breakdown[i].category,
+              InkWell(
+                borderRadius: BorderRadius.circular(HisabRadius.r8),
+                onTap: () => _openCategory(breakdown[i].category, breakdown),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: categoryHue(i),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: HisabSpace.s12),
+                      Expanded(
+                        child: Text(
+                          breakdown[i].category,
                           overflow: TextOverflow.ellipsis,
-                          style: HisabType.body),
-                    ),
-                    Text(
-                      total == 0
-                          ? ''
-                          : '${(breakdown[i].paise * 100 / total).round()}%',
-                      style: HisabType.caption.copyWith(
+                          style: HisabType.body,
+                        ),
+                      ),
+                      Text(
+                        total == 0
+                            ? ''
+                            : '${(breakdown[i].paise * 100 / total).round()}%',
+                        style: HisabType.caption.copyWith(
                           color: c.textTertiary,
-                          fontFeatures: HisabType.tabular),
-                    ),
-                    const SizedBox(width: HisabSpace.s12),
-                    AmountText(breakdown[i].paise, role: AmountRole.md),
-                  ],
+                          fontFeatures: HisabType.tabular,
+                        ),
+                      ),
+                      const SizedBox(width: HisabSpace.s12),
+                      AmountText(breakdown[i].paise, role: AmountRole.md),
+                    ],
+                  ),
                 ),
               ),
           ],
@@ -622,7 +861,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final top = merchants.isEmpty ? 0 : merchants.first.paise;
     return SurfaceCard(
       padding: const EdgeInsets.fromLTRB(
-          HisabSpace.s16, HisabSpace.s16, HisabSpace.s16, HisabSpace.s8),
+        HisabSpace.s16,
+        HisabSpace.s16,
+        HisabSpace.s16,
+        HisabSpace.s8,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -631,41 +874,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (merchants.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: HisabSpace.s8),
-              child: Text('Nothing yet',
-                  style: HisabType.body.copyWith(color: c.textSecondary)),
+              child: Text(
+                'Nothing yet',
+                style: HisabType.body.copyWith(color: c.textSecondary),
+              ),
             ),
           for (var i = 0; i < merchants.length; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: HisabSpace.s8),
-              child: Row(
-                children: [
-                  MerchantAvatar(
-                      name: merchants[i].merchant, hue: categoryHue(i)),
-                  const SizedBox(width: HisabSpace.s12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(merchants[i].merchant,
-                            overflow: TextOverflow.ellipsis,
-                            style: HisabType.body
-                                .copyWith(fontWeight: FontWeight.w500)),
-                        const SizedBox(height: HisabSpace.s4),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(HisabRadius.r4),
-                          child: LinearProgressIndicator(
-                            value: top == 0 ? 0 : merchants[i].paise / top,
-                            minHeight: 4,
-                            backgroundColor: c.sunken,
-                            color: categoryHue(i),
-                          ),
-                        ),
-                      ],
+            InkWell(
+              borderRadius: BorderRadius.circular(HisabRadius.r8),
+              onTap: () {
+                final month = _selected, merchant = merchants[i].merchant;
+                showTxnListSheet(
+                  context,
+                  title: '$merchant · ${month.displayName}',
+                  where: (txn, _) =>
+                      directionOf(txn) == Direction.debit &&
+                      txn.counterparty == merchant &&
+                      YearMonth.fromDate(dateOf(txn)) == month,
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: HisabSpace.s8),
+                child: Row(
+                  children: [
+                    MerchantAvatar(
+                      name: merchants[i].merchant,
+                      hue: categoryHue(i),
                     ),
-                  ),
-                  const SizedBox(width: HisabSpace.s12),
-                  AmountText(merchants[i].paise, role: AmountRole.md),
-                ],
+                    const SizedBox(width: HisabSpace.s12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            merchants[i].merchant,
+                            overflow: TextOverflow.ellipsis,
+                            style: HisabType.body.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: HisabSpace.s4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(HisabRadius.r4),
+                            child: LinearProgressIndicator(
+                              value: top == 0 ? 0 : merchants[i].paise / top,
+                              minHeight: 4,
+                              backgroundColor: c.sunken,
+                              color: categoryHue(i),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: HisabSpace.s12),
+                    AmountText(merchants[i].paise, role: AmountRole.md),
+                  ],
+                ),
               ),
             ),
         ],
@@ -682,13 +946,13 @@ class _SampleDataBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: HisabSpace.s12),
-        child: InfoBanner(
-          icon: Icons.science_outlined,
-          message: 'Sample data',
-          tone: HisabTone.brand,
-          actionLabel: 'Clear',
-          onAction: onClear,
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: HisabSpace.s12),
+    child: InfoBanner(
+      icon: Icons.science_outlined,
+      message: 'Sample data',
+      tone: HisabTone.brand,
+      actionLabel: 'Clear',
+      onAction: onClear,
+    ),
+  );
 }

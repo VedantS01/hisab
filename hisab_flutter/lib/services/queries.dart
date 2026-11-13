@@ -69,7 +69,12 @@ class Queries {
       for (final txn in txns)
         if (txn.sourceRaw == Source.alert.rawValue &&
             (txn.reference ?? '').isNotEmpty)
-          (id: txn.uuid, reference: txn.reference!, direction: directionOf(txn))
+          (
+            id: txn.uuid,
+            reference: txn.reference!,
+            direction: directionOf(txn),
+            amountPaise: txn.amountPaise
+          )
     ];
     return {
       ...flagged,
@@ -178,9 +183,7 @@ class Queries {
                   DateTime.fromMillisecondsSinceEpoch(doc.periodEndMs,
                       isUtc: true)))
       ],
-      pinnedMonths: {
-        for (final pin in pins) _month(pin.monthKey)
-      },
+      pinnedMonths: {for (final pin in pins) _month(pin.monthKey)},
     );
   }
 
@@ -260,9 +263,8 @@ class Queries {
         if (!existing.contains(rule.pattern.toLowerCase())) rule
     ];
     if (missing.isNotEmpty) {
-      var order = stored.isEmpty
-          ? 0
-          : stored.map((r) => r.sortOrder).reduce(max) + 1;
+      var order =
+          stored.isEmpty ? 0 : stored.map((r) => r.sortOrder).reduce(max) + 1;
       await db.batch((batch) {
         for (final rule in missing) {
           batch.insert(
@@ -279,25 +281,51 @@ class Queries {
     return rules(stored);
   }
 
-  static Future<void> recomputeMatches(AppDatabase db, YearMonth month) async {
-    final txns = await db.select(db.storedTransactions).get();
-    final (app, bank) = reconProjection(txns, month);
-    final result = Reconciler.reconcile(app: app, bank: bank);
-    final key = month.toString();
-    await (db.delete(db.storedMatches)
-          ..where((m) => m.monthKey.equals(key)))
-        .go();
-    await db.batch((batch) {
-      for (final match in result.matches) {
-        batch.insert(
-            db.storedMatches,
-            StoredMatchesCompanion.insert(
-                id: newId(),
-                monthKey: key,
-                appUuid: match.appID,
-                bankUuid: match.bankID,
-                tier: match.tier.name));
-      }
-    });
-  }
+  /// Reconciles [month]'s payment-app rows against bank rows from the month
+  /// either side as well: a UPI payment late on the 31st is often posted by
+  /// the bank on the 1st, and a month-bound bank side left both rows counted.
+  /// Bank rows another month's matches already hold are not offered, so one
+  /// bank row never confirms two payments. Matches stay keyed by the app
+  /// row's month. One transaction: watchers never see the month unmatched.
+  static Future<void> recomputeMatches(AppDatabase db, YearMonth month) =>
+      db.transaction(() async {
+        final key = month.toString();
+        final txns = await db.select(db.storedTransactions).get();
+        final claimed = {
+          for (final m in await (db.select(db.storedMatches)
+                ..where((m) => m.monthKey.isNotValue(key)))
+              .get())
+            m.bankUuid
+        };
+        final near = {month.advancedBy(-1), month, month.advancedBy(1)};
+        final app = reconProjection(txns, month).$1;
+        final bank = [
+          for (final txn in txns)
+            if (sourceOf(txn).kind == SourceKind.bank &&
+                !claimed.contains(txn.uuid) &&
+                near.contains(YearMonth.fromDate(dateOf(txn))))
+              ReconTxn(
+                  id: txn.uuid,
+                  date: dateOf(txn),
+                  amountPaise: txn.amountPaise,
+                  direction: directionOf(txn),
+                  reference: txn.reference)
+        ];
+        final result = Reconciler.reconcile(app: app, bank: bank);
+        await (db.delete(db.storedMatches)
+              ..where((m) => m.monthKey.equals(key)))
+            .go();
+        await db.batch((batch) {
+          for (final match in result.matches) {
+            batch.insert(
+                db.storedMatches,
+                StoredMatchesCompanion.insert(
+                    id: newId(),
+                    monthKey: key,
+                    appUuid: match.appID,
+                    bankUuid: match.bankID,
+                    tier: match.tier.name));
+          }
+        });
+      });
 }

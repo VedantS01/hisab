@@ -15,7 +15,9 @@ class SelfTransfers {
   /// bank source within the date window. Both sides are internal movements.
   static Set<String> detect(List<BankTxn> bank, {int dateWindowDays = 2}) {
     final window = Duration(days: dateWindowDays);
-    final debits = bank.where((b) => b.txn.direction == Direction.debit).toList()
+    final debits = bank
+        .where((b) => b.txn.direction == Direction.debit)
+        .toList()
       ..sort((a, b) => a.txn.date.compareTo(b.txn.date));
     final credits =
         bank.where((b) => b.txn.direction == Direction.credit).toList();
@@ -51,20 +53,30 @@ class SelfTransfers {
   /// never sees them; without this, one transfer alerted on both accounts
   /// would count as spending and as income.
   ///
-  /// A row is a self transfer when another alert row has the same reference
-  /// and the opposite direction (one IMPS ref appears in the sending bank's
-  /// debit alert and the receiving bank's credit alert), or when its
-  /// reference is on a bank row [detect] already flagged.
+  /// A row is a self transfer when another alert row has the same reference,
+  /// the same amount and the opposite direction (one IMPS ref appears in the
+  /// sending bank's debit alert and the receiving bank's credit alert), or
+  /// when its reference is on a bank row [detect] already flagged. The amount
+  /// keeps a partial refund — which reuses its payment's reference — from
+  /// erasing the payment as a transfer.
   static Set<String> alerts(
-      List<({String id, String reference, Direction direction})> rows,
+      List<
+              ({
+                String id,
+                String reference,
+                Direction direction,
+                int amountPaise
+              })>
+          rows,
       {required Set<String> bankSelfTransferRefs}) {
     final directions = <String, Set<Direction>>{};
     for (final row in rows) {
-      (directions[row.reference] ??= {}).add(row.direction);
+      (directions['${row.reference}|${row.amountPaise}'] ??= {})
+          .add(row.direction);
     }
     return {
       for (final row in rows)
-        if (directions[row.reference]?.length == 2 ||
+        if (directions['${row.reference}|${row.amountPaise}']?.length == 2 ||
             bankSelfTransferRefs.contains(row.reference))
           row.id
     };

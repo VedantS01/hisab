@@ -30,8 +30,8 @@ Future<void> importFileBytes(BuildContext context,
   final supportedNames = state.importService.resolver.supportedFormatNames;
 
   Future<void> runImport(String? password) async {
-    final report = await state.importService.importBytes(
-        data: data, filename: filename, password: password);
+    final report = await state.importService
+        .importBytes(data: data, filename: filename, password: password);
     if (password != null && !report.duplicateOfExistingFile) {
       await PasswordStore.setPassword(report.source, password);
     }
@@ -47,20 +47,24 @@ Future<void> importFileBytes(BuildContext context,
     if (reader != null && context.mounted) {
       final navigator = Navigator.of(context, rootNavigator: true);
       _showReadingColumns(context);
+      // Only the import is guarded: a keychain or report failure after a
+      // successful import must not pop a second route or offer to send a
+      // format the phone just read.
+      ImportReport? report;
       try {
-        final report = await state.importService.importBytesReadingColumns(
+        report = await state.importService.importBytesReadingColumns(
             data: data,
             filename: filename,
             password: password,
             proposer: reader);
-        navigator.pop();
+      } catch (_) {}
+      navigator.pop();
+      if (report != null) {
         if (password != null && !report.duplicateOfExistingFile) {
           await PasswordStore.setPassword(report.source, password);
         }
         if (context.mounted) _showReport(context, report);
         return;
-      } catch (_) {
-        navigator.pop();
       }
     }
     if (context.mounted) {
@@ -148,7 +152,8 @@ Future<String?> _askPassword(BuildContext context, String filename) {
           Text(filename, style: const TextStyle(fontSize: 12)),
           TextField(controller: controller, obscureText: true, autofocus: true),
           Text('Remembered securely on this device.',
-              style: TextStyle(fontSize: 11, color: context.hisab.textSecondary)),
+              style:
+                  TextStyle(fontSize: 11, color: context.hisab.textSecondary)),
         ],
       ),
       actions: [
@@ -185,8 +190,7 @@ void _showReport(BuildContext context, ImportReport report) {
               report.duplicateOfExistingFile
                   ? 'Already imported'
                   : '${report.newCount} new transaction${report.newCount == 1 ? '' : 's'}',
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 6),
             Text(
@@ -202,7 +206,8 @@ void _showReport(BuildContext context, ImportReport report) {
                 child: Text(
                   'Months: ${report.monthsTouched.map((m) => m.displayName).join(', ')}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: context.hisab.textSecondary),
+                  style: TextStyle(
+                      fontSize: 12, color: context.hisab.textSecondary),
                 ),
               ),
           ],
@@ -234,8 +239,7 @@ void _showFormatRequest(BuildContext context, FormatFingerprint fingerprint,
                   ? "Hisab can't read this statement format yet."
                   : "Couldn't verify this statement.",
               textAlign: TextAlign.center,
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Text(
@@ -246,7 +250,8 @@ void _showFormatRequest(BuildContext context, FormatFingerprint fingerprint,
                           : '') +
                       'Support for new formats arrives in app updates. The request email contains only column labels and value shapes — no transactions.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: context.hisab.textSecondary, fontSize: 13),
+              style:
+                  TextStyle(color: context.hisab.textSecondary, fontSize: 13),
             ),
             if (verificationDetail == null)
               Padding(
@@ -255,7 +260,8 @@ void _showFormatRequest(BuildContext context, FormatFingerprint fingerprint,
                   'Hisab reads today: ${supportedNames.join(', ')} — plus '
                   'most Indian bank statements that print a running balance.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: context.hisab.textSecondary, fontSize: 11),
+                  style: TextStyle(
+                      color: context.hisab.textSecondary, fontSize: 11),
                 ),
               ),
             const SizedBox(height: 16),

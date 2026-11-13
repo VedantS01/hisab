@@ -9,6 +9,7 @@ import 'package:hisab_core/hisab_core.dart';
 
 import '../storage/database.dart';
 import 'capture_prefs.dart';
+import 'capture_probe.dart';
 import 'detections.dart';
 import 'import_service.dart';
 import 'memo_store.dart';
@@ -37,6 +38,26 @@ abstract final class CaptureIntake {
     // reaches Hisab and none of it parses".
     await CapturePrefs.setLastAttemptAt(now);
 
+    // A setup test's sample: read it exactly as a real alert, report what was
+    // read to the setup screen, store nothing. Ahead of the enable gate so the
+    // test can say capture is off rather than fail silently.
+    final probe = CaptureProbe.idIn(text);
+    if (probe != null) {
+      final (memo, row) = await CaptureIntake.read(text, now, extractor);
+      await CaptureProbe.record(ProbeResult(
+        id: probe,
+        at: now,
+        captureOn: await CapturePrefs.isEnabled(),
+        amountPaise: memo?.amountPaise ?? row?.amountPaise,
+        direction: memo?.direction ?? row?.direction,
+        payee: memo?.payee ?? row?.counterparty,
+        reference: row?.reference,
+        date: memo?.date ?? row?.date,
+      ));
+      return const IntakeResult(IntakeOutcome.logged,
+          'Hisab test received. Nothing was saved; open Hisab to see what it read.');
+    }
+
     // The Settings toggle has to actually stop capture. A toggle that only
     // silences the notification while memos keep accruing is worse than no
     // toggle — the user believes they switched the feature off.
@@ -48,7 +69,9 @@ abstract final class CaptureIntake {
     // An automation whose Alert Text is not wired to Shortcut Input hands
     // over nothing. Saying "no transaction found" would blame the alert.
     if (text.trim().isEmpty) {
-      return _done(IntakeOutcome.noText, now,
+      return _done(
+          IntakeOutcome.noText,
+          now,
           "The automation passed no text. In Shortcuts, set Hisab's Alert "
           'Text to Shortcut Input.');
     }
@@ -58,8 +81,8 @@ abstract final class CaptureIntake {
     final (read, row) = await _read(EmailText.plain(text), now, extractor);
     final memo = read == null || note == null ? read : _withNote(read, note);
     if (memo == null && row == null) {
-      return _done(IntakeOutcome.notAPayment, now,
-          'No transaction found in that text.');
+      return _done(
+          IntakeOutcome.notAPayment, now, 'No transaction found in that text.');
     }
 
     final bool memoInserted;
@@ -68,8 +91,9 @@ abstract final class CaptureIntake {
       memoInserted = memo != null && await MemoStore.insert(memo, db: db);
       // Only an alert carrying a bank reference has a row; the content hash
       // (source + reference + direction) is its dedup guard.
-      final rowId =
-          row == null ? null : await ImportService.insertCapturedAlert(row, db: db);
+      final rowId = row == null
+          ? null
+          : await ImportService.insertCapturedAlert(row, db: db);
       rowInserted = rowId != null;
       // A memo for a payment the ledger has — this alert's new row, or the
       // one an earlier capture of it made — is that row's, not a detection.
@@ -132,6 +156,12 @@ abstract final class CaptureIntake {
         note: note,
       );
 
+  /// What Hisab reads in [text], saving nothing: the setup screen's reader
+  /// test, and the setup tests' samples.
+  static Future<(PendingMemo?, ParsedTransaction?)> read(
+          String text, DateTime now, AlertExtractor? extractor) =>
+      _read(EmailText.plain(text), now, extractor);
+
   /// The extractor's memo and ledger row ([AlertCapture]) when it is loaded;
   /// the parser's memo and no row while it loads, if it never does, and if
   /// one extraction throws. An alert the extractor reads as no transaction is
@@ -142,8 +172,8 @@ abstract final class CaptureIntake {
       try {
         final alert = await extractor.extract(text);
         return (
-          AlertCapture.memo(alert, receivedAt: now),
-          AlertCapture.ledgerRow(alert, receivedAt: now),
+          AlertCapture.memo(alert, receivedAt: now, text: text),
+          AlertCapture.ledgerRow(alert, receivedAt: now, text: text),
         );
       } catch (error) {
         // The type only: an error's message could quote the text.

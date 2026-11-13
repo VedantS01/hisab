@@ -195,16 +195,20 @@ class _DetectionEditorState extends State<DetectionEditor> {
   }
 
   Future<void> _pickDate() async {
+    // In IST fields throughout: a day-only detection is IST midnight, 18:30
+    // UTC the day before, so UTC fields would show and save the wrong day.
+    final ist = istClock(_date);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _date,
+      initialDate: DateTime(ist.year, ist.month, ist.day),
       firstDate: DateTime(2015),
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
     if (picked != null && mounted) {
       // Keep the time of day the detection had; the user picks the day.
-      setState(() => _date = DateTime.utc(picked.year, picked.month, picked.day,
-          _date.hour, _date.minute, _date.second));
+      setState(() => _date = DateTime.utc(picked.year, picked.month,
+              picked.day, ist.hour, ist.minute, ist.second)
+          .subtract(istOffset));
     }
   }
 

@@ -28,6 +28,7 @@ import 'capture_shortcuts_screen.dart';
 import '../services/capture_prefs.dart';
 import '../services/notification_capture.dart';
 import '../state.dart';
+import '../widgets/capture_tests.dart';
 
 /// The setup screen for this platform: Android's notification-access screen
 /// below, or the Shortcuts walkthrough on iOS.
@@ -99,7 +100,8 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'SMS. Nothing is sent anywhere, and the alert text itself is '
                 'never stored: only the amount, payee, UPI ID, account '
                 'digits, date and bank reference survive the read.',
-                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
+                style: TextStyle(
+                    fontSize: 13, color: context.hisab.textSecondary)),
             const SizedBox(height: 6),
             Text(
                 'An alert that carries a bank reference — a UPI or IMPS ref, '
@@ -112,7 +114,8 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'matched to a row in an imported statement: that one is kept '
                 'so the same alert is never captured a second time. Erasing '
                 'all data in Settings removes every memo either way.',
-                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
+                style: TextStyle(
+                    fontSize: 13, color: context.hisab.textSecondary)),
           ]),
           _section('Switch it on', [
             SwitchListTile(
@@ -190,7 +193,8 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'going quiet, set Hisab’s battery usage to '
                 '“Unrestricted” and enable Autostart where your '
                 'phone offers it.',
-                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
+                style: TextStyle(
+                    fontSize: 13, color: context.hisab.textSecondary)),
             const SizedBox(height: 6),
             // The listener plugin forwards a notification's title and
             // EXTRA_TEXT only; for Gmail that is the sender and the subject,
@@ -199,13 +203,16 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
                 'Bank emails are not captured on Android yet. Hisab sees only '
                 'a notification’s headline, and an email’s headline is its '
                 'subject, which rarely carries the amount.',
-                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
+                style: TextStyle(
+                    fontSize: 13, color: context.hisab.textSecondary)),
             const SizedBox(height: 6),
             Text(
                 'The dashboard warns you after three days without an alert, '
                 'so this fails loudly rather than silently.',
-                style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
+                style: TextStyle(
+                    fontSize: 13, color: context.hisab.textSecondary)),
           ]),
+          const CaptureTests(),
         ],
       ),
     );
@@ -218,7 +225,8 @@ class _CaptureSetupScreenState extends State<CaptureSetupScreen> {
           children: [
             Text(title,
                 style: TextStyle(
-                    fontWeight: FontWeight.w600, color: context.hisab.textPrimary)),
+                    fontWeight: FontWeight.w600,
+                    color: context.hisab.textPrimary)),
             const SizedBox(height: 6),
             Card(
               child: Padding(

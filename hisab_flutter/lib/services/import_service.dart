@@ -61,7 +61,8 @@ class ImportService {
     if (duplicate != null) return duplicate;
 
     await PdfKitText.prepare(data, password);
-    final parsed = _parsed(resolver.resolve(data: data, filename: filename, password: password));
+    final parsed = _parsed(
+        resolver.resolve(data: data, filename: filename, password: password));
     final source = overrideSource ?? parsed.source;
     return insertParsedDocument(
         parsed: parsed, source: source, filename: filename, fileHash: fileHash);
@@ -82,15 +83,22 @@ class ImportService {
     if (duplicate != null) return duplicate;
     await PdfKitText.prepare(data, password);
     final parsed = _parsed(await resolver.resolveWithProposer(
-        data: data, filename: filename, password: password, proposer: proposer));
+        data: data,
+        filename: filename,
+        password: password,
+        proposer: proposer));
     return insertParsedDocument(
-        parsed: parsed, source: parsed.source, filename: filename, fileHash: fileHash);
+        parsed: parsed,
+        source: parsed.source,
+        filename: filename,
+        fileHash: fileHash);
   }
 
   static ParsedDocument _parsed(Resolution resolution) => switch (resolution) {
         ResolutionParsed(document: final doc) => doc,
         ResolutionPasswordRequired() => throw const PasswordRequiredException(),
-        ResolutionUnsupported(fingerprint: final fp) => throw UnsupportedFormatException(fp),
+        ResolutionUnsupported(fingerprint: final fp) =>
+          throw UnsupportedFormatException(fp),
         ResolutionUnverified(fingerprint: final fp, detail: final detail) =>
           throw UnverifiedStatementException(fp, detail),
       };
@@ -136,50 +144,55 @@ class ImportService {
 
     final period = parsed.effectivePeriod;
     final documentId = newId();
-    await db.into(db.storedDocuments).insert(StoredDocumentsCompanion.insert(
-          id: documentId,
-          sourceRaw: source.rawValue,
-          filename: filename,
-          fileSha256: fileHash,
-          periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
-          periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
-          importedAtMs:
-              Value(DateTime.now().toUtc().millisecondsSinceEpoch),
-        ));
     final inserted = <MemoMergeCandidate>[];
-    final insertedRefs = <String>{};
-    await db.batch((batch) {
-      for (final index in newIndices) {
-        final txn = parsed.transactions[index];
-        final uuid = newId();
-        final ref = txn.reference;
-        if (ref != null && ref.isNotEmpty) {
-          insertedRefs.add(_paymentKey(ref, txn.direction.name));
+    // Payment key → the new row's uuid, for the alert rows it replaces.
+    final insertedRefs = <String, String>{};
+    // The document and its rows land together or not at all: a document
+    // with no rows would turn every later import of the file into
+    // "already imported".
+    await db.transaction(() async {
+      await db.into(db.storedDocuments).insert(StoredDocumentsCompanion.insert(
+            id: documentId,
+            sourceRaw: source.rawValue,
+            filename: filename,
+            fileSha256: fileHash,
+            periodStartMs: period.start.toUtc().millisecondsSinceEpoch,
+            periodEndMs: period.end.toUtc().millisecondsSinceEpoch,
+            importedAtMs: Value(DateTime.now().toUtc().millisecondsSinceEpoch),
+          ));
+      await db.batch((batch) {
+        for (final index in newIndices) {
+          final txn = parsed.transactions[index];
+          final uuid = newId();
+          final ref = txn.reference;
+          if (ref != null && ref.isNotEmpty) {
+            insertedRefs[_paymentKey(ref, txn.direction.name)] = uuid;
+          }
+          inserted.add(MemoMergeCandidate(
+            id: uuid,
+            date: txn.date,
+            amountPaise: txn.amountPaise,
+            direction: txn.direction,
+            // The exact text `Queries.effectiveCategory` categorizes on, so the
+            // VPA and payee gates see the string the rule matcher sees.
+            narration: '${txn.counterparty} ${txn.narration}',
+          ));
+          batch.insert(
+              db.storedTransactions,
+              StoredTransactionsCompanion.insert(
+                uuid: uuid,
+                contentHash: txn.contentHash(source),
+                sourceRaw: source.rawValue,
+                dateMs: txn.date.toUtc().millisecondsSinceEpoch,
+                amountPaise: txn.amountPaise,
+                direction: txn.direction.name,
+                counterparty: txn.counterparty,
+                reference: Value(txn.reference),
+                narration: txn.narration,
+                documentId: documentId,
+              ));
         }
-        inserted.add(MemoMergeCandidate(
-          id: uuid,
-          date: txn.date,
-          amountPaise: txn.amountPaise,
-          direction: txn.direction,
-          // The exact text `Queries.effectiveCategory` categorizes on, so the
-          // VPA and payee gates see the string the rule matcher sees.
-          narration: '${txn.counterparty} ${txn.narration}',
-        ));
-        batch.insert(
-            db.storedTransactions,
-            StoredTransactionsCompanion.insert(
-              uuid: uuid,
-              contentHash: txn.contentHash(source),
-              sourceRaw: source.rawValue,
-              dateMs: txn.date.toUtc().millisecondsSinceEpoch,
-              amountPaise: txn.amountPaise,
-              direction: txn.direction.name,
-              counterparty: txn.counterparty,
-              reference: Value(txn.reference),
-              narration: txn.narration,
-              documentId: documentId,
-            ));
-      }
+      });
     });
 
     final months = period.months;
@@ -188,7 +201,11 @@ class ImportService {
       if (_supersedesAlerts(source))
         ...await _dropSupersededAlerts(insertedRefs),
     };
-    for (final month in recompute) {
+    // The neighbours too: their payments may settle against this file's
+    // bank rows across the month boundary.
+    for (final month in {
+      for (final m in recompute) ...[m.advancedBy(-1), m, m.advancedBy(1)]
+    }) {
       await Queries.recomputeMatches(db, month);
     }
 
@@ -219,18 +236,33 @@ class ImportService {
 
   /// Deletes the captured-alert rows whose payment an export just inserted,
   /// with their matches, and returns their months for reconciling again.
-  Future<Set<YearMonth>> _dropSupersededAlerts(Set<String> refs) async {
+  /// What the user gave the alert row — a category, a linked memo — moves to
+  /// the export row that replaces it ([refs] maps payment key to its uuid).
+  Future<Set<YearMonth>> _dropSupersededAlerts(Map<String, String> refs) async {
     if (refs.isEmpty) return const {};
     final superseded = [
       for (final txn in await (db.select(db.storedTransactions)
             ..where((t) => t.sourceRaw.equals(Source.alert.rawValue)))
           .get())
         if (txn.reference != null &&
-            refs.contains(_paymentKey(txn.reference!, txn.direction)))
+            refs.containsKey(_paymentKey(txn.reference!, txn.direction)))
           txn
     ];
     if (superseded.isEmpty) return const {};
     final uuids = [for (final txn in superseded) txn.uuid];
+    for (final alert in superseded) {
+      final replacement = refs[_paymentKey(alert.reference!, alert.direction)]!;
+      if (alert.categoryOverride != null) {
+        await (db.update(db.storedTransactions)
+              ..where((t) => t.uuid.equals(replacement)))
+            .write(StoredTransactionsCompanion(
+                categoryOverride: Value(alert.categoryOverride)));
+      }
+      await (db.update(db.storedPendingMemos)
+            ..where((m) => m.mergedTxnUuid.equals(alert.uuid)))
+          .write(
+              StoredPendingMemosCompanion(mergedTxnUuid: Value(replacement)));
+    }
     await (db.delete(db.storedMatches)..where((m) => m.appUuid.isIn(uuids)))
         .go();
     await (db.delete(db.storedTransactions)..where((t) => t.uuid.isIn(uuids)))
@@ -281,7 +313,9 @@ class ImportService {
       final String documentId;
       if (doc == null) {
         documentId = newId();
-        await db.into(db.storedDocuments).insert(StoredDocumentsCompanion.insert(
+        await db
+            .into(db.storedDocuments)
+            .insert(StoredDocumentsCompanion.insert(
               id: documentId,
               sourceRaw: Source.alert.rawValue,
               filename: Source.alert.displayName,
@@ -303,8 +337,9 @@ class ImportService {
         }
       }
       final id = newId();
-      await db.into(db.storedTransactions).insert(
-          StoredTransactionsCompanion.insert(
+      await db
+          .into(db.storedTransactions)
+          .insert(StoredTransactionsCompanion.insert(
             uuid: id,
             contentHash: hash,
             sourceRaw: Source.alert.rawValue,

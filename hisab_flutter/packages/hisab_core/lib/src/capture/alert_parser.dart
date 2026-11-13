@@ -9,6 +9,7 @@ library;
 import '../domain.dart';
 import '../money.dart';
 import '../year_month.dart';
+import 'alert_capture.dart';
 import 'pending_memo.dart';
 
 class _AmountHit {
@@ -49,7 +50,10 @@ class AlertParser {
       payee: payee,
       vpa: vpa,
       accountTail: _accountTail(lower),
-      date: _date(lower) ?? receivedAt,
+      // The parser's day, with the alert's written time or the arrival time
+      // on the same rule the extractor's path follows.
+      date: AlertCapture.date(_dayIso(lower),
+          receivedAt: receivedAt, text: text),
       capturedAt: receivedAt,
     );
   }
@@ -228,8 +232,23 @@ class AlertParser {
   /// stopping there would throw away the "20Sep26" further along the same
   /// alert. The date feeds `PendingMemo.captureHash`, so vetoing it gave the
   /// two cores different identities for one alert.
+  static String? _dayIso(String lower) {
+    final day = _date(lower);
+    return day == null ? null : istDayString(day);
+  }
+
   static DateTime? _date(String lower) {
-    final numeric = RegExp(r'([0-9]{2})[-/]([0-9]{2})[-/]([0-9]{2,4})');
+    final iso =
+        RegExp(r'(?<![0-9])([0-9]{4})-([0-9]{2})-([0-9]{2})(?![0-9])').firstMatch(lower);
+    if (iso != null) {
+      final made = _makeDate(
+          day: int.parse(iso.group(3)!),
+          month: int.parse(iso.group(2)!),
+          year: int.parse(iso.group(1)!));
+      if (made != null) return made;
+    }
+    final numeric =
+        RegExp(r'(?<![0-9])([0-9]{2})[-/]([0-9]{2})[-/]([0-9]{2,4})(?![0-9])');
     final numericMatch = numeric.firstMatch(lower);
     if (numericMatch != null) {
       final d = int.tryParse(numericMatch.group(1)!);

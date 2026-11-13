@@ -52,6 +52,36 @@ void main() {
     expect(overlapping.totalParsed, 2);
   });
 
+  test('a payment on the 31st settles against the bank row on the 1st, '
+      'whichever file lands first', () async {
+    const app = 'hisab-demo-csv,v1\n'
+        'period,2026-03-01,2026-03-31\n'
+        '2026-03-31,45000,debit,Chai Point,R7,UPI/R7/chai\n';
+    const bank = 'hisab-demo-csv,v1\n'
+        'period,2026-04-01,2026-04-30\n'
+        '2026-04-01,45000,debit,CHAI POINT,R7,UPI chai point\n';
+    for (final order in [
+      [('bank.csv', bank, Source.hdfc), ('app.csv', app, null)],
+      [('app.csv', app, null), ('bank.csv', bank, Source.hdfc)],
+    ]) {
+      await db.delete(db.storedTransactions).go();
+      await db.delete(db.storedDocuments).go();
+      await db.delete(db.storedMatches).go();
+      for (final (name, text, source) in order) {
+        await service.importBytes(
+            data: utf8.encode(text), filename: name, overrideSource: source);
+      }
+      final matches = await db.select(db.storedMatches).get();
+      expect(matches, hasLength(1), reason: 'order: ${order.first.$1} first');
+      expect(matches.single.monthKey, '2026-03');
+      final txns = await db.select(db.storedTransactions).get();
+      final analytics = Queries.analytics(txns, matches, CategoryMatcher(const []));
+      expect(Analytics.monthStats(analytics, YearMonth(2026, 3)).spendPaise, 45000);
+      expect(Analytics.monthStats(analytics, YearMonth(2026, 4)).spendPaise, 0,
+          reason: 'the bank row is evidence, not a second payment');
+    }
+  });
+
   test('reconciliation matches app vs bank and hides evidence', () async {
     await service.importBytes(data: utf8.encode(demoCsv), filename: 'app.csv');
     await service.importBytes(

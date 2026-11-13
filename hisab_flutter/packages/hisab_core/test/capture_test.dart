@@ -1508,6 +1508,7 @@ void main() {
               id: r[0] as String,
               reference: r[1] as String,
               direction: Direction.values.byName(r[2] as String),
+              amountPaise: 0,
             )
         ];
         final flagged = SelfTransfers.alerts(rows,
@@ -1518,6 +1519,16 @@ void main() {
             reason: name);
       });
     }
+
+    test('a partial refund on the payment reference is not a transfer', () {
+      final flagged = SelfTransfers.alerts([
+        (id: 'pay', reference: 'R1', direction: Direction.debit, amountPaise: 50000),
+        (id: 'refund', reference: 'R1', direction: Direction.credit, amountPaise: 10000),
+        (id: 'out', reference: 'R2', direction: Direction.debit, amountPaise: 900),
+        (id: 'in', reference: 'R2', direction: Direction.credit, amountPaise: 900),
+      ], bankSelfTransferRefs: const {});
+      expect(flagged, {'out', 'in'});
+    });
 
     test('testAlertSourceIsPaymentAppSide', () {
       expect(Source.alert.kind, SourceKind.paymentApp);

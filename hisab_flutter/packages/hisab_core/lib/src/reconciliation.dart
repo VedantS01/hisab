@@ -59,17 +59,20 @@ class Reconciler {
     final consumedBank = <String>{};
     final unmatchedApp = <ReconTxn>[];
 
-    // Tier 1 — reference
+    // Tier 1 — reference, in the same direction: a refund reuses its
+    // payment's reference, and must not take the payment's bank row.
     final bankByRef = <String, ReconTxn>{};
     for (final txn in bank) {
       final ref = txn.reference;
       if (ref != null && ref.isNotEmpty) {
-        bankByRef.putIfAbsent(ref, () => txn);
+        bankByRef.putIfAbsent('$ref|${txn.direction.name}', () => txn);
       }
     }
     for (final txn in app) {
       final ref = txn.reference;
-      final hit = (ref != null && ref.isNotEmpty) ? bankByRef[ref] : null;
+      final hit = (ref != null && ref.isNotEmpty)
+          ? bankByRef['$ref|${txn.direction.name}']
+          : null;
       if (hit != null && !consumedBank.contains(hit.id)) {
         matches.add(
             MatchPair(appID: txn.id, bankID: hit.id, tier: MatchTier.reference));

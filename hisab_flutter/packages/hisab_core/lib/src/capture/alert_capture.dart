@@ -20,7 +20,10 @@ import 'pending_memo.dart';
 class AlertCapture {
   AlertCapture._();
 
-  static PendingMemo? memo(ExtractedAlert alert, {required DateTime receivedAt}) {
+  /// [text] is the alert as received, read for a clock time the extractor
+  /// (which gives the day only) leaves out.
+  static PendingMemo? memo(ExtractedAlert alert,
+      {required DateTime receivedAt, String? text}) {
     final direction = alert.direction;
     final amount = alert.amountPaise;
     final payee = _nonEmpty(alert.payee) ?? _nonEmpty(alert.vpa);
@@ -37,13 +40,13 @@ class AlertCapture {
       payee: payee,
       vpa: _nonEmpty(alert.vpa),
       accountTail: _nonEmpty(alert.ownAccountTail),
-      date: date(alert.dateIso, receivedAt: receivedAt),
+      date: date(alert.dateIso, receivedAt: receivedAt, text: text),
       capturedAt: receivedAt,
     );
   }
 
   static ParsedTransaction? ledgerRow(ExtractedAlert alert,
-      {required DateTime receivedAt}) {
+      {required DateTime receivedAt, String? text}) {
     final direction = alert.direction;
     final amount = alert.amountPaise;
     final reference = _nonEmpty(alert.ref);
@@ -62,7 +65,7 @@ class AlertCapture {
     // Rules match "counterparty narration": carrying the VPA here lets a
     // VPA rule learned from a memo categorize the ledger row too.
     return ParsedTransaction(
-      date: date(alert.dateIso, receivedAt: receivedAt),
+      date: date(alert.dateIso, receivedAt: receivedAt, text: text),
       amountPaise: amount,
       direction: direction,
       counterparty: counterparty,
@@ -71,11 +74,48 @@ class AlertCapture {
     );
   }
 
-  /// The transaction's IST day. `yyyy-MM-dd` as written; `--MM-dd` (no year
+  /// When the transaction happened. The day is [_day]'s; the time of day is
+  /// the clock time written in [text] when it has one, else the arrival time
+  /// when the alert is dated the day it arrived (an SMS or mail is read
+  /// within moments of the payment), else midnight — a day known, its time
+  /// not. Identity hashes key on the IST day alone, so the time never splits
+  /// one payment into two.
+  static DateTime date(String? iso,
+      {required DateTime receivedAt, String? text}) {
+    final day = _day(iso, receivedAt: receivedAt);
+    if (day == receivedAt) return receivedAt;
+    final written = text == null ? null : timeOfDay(text);
+    if (written != null) {
+      return day.add(Duration(hours: written.$1, minutes: written.$2));
+    }
+    if (istDayString(day) == istDayString(receivedAt)) return receivedAt;
+    return day;
+  }
+
+  static final _clock = RegExp(
+      r'(?<![0-9:.])([01]?[0-9]|2[0-3]):([0-5][0-9])(?::[0-5][0-9])?(?:\s*([ap])\.?\s?m\b\.?)?(?![0-9:])',
+      caseSensitive: false);
+
+  /// The first clock time in an alert ("14:32", "02:15 PM", "9:05:12 am") as
+  /// 24-hour (hour, minute), or null.
+  static (int, int)? timeOfDay(String text) {
+    final match = _clock.firstMatch(text);
+    if (match == null) return null;
+    var hour = int.parse(match.group(1)!);
+    final minute = int.parse(match.group(2)!);
+    final half = match.group(3)?.toLowerCase();
+    if (half != null) {
+      if (hour < 1 || hour > 12) return null;
+      hour = hour % 12 + (half == 'p' ? 12 : 0);
+    }
+    return (hour, minute);
+  }
+
+  /// The transaction's IST day (midnight), or [receivedAt] itself. `yyyy-MM-dd` as written; `--MM-dd` (no year
   /// in the alert) in the latest year that does not put it after the day the
   /// alert arrived; absent or impossible (29 Feb in a common year) falls back
   /// to the arrival time.
-  static DateTime date(String? iso, {required DateTime receivedAt}) {
+  static DateTime _day(String? iso, {required DateTime receivedAt}) {
     if (iso == null) return receivedAt;
     final parts = iso.split('-');
     if (iso.startsWith('--') && parts.length == 4) {

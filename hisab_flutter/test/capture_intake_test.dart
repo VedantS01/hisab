@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hisab/services/capture_intake.dart';
 import 'package:hisab/services/capture_prefs.dart';
+import 'package:hisab/services/capture_probe.dart';
 import 'package:hisab/services/memo_store.dart';
 import 'package:hisab/storage/database.dart';
 import 'package:hisab_core/hisab_core.dart';
@@ -37,6 +38,27 @@ void main() {
     expect(await MemoStore.all(db), isEmpty);
     expect(await CapturePrefs.lastAttemptAt(), now,
         reason: 'an arrival while off is still an arrival');
+  });
+
+  test('a setup test sample is read and reported, never stored', () async {
+    await CapturePrefs.setEnabled(true);
+    final result = await ingest(CaptureProbe.sample('abc123', now));
+    expect(result.dialog, contains('Hisab test received'));
+    expect(await MemoStore.all(db), isEmpty);
+    expect(await db.select(db.storedTransactions).get(), isEmpty);
+    expect(await CapturePrefs.lastOutcome(), isNull,
+        reason: 'a test is not an alert in the health line');
+    final probe = (await CaptureProbe.last())!;
+    expect(probe.id, 'abc123');
+    expect(probe.captureOn, isTrue);
+    expect(probe.amountPaise, 100);
+    expect(probe.direction, Direction.debit);
+    expect(probe.date, now, reason: 'the time it was sent, not midnight');
+  });
+
+  test('a setup test with capture off says so', () async {
+    await ingest(CaptureProbe.sample('off1', now));
+    expect((await CaptureProbe.last())!.captureOn, isFalse);
   });
 
   test('blank text blames the automation, not the alert', () async {

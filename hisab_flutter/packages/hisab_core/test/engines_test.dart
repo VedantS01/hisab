@@ -27,6 +27,24 @@ void main() {
       expect(result.bankOnly, isEmpty);
     });
 
+    test('a refund sharing the payment reference never takes its bank row', () {
+      final result = Reconciler.reconcile(
+        app: [
+          txn('refund', 3, 100, Direction.credit, 'R1'),
+          txn('pay', 1, 100, Direction.debit, 'R1'),
+        ],
+        bank: [
+          txn('b-pay', 1, 100, Direction.debit, 'R1'),
+          txn('b-refund', 3, 100, Direction.credit, 'R1'),
+        ],
+      );
+      expect(result.matches, unorderedEquals([
+        const MatchPair(appID: 'pay', bankID: 'b-pay', tier: MatchTier.reference),
+        const MatchPair(
+            appID: 'refund', bankID: 'b-refund', tier: MatchTier.reference),
+      ]));
+    });
+
     test('tier 2 picks the closest date within ±2 days, consuming once', () {
       final result = Reconciler.reconcile(
         app: [txn('a1', 5, 100, Direction.debit, 'X1')],
@@ -109,6 +127,21 @@ void main() {
       expect(stats.spendPaise, 100);
       expect(stats.incomePaise, 250);
       expect(stats.netPaise, 150);
+    });
+
+    test('investments and insurance leave the account but are not spend', () {
+      final stats = Analytics.monthStats([
+        t(4, 100, Direction.debit),
+        t(4, 500, Direction.debit, cat: 'Investments'),
+        t(4, 70, Direction.debit, cat: 'Insurance'),
+        t(4, 1000, Direction.credit, cat: 'Investments'),
+      ], YearMonth(2026, 4));
+      expect(stats.spendPaise, 100);
+      expect(stats.investedPaise, 500);
+      expect(stats.insuredPaise, 70);
+      expect(stats.outPaise, 670);
+      expect(stats.incomePaise, 1000);
+      expect(stats.netPaise, 330);
     });
 
     test('trend spans count months ending at the anchor', () {

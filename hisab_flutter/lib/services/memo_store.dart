@@ -98,9 +98,19 @@ class MemoStore {
     required AppDatabase db,
   }) {
     return db.transaction(() async {
-      final current = await find(hash: memo.captureHash, db: db) ?? memo;
+      var current = await find(hash: memo.captureHash, db: db) ?? memo;
+      // A memo folded into another (the same payment by SMS and by mail) is
+      // hidden; the category belongs to the one the user sees.
+      for (var hops = 0; hops < 4; hops++) {
+        final into = current.mergedTxnUuid;
+        if (into == null || !into.startsWith(Detections.intoPrefix)) break;
+        final target = await find(
+            hash: into.substring(Detections.intoPrefix.length), db: db);
+        if (target == null) break;
+        current = target;
+      }
       final update = db.update(db.storedPendingMemos)
-        ..where((t) => t.captureHash.equals(memo.captureHash));
+        ..where((t) => t.captureHash.equals(current.captureHash));
       await update.write(
           StoredPendingMemosCompanion(assignedCategory: Value(category)));
       final txn = current.mergedTxnUuid;

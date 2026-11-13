@@ -13,6 +13,11 @@ import '../services/capture_notifier.dart';
 import '../services/capture_prefs.dart';
 import '../services/notification_capture.dart';
 import '../state.dart';
+import '../widgets/capture_tests.dart';
+
+/// The setup video, set at build time (--dart-define=HISAB_SETUP_VIDEO=<url>)
+/// once it is published; no link is shown until then.
+const setupVideoUrl = String.fromEnvironment('HISAB_SETUP_VIDEO');
 
 class CaptureShortcutsScreen extends StatefulWidget {
   const CaptureShortcutsScreen({super.key});
@@ -78,7 +83,9 @@ class _CaptureShortcutsScreenState extends State<CaptureShortcutsScreen>
         children: [
           _section('System check', [
             _check('Capture', _enabled, _enabled ? 'On' : 'Off'),
-            _check('Reader', _readerWorks ?? true,
+            _check(
+                'Reader',
+                _readerWorks ?? true,
                 switch (_readerWorks) {
                   null => 'Checking…',
                   true => 'Working',
@@ -86,7 +93,9 @@ class _CaptureShortcutsScreenState extends State<CaptureShortcutsScreen>
                 }),
             _check('Last alert', _last?.$1 != IntakeOutcome.saveFailed,
                 _lastAlertText()),
-            _check('Notifications', _notificationsAllowed,
+            _check(
+                'Notifications',
+                _notificationsAllowed,
                 _notificationsAllowed
                     ? 'Allowed'
                     : 'Off — turn them on in iOS Settings › Notifications › Hisab'),
@@ -113,51 +122,80 @@ class _CaptureShortcutsScreenState extends State<CaptureShortcutsScreen>
             _note('With this off, the Shortcuts action still runs but declines '
                 'the alert and stores nothing.'),
           ]),
-          _section('Step 1 — bank SMS', [
-            _step(1, 'Open Shortcuts › Automation and create a new automation '
-                'with the Message trigger.'),
-            _step(2, 'Set Message Contains to Rs, and leave Sender empty. Banks '
+          const CaptureTests(),
+          const SizedBox(height: 16),
+          if (setupVideoUrl.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: OutlinedButton.icon(
+                onPressed: () => launchUrl(Uri.parse(setupVideoUrl),
+                    mode: LaunchMode.externalApplication),
+                icon: const Icon(Icons.play_circle_outline),
+                label: const Text('Watch the setup video'),
+              ),
+            ),
+          _steps(
+              'Step 1 — the share shortcut', 'One minute; test it right away', [
+            _step(
+                1, 'Open the Shortcuts app and tap + to make a new shortcut.'),
+            _step(
+                2,
+                'Tap Add Action, search Hisab, and pick Add Transaction '
+                'Alert.'),
+            _step(3, 'Tap the Alert Text field and choose Shortcut Input.'),
+            _step(
+                4,
+                'Tap the shortcut name at the top and name it exactly '
+                '“$shareShortcutName”.'),
+            _step(5, 'In its settings (ⓘ), turn on Show in Share Sheet.'),
+            _note('Test it: Share shortcut › Run, above. Afterwards you can '
+                'select any alert\'s text, tap Share, and tap “$shareShortcutName”.'),
+          ]),
+          _steps('Step 2 — bank SMS, automatically',
+              'Two automations: Rs and INR', [
+            _step(1, 'Shortcuts › Automation › + › Message.'),
+            _step(
+                2,
+                'Set Message Contains to Rs. Leave Sender empty: banks '
                 'text from IDs like HDFCBK, which iOS cannot save as a contact, '
                 'so a sender filter would never match.'),
-            _step(3, 'Set it to run immediately, without asking for confirmation.'),
-            _step(4, 'Add exactly one action: Hisab › Add Transaction Alert, '
-                'with its Alert Text set to Shortcut Input (the message).'),
-            _step(5, 'Leave Note empty. Anything you put there is saved word for '
-                'word, so it is for a short note of your own — never the '
-                'message body.'),
-            _step(6, 'Make a second automation, the same in every way except '
+            _step(3, 'Choose Run Immediately, and turn off Notify When Run.'),
+            _step(
+                4,
+                'Add one action: Hisab › Add Transaction Alert, and set '
+                'its Alert Text to Shortcut Input.'),
+            _step(
+                5,
+                'Leave Note empty. Anything there is saved word for word, '
+                'so it is for a short note of your own, never the message.'),
+            _step(
+                6,
+                'Make a second automation, the same in every way except '
                 'that Message Contains is INR.'),
-            _note('Between them, Rs and INR catch nearly every bank and UPI SMS. '
-                'The automation also runs on an OTP, an offer or a friend\'s text '
-                'that mentions Rs; Hisab finds no payment in it and stores '
-                'nothing.'),
+            _note('Test it: SMS automation › Send, above. The automation also '
+                'runs on an OTP or a friend\'s text that mentions Rs; Hisab '
+                'finds no payment in it and stores nothing.'),
           ]),
-          _section('Step 2 — bank emails (Gmail)', [
-            _step(1, 'Add your Gmail account to Apple\'s Mail app: Settings › '
-                'Apps › Mail › Mail Accounts › Add Account › Google, with Mail '
-                'switched on. The Email trigger only sees mail that arrives in '
-                'Apple Mail.'),
-            _step(2, 'In Mail Accounts › Fetch New Data, set the Gmail account to '
-                'Fetch and the schedule to Every 15 Minutes.'),
-            _step(3, 'In Shortcuts, create a new automation with the Email '
-                'trigger. Set Account to your Gmail account.'),
-            _step(4, 'Set Sender to the address your bank\'s alerts come from. '
-                'Add every bank\'s address to the same automation.'),
-            _step(5, 'Set it to run immediately, and add the same one action: '
-                'Hisab › Add Transaction Alert, with Alert Text set to Shortcut '
-                'Input (the email).'),
-            _note('An email reaches Hisab when Mail fetches it, so expect up to '
-                '15 minutes\' delay.'),
-          ]),
-          _section('Step 3 — the share-sheet fallback', [
-            _step(1, 'In Shortcuts, tap + to create a new shortcut.'),
-            _step(2, 'Turn on “Show in Share Sheet”, and set it to receive Text.'),
-            _step(3, 'Add one action: Hisab › Add Transaction Alert, with '
-                'Shortcut Input as the text.'),
-            _step(4, 'Name it something like “Log to Hisab”.'),
-            _note('Hisab does not appear in the share sheet on its own; iOS only '
-                'offers a shortcut you have built. Once this exists you can '
-                'select any alert\'s text, share it, and tap “Log to Hisab”.'),
+          _steps('Step 3 — bank emails (Gmail)',
+              'Optional; mail arrives within 15 minutes', [
+            _step(
+                1,
+                'Add Gmail to Apple\'s Mail app: Settings › Apps › Mail › '
+                'Mail Accounts › Add Account › Google, with Mail on. The Email '
+                'trigger only sees mail that arrives in Apple Mail.'),
+            _step(
+                2,
+                'In Mail Accounts › Fetch New Data, set Gmail to Fetch, '
+                'every 15 minutes.'),
+            _step(
+                3,
+                'Shortcuts › Automation › + › Email. Set Account to your '
+                'Gmail account, and Sender to your bank\'s alert address — add '
+                'every bank\'s address to the same automation.'),
+            _step(
+                4,
+                'Run Immediately, and the same one action: Hisab › Add '
+                'Transaction Alert, Alert Text set to Shortcut Input.'),
           ]),
         ],
       ),
@@ -217,20 +255,40 @@ class _CaptureShortcutsScreenState extends State<CaptureShortcutsScreen>
             style: TextStyle(fontSize: 13, color: context.hisab.textSecondary)),
       );
 
+  /// A step, folded to its title until opened.
+  Widget _steps(String title, String subtitle, List<Widget> children) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: ExpansionTile(
+            shape: const Border(),
+            title: Text(title,
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            subtitle: Text(subtitle,
+                style: TextStyle(
+                    fontSize: 12, color: context.hisab.textSecondary)),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
+        ),
+      );
+
   Widget _section(String title, List<Widget> children) => Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  ...children,
-                ]),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ...children,
+            ]),
           ),
         ),
       );
