@@ -26,6 +26,7 @@ import 'services/legacy_migration.dart';
 import 'services/pdfkit_text.dart';
 import 'services/queries.dart';
 import 'services/statement_self_test.dart';
+import 'services/store.dart';
 import 'state.dart';
 import 'design/design.dart';
 import 'feed/home_feed.dart';
@@ -55,7 +56,8 @@ Future<void> main() async {
   final ruleset = Ruleset.fromJsonString(
       await rootBundle.loadString('assets/rulesets/india-default.json'));
   final resolver = ImportResolver(
-      registry: fullRegistry(extra: PdfKitText.parsers), specs: SpecStore.parseAll(specJsons));
+      registry: fullRegistry(extra: PdfKitText.parsers),
+      specs: SpecStore.parseAll(specJsons));
   final insightsConfig = InsightsConfig.fromJsonString(
       await rootBundle.loadString('assets/insights/insights-config.json'));
   final suppressions = await InsightStore.load();
@@ -105,6 +107,8 @@ Future<void> main() async {
     if (call.method == 'dataChanged') db.markTablesUpdated(db.allTables);
   });
 
+  // Before the first frame, so a purchase left unfinished is applied.
+  HisabStore.start();
   runApp(AppScope(state: state, child: const HisabApp()));
 }
 
