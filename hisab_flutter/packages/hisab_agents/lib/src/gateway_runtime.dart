@@ -43,6 +43,9 @@ class GatewayAccount {
   final int dailyUsed;
   final String model;
 
+  /// Until when a Hisab Plus subscription lifts [dailyCap]; null without one.
+  final DateTime? plusUntil;
+
   const GatewayAccount({
     required this.credits,
     required this.granted,
@@ -50,7 +53,10 @@ class GatewayAccount {
     required this.dailyCap,
     required this.dailyUsed,
     required this.model,
+    this.plusUntil,
   });
+
+  bool get plus => plusUntil != null;
 
   factory GatewayAccount.fromJson(Map<String, Object?> json) => GatewayAccount(
         credits: json['credits'] as int? ?? 0,
@@ -59,6 +65,8 @@ class GatewayAccount {
         dailyCap: json['dailyCap'] as int? ?? 0,
         dailyUsed: json['dailyUsed'] as int? ?? 0,
         model: json['model'] as String? ?? '',
+        plusUntil: DateTime.tryParse(
+            ((json['plus'] as Map?)?['expires'] as String?) ?? ''),
       );
 
   /// Today's free allowance left. The gateway spends it before [credits],
@@ -80,6 +88,7 @@ class GatewayAccount {
         dailyCap: dailyCap,
         dailyUsed: dailyCap - dailyRemaining,
         model: model,
+        plusUntil: plusUntil,
       );
 }
 
@@ -154,6 +163,31 @@ class GatewayRuntime implements ModelRuntime {
   void _remember(GatewayAccount account) {
     _account = account;
     _accountAt = clock();
+  }
+
+  /// Hands the gateway an App Store signed transaction (StoreKit 2's JWS) to
+  /// verify and apply: a credit pack's credits, or a subscription's daily
+  /// allowance. Safe to repeat — a transaction counts once. Returns the
+  /// balance after it. Throws [ModelFailure]: 'purchase' when the gateway
+  /// refused the transaction itself.
+  Future<GatewayAccount> purchase(String jws) async {
+    final token = await _token();
+    final request = http.Request('POST', _url('purchase'))
+      ..headers['Authorization'] = 'Bearer $token'
+      ..headers['Content-Type'] = 'application/json'
+      ..body = jsonEncode({'jws': jws});
+    final response = await _send(request);
+    if (response.statusCode == 400) {
+      String message = 'the purchase was not accepted';
+      try {
+        message = ((jsonDecode(response.body) as Map)['error'] as Map)['message'] as String;
+      } catch (_) {}
+      throw ModelFailure('purchase', message);
+    }
+    if (response.statusCode != 200) throw _failure(response);
+    final account = GatewayAccount.fromJson(jsonDecode(response.body) as Map<String, Object?>);
+    _remember(account);
+    return account;
   }
 
   /// The device's balance, registering the device first if it never has.

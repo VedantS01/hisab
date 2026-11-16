@@ -46,6 +46,34 @@ GatewayRuntime runtime(Script script, {GatewayTokenStore? tokens}) => GatewayRun
     );
 
 void main() {
+  test('a purchase posts the signed transaction and takes the new balance', () async {
+    final script = Script([
+      (_) => ok({
+            'credits': 400, 'granted': 400, 'spent': 0, 'dailyCap': 300, 'dailyUsed': 0,
+            'model': 'm', 'plus': {'product': 'com.vedants.hisab.plus.monthly', 'expires': '2026-12-14T00:00:00Z'},
+          }),
+    ]);
+    final gateway = runtime(script, tokens: MemoryTokenStore('tok'));
+    final account = await gateway.purchase('h.p.s');
+    expect(script.calls.single.url.path, '/v1/hisab/purchase');
+    expect(jsonDecode((script.calls.single as http.Request).body), {'jws': 'h.p.s'});
+    expect(account.credits, 400);
+    expect(account.plus, isTrue);
+    expect(account.plusUntil, DateTime.utc(2026, 12, 14));
+    expect(gateway.lastAccount, same(account));
+  });
+
+  test('a refused purchase is a purchase failure with the reason', () async {
+    final gateway = runtime(
+        Script([(_) => error(400, 'purchase', 'transaction was refunded')]),
+        tokens: MemoryTokenStore('tok'));
+    await expectLater(
+        gateway.purchase('h.p.s'),
+        throwsA(isA<ModelFailure>()
+            .having((f) => f.code, 'code', 'purchase')
+            .having((f) => f.message, 'message', 'transaction was refunded')));
+  });
+
   test('registers once with the app key, then reads the balance', () async {
     final tokens = MemoryTokenStore();
     final script = Script([

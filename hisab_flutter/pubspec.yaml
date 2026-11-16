@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # versionName+versionCode for Android; CFBundleShortVersionString+CFBundleVersion
 # for iOS (the Swift app shipped 1.5.0 (7), so builds continue from 8).
-version: 2.2.0+12
+version: 2.2.1+13
 
 environment:
   sdk: ^3.6.0
@@ -39,6 +39,7 @@ dependencies:
   # Android permission (merged manifest checked); the model ships in assets.
   flutter_onnxruntime: ^1.8.5
   connectivity_plus: ^7.3.2
+  in_app_purchase: ^3.3.1
 
 dev_dependencies:
   flutter_test:
